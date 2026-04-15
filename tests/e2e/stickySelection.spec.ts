@@ -12,8 +12,9 @@ test("implicit follow-up after @-addressed send still goes through", async ({ pa
   // First send: explicit @mock.
   await composer.fill("@mock first [[MOCK: tokens=hi]]");
   await composer.press("Enter");
-  await expect(page.getByText("first")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("hi", { exact: false })).toBeVisible();
+  await expect(page.getByText("first", { exact: false })).toBeVisible({ timeout: 10_000 });
+  // Assistant reply is the bubble whose entire text is exactly 'hi'.
+  await expect(page.getByText("hi", { exact: true })).toBeVisible();
 
   // Second send: no prefix at all. With sticky selection it still targets mock.
   await composer.fill("second [[MOCK: tokens=ok]]");

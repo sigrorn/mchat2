@@ -8,10 +8,13 @@ test("Enter submits, Shift+Enter inserts newline", async ({ page }) => {
   await expect(composer).toBeVisible();
 
   // Shift+Enter inserts a newline, stays in the composer.
-  await composer.fill("line one");
+  // Prefix with @mock so the eventual Enter actually targets a provider
+  // (otherwise the no-targets hint restores the text and the test
+  // would observe the restore rather than the submit).
+  await composer.fill("@mock line one");
   await composer.press("Shift+Enter");
   await composer.pressSequentially("line two");
-  await expect(composer).toHaveValue("line one\nline two");
+  await expect(composer).toHaveValue("@mock line one\nline two");
 
   // Plain Enter submits; composer clears.
   await composer.press("Enter");

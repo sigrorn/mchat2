@@ -19,6 +19,7 @@ import { keychain } from "@/lib/tauri/keychain";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
+import { selectionAfterResolve } from "./sendSelection";
 
 export function useSend(conversation: Conversation) {
   const send = useCallback(
@@ -29,6 +30,14 @@ export function useSend(conversation: Conversation) {
 
       const resolved = resolveTargets({ text, personas, selection });
       if (resolved.targets.length === 0) return { ok: false as const, reason: "no targets" };
+
+      // Sticky selection (#7): an @-addressed run replaces the sidebar
+      // selection so the next implicit follow-up still hits the same
+      // personas. Implicit sends leave selection alone.
+      if (resolved.mode !== "implicit") {
+        const nextSelection = selectionAfterResolve(resolved, selection);
+        usePersonasStore.getState().setSelection(conversation.id, nextSelection);
+      }
 
       await useMessagesStore.getState().sendUserMessage({
         conversationId: conversation.id,

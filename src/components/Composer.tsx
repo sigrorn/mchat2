@@ -15,6 +15,7 @@ const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
 export function Composer({ conversation }: { conversation: Conversation }): JSX.Element {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const { send } = useSend(conversation);
   const active =
     useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
@@ -22,10 +23,22 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const onSend = async (): Promise<void> => {
     if (!text.trim() || busy) return;
     setBusy(true);
+    setHint(null);
     const t = text;
+    // Optimistically clear so the next keystrokes don't race with a
+    // failed send. If send rejects 'no targets', we restore the text
+    // so the user doesn't lose what they typed (#7).
     setText("");
     try {
-      await send(t);
+      const result = await send(t);
+      if (!result.ok) {
+        setText(t);
+        setHint(
+          result.reason === "no targets"
+            ? "No persona selected. Use @name (or @all) to address one, then it stays sticky for follow-ups."
+            : `Could not send: ${result.reason}`,
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -50,6 +63,9 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         placeholder="Type a message. Use @alice @all @others to target personas. Enter to send, Shift+Enter for newline."
         className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
       />
+      {hint ? (
+        <div className="mt-2 text-xs text-amber-700">{hint}</div>
+      ) : null}
       <div className="mt-2 flex gap-2">
         <button
           onClick={() => void onSend()}
