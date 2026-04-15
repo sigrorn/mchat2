@@ -19,6 +19,7 @@ interface State {
   update: (c: Conversation) => Promise<void>;
   rename: (id: string, title: string) => Promise<void>;
   setLimit: (id: string, limitMarkIndex: number | null) => Promise<void>;
+  setDisplayMode: (id: string, mode: "lines" | "cols") => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -42,6 +43,15 @@ export const useConversationsStore = create<State>((set, get) => ({
     await repo.updateConversation(c);
     set({
       conversations: get().conversations.map((x) => (x.id === c.id ? c : x)),
+    });
+  },
+  async setDisplayMode(id, mode) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = { ...current, displayMode: mode };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
   },
   async setLimit(id, limitMarkIndex) {

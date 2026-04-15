@@ -130,6 +130,18 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore.getState().appendNotice(conversation.id, body);
       return;
     }
+    if (cmd.kind === "displayMode") {
+      await useConversationsStore
+        .getState()
+        .setDisplayMode(conversation.id, cmd.payload.mode);
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          conversation.id,
+          `display: switched to ${cmd.payload.mode}.`,
+        );
+      return;
+    }
     if (cmd.kind === "unpin") {
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
       const idx = indexByUserNumber(history, cmd.payload.userNumber);

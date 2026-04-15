@@ -41,6 +41,11 @@ export interface StreamRunInput {
   // Called for every event emitted (including tokens) so the UI can
   // stream without polling the DB.
   onEvent?: (e: StreamEvent) => void;
+  // When true, suppress per-token onEvent calls (#16 cols mode).
+  // Tokens still accumulate and the final UPDATE flushes content;
+  // only the live UI patching is silenced. usage/error/complete events
+  // continue to flow through onEvent.
+  bufferTokens?: boolean;
 }
 
 export interface StreamRunOutcome {
@@ -108,7 +113,12 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     for await (const e of withRetry(input.streamId, factory, input.retry ?? DEFAULT_RETRY, signal)) {
       // Drop late events from a previous attempt / cancelled run.
       if (e.streamId !== input.streamId) continue;
-      onEvent?.(e);
+      // bufferTokens (#16): in cols mode, suppress per-token onEvent
+      // so the UI doesn't see growing partial content. Other events
+      // (usage/error/complete) still flow through.
+      if (!(input.bufferTokens && e.type === "token")) {
+        onEvent?.(e);
+      }
       switch (e.type) {
         case "token":
           accumulated += e.text;

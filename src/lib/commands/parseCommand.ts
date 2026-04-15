@@ -14,6 +14,7 @@ export type ParsedCommand =
   | { kind: "pin"; payload: { rest: string } }
   | { kind: "pins"; payload: { persona: string | null } }
   | { kind: "unpin"; payload: { userNumber: number } }
+  | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
 const LIMIT_HELP =
@@ -35,6 +36,15 @@ export function parseCommand(raw: string): ParsedCommand {
   if (verb === "pin") return parsePin(arg);
   if (verb === "pins") return parsePins(arg);
   if (verb === "unpin") return parseUnpin(arg);
+  if (verb === "lines" || verb === "cols") {
+    if (arg !== "") {
+      return {
+        kind: "error",
+        message: `${verb}: this command takes no arguments.`,
+      };
+    }
+    return { kind: "displayMode", payload: { mode: verb } };
+  }
   return { kind: "noop" };
 }
 

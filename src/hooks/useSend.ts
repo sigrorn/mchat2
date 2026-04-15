@@ -71,6 +71,12 @@ export function useSend(conversation: Conversation) {
       });
       if (!plan) return { ok: false as const, reason: "no plan" };
 
+      // In cols mode every parallel/dag run buffers tokens until all
+      // siblings finish, so the columns reveal together. Single-target
+      // sends always stream, mode notwithstanding (#16).
+      const multiTarget = plan.kind !== "single";
+      const bufferTokens = conversation.displayMode === "cols" && multiTarget;
+
       const runOne = async (target: PersonaTarget): Promise<"completed" | "failed" | "cancelled"> => {
         const streamId = `${runId}:${target.key}:${Date.now()}`;
         const controller = new AbortController();
@@ -103,10 +109,12 @@ export function useSend(conversation: Conversation) {
             model: modelForTarget(target, personas),
             displayMode: conversation.displayMode,
             extraConfig,
+            bufferTokens,
             signal: controller.signal,
             onEvent: (e: StreamEvent) => {
               if (e.type === "token") {
-                // Live append to the placeholder row.
+                // Live append to the placeholder row. The runner
+                // already suppresses token events in cols-multi mode.
                 const list = useMessagesStore.getState().byConversation[conversation.id] ?? [];
                 const last = list[list.length - 1];
                 if (last && last.role === "assistant") {

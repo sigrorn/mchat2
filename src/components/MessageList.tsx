@@ -14,6 +14,7 @@ import { isPinnedToBottom } from "./scrollPin";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { isExcludedByLimit } from "@/lib/context/excluded";
 import { useConversationsStore } from "@/stores/conversationsStore";
+import { groupIntoColumns } from "@/lib/rendering/columnGroups";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -53,21 +54,67 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
     s.conversations.find((c) => c.id === conversationId),
   );
 
+  const isCols = conversation?.displayMode === "cols";
+  const items = isCols ? groupIntoColumns(messages) : messages.map((m) => ({ kind: "row" as const, message: m }));
+
   return (
     <div
       ref={containerRef}
       onScroll={onScroll}
       className="flex-1 overflow-auto bg-neutral-100 px-4 py-3"
     >
-      {messages.map((m) => (
-        <MessageBubble
-          key={m.id}
-          message={m}
-          personas={personas}
-          userNumber={userNumbers.get(m.index) ?? null}
-          excluded={conversation ? isExcludedByLimit(m, conversation) : false}
-        />
-      ))}
+      {items.map((item) => {
+        if (item.kind === "row") {
+          return (
+            <MessageBubble
+              key={item.message.id}
+              message={item.message}
+              personas={personas}
+              userNumber={userNumbers.get(item.message.index) ?? null}
+              excluded={conversation ? isExcludedByLimit(item.message, conversation) : false}
+            />
+          );
+        }
+        // Columns block (#16). One column per audience persona, in
+        // the persona-panel sortOrder. Each column shows that
+        // persona's reply, or a placeholder if absent.
+        const sortedAudience = item.audience
+          .map((id) => personas.find((p) => p.id === id))
+          .filter((p): p is Persona => !!p)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((p) => p.id);
+        const cols = sortedAudience.length > 0 ? sortedAudience : item.audience;
+        return (
+          <div
+            key={item.messages[0]?.id ?? item.audience.join(":")}
+            className="mb-3 grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}
+          >
+            {cols.map((personaKey) => {
+              const m = item.messages.find((x) => x.personaId === personaKey);
+              if (!m) {
+                return (
+                  <div
+                    key={personaKey}
+                    className="rounded border border-dashed border-neutral-300 px-3 py-2 text-xs italic text-neutral-500"
+                  >
+                    no reply
+                  </div>
+                );
+              }
+              return (
+                <MessageBubble
+                  key={m.id}
+                  message={m}
+                  personas={personas}
+                  userNumber={null}
+                  excluded={conversation ? isExcludedByLimit(m, conversation) : false}
+                />
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
