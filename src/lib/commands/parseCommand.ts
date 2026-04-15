@@ -15,7 +15,8 @@ export type ParsedCommand =
 
 const LIMIT_HELP =
   "limit: specify the user message number for the limit. " +
-  "Messages before that one will no longer be transmitted to the selected AI.";
+  "Messages before that one will no longer be transmitted to the selected AI. " +
+  "Use //limit NONE to clear the limit.";
 
 export function parseCommand(raw: string): ParsedCommand {
   const trimmed = raw.trim();
@@ -33,20 +34,23 @@ export function parseCommand(raw: string): ParsedCommand {
 
 function parseLimit(arg: string): ParsedCommand {
   if (arg === "") return { kind: "error", message: LIMIT_HELP };
-  if (arg.toLowerCase() === "all") {
+  // 'NONE' is canonical (#10); 'ALL' is kept as a backwards-compat
+  // alias because the original release shipped with that name.
+  const lc = arg.toLowerCase();
+  if (lc === "none" || lc === "all") {
     return { kind: "limit", payload: { userNumber: null } };
   }
   if (!/^-?\d+$/.test(arg)) {
     return {
       kind: "error",
-      message: `limit: '${arg}' is not a valid message number. Use //limit N or //limit ALL.`,
+      message: `limit: '${arg}' is not a valid message number. Use //limit N or //limit NONE.`,
     };
   }
   const n = Number(arg);
   if (n < 1) {
     return {
       kind: "error",
-      message: `limit: '${arg}' is not a valid message number. Use //limit N or //limit ALL.`,
+      message: `limit: '${arg}' is not a valid message number. Use //limit N or //limit NONE.`,
     };
   }
   return { kind: "limit", payload: { userNumber: n } };
