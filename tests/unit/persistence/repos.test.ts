@@ -112,6 +112,7 @@ describe("messagesRepo", () => {
       inputTokens: 0,
       outputTokens: 0,
       usageEstimated: false,
+          audience: [],
     });
     expect(m.index).toBe(7);
     const insert = calls.find((c) => c.sql.includes("INSERT INTO messages"));

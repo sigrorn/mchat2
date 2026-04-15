@@ -59,6 +59,7 @@ describe("streamRunner token persistence", () => {
         inputTokens: 0,
         outputTokens: 0,
         usageEstimated: false,
+          audience: [],
       },
     ];
     await runStream({

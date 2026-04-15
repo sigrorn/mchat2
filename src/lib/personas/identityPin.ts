@@ -70,5 +70,6 @@ export async function ensureIdentityPin(
     inputTokens: 0,
     outputTokens: 0,
     usageEstimated: false,
+    audience: [],
   });
 }

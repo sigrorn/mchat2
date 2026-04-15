@@ -193,6 +193,7 @@ const MSG_COLS = [
   "input_tokens",
   "output_tokens",
   "usage_estimated",
+  "audience",
 ];
 
 function insertNamed(table: MemTable, cols: string[], params: unknown[]): void {

@@ -80,6 +80,7 @@ export const useMessagesStore = create<State>((set, get) => ({
       inputTokens: 0,
       outputTokens: 0,
       usageEstimated: false,
+      audience: [],
     });
     get().append(m);
     return m;

@@ -28,6 +28,7 @@ interface Row {
   input_tokens?: number;
   output_tokens?: number;
   usage_estimated?: number;
+  audience?: string;
 }
 
 function rowToMessage(r: Row): Message {
@@ -57,7 +58,17 @@ function rowToMessage(r: Row): Message {
     inputTokens: r.input_tokens ?? 0,
     outputTokens: r.output_tokens ?? 0,
     usageEstimated: (r.usage_estimated ?? 0) !== 0,
+    audience: parseStringArray(r.audience ?? "[]"),
   };
+}
+
+function parseStringArray(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function listMessages(conversationId: string): Promise<Message[]> {
@@ -120,8 +131,9 @@ async function doAppend(
     `INSERT INTO messages
        (id, conversation_id, role, content, provider, model, persona_id,
         display_mode, pinned, pin_target, addressed_to, created_at, idx,
-        error_message, error_transient, input_tokens, output_tokens, usage_estimated)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        error_message, error_transient, input_tokens, output_tokens,
+        usage_estimated, audience)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       msg.id,
       msg.conversationId,
@@ -141,6 +153,7 @@ async function doAppend(
       msg.inputTokens,
       msg.outputTokens,
       msg.usageEstimated ? 1 : 0,
+      JSON.stringify(msg.audience),
     ],
   );
   return msg;
@@ -211,6 +224,7 @@ export function makeMessage(overrides: Partial<Message> & { conversationId: stri
     inputTokens: 0,
     outputTokens: 0,
     usageEstimated: false,
+    audience: [],
   };
   return { ...base, ...overrides };
 }

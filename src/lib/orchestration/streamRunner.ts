@@ -56,6 +56,12 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
 
   // Persist the empty shell up-front so the UI can render its bubble
   // and append tokens as they arrive.
+  // Audience inherits the prior user row's addressedTo (issue #4):
+  // every response to '@A @B hi' gets audience=[A,B] so either
+  // persona sees all replies in that send group on the next turn.
+  const priorUser = [...history].reverse().find((m) => m.role === "user");
+  const audience = priorUser?.addressedTo ?? [];
+
   const placeholder = await messagesRepo.appendMessage({
     conversationId: conversation.id,
     role: "assistant",
@@ -72,6 +78,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     inputTokens: 0,
     outputTokens: 0,
     usageEstimated: false,
+    audience,
   });
 
   let accumulated = "";

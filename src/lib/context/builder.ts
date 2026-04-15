@@ -74,12 +74,17 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
       continue;
     }
 
-    if (
-      m.role === "assistant" &&
-      conversation.visibilityMode === "separated" &&
-      messageKey(m) !== personaKey
-    ) {
-      continue;
+    if (m.role === "assistant" && conversation.visibilityMode === "separated") {
+      if (m.audience.length > 0) {
+        // Audience set present (issue #4): visibility is by audience
+        // membership, not by authorship. Any co-addressee sees any
+        // reply from within the same send group.
+        if (!m.audience.includes(personaKey)) continue;
+      } else if (messageKey(m) !== personaKey) {
+        // Legacy row (pre-v3 or single-target send): author-only
+        // filter. Preserves the old behavior for existing data.
+        continue;
+      }
     }
 
     if (!m.content) continue;

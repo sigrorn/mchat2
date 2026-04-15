@@ -33,6 +33,11 @@ export interface Message {
   // @-prefix. Stored as a list of persona keys. Empty = implicit
   // (current selection / all).
   addressedTo: string[];
+  // For assistant rows: the audience the response is scoped to —
+  // inherited from the user message being responded to. Drives the
+  // 'separated' visibility filter. Empty = legacy/implicit; falls
+  // back to author-only filtering so pre-v3 rows do not leak.
+  audience: string[];
   createdAt: number;
   // Monotonic conversation-local index used by the context builder
   // for limit marks and persona cutoffs. Assigned by the repository.
