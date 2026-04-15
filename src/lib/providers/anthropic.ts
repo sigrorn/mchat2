@@ -49,6 +49,11 @@ export const anthropicAdapter: ProviderAdapter = {
           "content-type": "application/json",
           "x-api-key": args.apiKey,
           "anthropic-version": VERSION,
+          // Tauri's webview has an Origin header, which makes the
+          // Anthropic API treat the request as a browser call and
+          // enforce CORS. The request still goes through Rust (not the
+          // browser), so this header is the documented opt-out.
+          "anthropic-dangerous-direct-browser-access": "true",
         },
         body: JSON.stringify(body),
       };
