@@ -7,7 +7,8 @@
 
 import { useEffect, useState } from "react";
 import type { Conversation, Persona, ProviderId } from "@/lib/types";
-import { ALL_PROVIDER_IDS, PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import { PRICING } from "@/lib/pricing/table";
 import { computePersonaCosts, formatPersonaCost } from "@/lib/pricing/personaCosts";
@@ -20,6 +21,9 @@ import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useMessagesStore } from "@/stores/messagesStore";
+
+const SELECTABLE_PROVIDER_IDS = userSelectableProviderIds(import.meta.env.DEV);
+const DEFAULT_NEW_PROVIDER: ProviderId = SELECTABLE_PROVIDER_IDS[0] ?? "claude";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 const EMPTY_SEL: readonly string[] = Object.freeze([]);
@@ -213,7 +217,7 @@ function PersonaRow({
               }}
               className="w-full rounded border border-neutral-300 px-2 py-1"
             >
-              {ALL_PROVIDER_IDS.map((id) => (
+              {SELECTABLE_PROVIDER_IDS.map((id) => (
                 <option key={id} value={id}>
                   {PROVIDER_REGISTRY[id].displayName}
                 </option>
@@ -302,7 +306,7 @@ function CreateForm({
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [provider, setProvider] = useState<ProviderId>("mock");
+  const [provider, setProvider] = useState<ProviderId>(DEFAULT_NEW_PROVIDER);
   const [productId, setProductId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -398,7 +402,7 @@ function CreateForm({
           onChange={(e) => setProvider(e.target.value as ProviderId)}
           className="w-full rounded border border-neutral-300 px-2 py-1"
         >
-          {ALL_PROVIDER_IDS.map((id) => (
+          {SELECTABLE_PROVIDER_IDS.map((id) => (
             <option key={id} value={id}>
               {PROVIDER_REGISTRY[id].displayName}
             </option>
