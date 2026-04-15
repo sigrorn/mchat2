@@ -1,0 +1,158 @@
+// ------------------------------------------------------------------
+// Component: Stream runner
+// Responsibility: Execute one send to one target. Builds the context,
+//                 creates an empty assistant message, consumes the
+//                 adapter's stream (with retry), and flushes content +
+//                 error state when it ends. Emits events to an optional
+//                 observer so stores can show live tokens.
+// Collaborators: context/builder.ts, persistence/messages.ts,
+//                providers/adapter.ts, orchestration/retryManager.ts.
+// ------------------------------------------------------------------
+
+import type {
+  Conversation,
+  Message,
+  Persona,
+  PersonaTarget,
+  ProviderId,
+  StreamEvent,
+} from "../types";
+import { buildContext } from "../context/builder";
+import type { ProviderAdapter } from "../providers/adapter";
+import { PROVIDER_REGISTRY } from "../providers/registry";
+import * as messagesRepo from "../persistence/messages";
+import { withRetry, DEFAULT_RETRY, type RetryPolicy } from "./retryManager";
+
+export interface StreamRunInput {
+  streamId: string;
+  conversation: Conversation;
+  target: PersonaTarget;
+  personas: Persona[];
+  history: Message[];
+  adapter: ProviderAdapter;
+  apiKey: string | null;
+  model: string;
+  displayMode: "lines" | "cols";
+  retry?: RetryPolicy;
+  signal?: AbortSignal;
+  // Called for every event emitted (including tokens) so the UI can
+  // stream without polling the DB.
+  onEvent?: (e: StreamEvent) => void;
+}
+
+export interface StreamRunOutcome {
+  kind: "completed" | "failed" | "cancelled";
+  messageId: string;
+  errorMessage: string | null;
+  errorTransient: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  estimated: boolean;
+}
+
+export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome> {
+  const { conversation, target, personas, history, adapter, signal, onEvent } = input;
+  const { systemPrompt, messages } = buildContext({ conversation, target, messages: history, personas });
+
+  // Persist the empty shell up-front so the UI can render its bubble
+  // and append tokens as they arrive.
+  const placeholder = await messagesRepo.appendMessage({
+    conversationId: conversation.id,
+    role: "assistant",
+    content: "",
+    provider: (target.provider satisfies ProviderId),
+    model: input.model,
+    personaId: target.personaId,
+    displayMode: input.displayMode,
+    pinned: false,
+    pinTarget: null,
+    addressedTo: [],
+    errorMessage: null,
+    errorTransient: false,
+  });
+
+  let accumulated = "";
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let estimated = false;
+  let finalError: { message: string; transient: boolean } | null = null;
+  let cancelled = false;
+
+  const factory = (): AsyncIterable<StreamEvent> => {
+    const args: Parameters<ProviderAdapter["stream"]>[0] = {
+      streamId: input.streamId,
+      model: input.model,
+      messages,
+      systemPrompt,
+      apiKey: input.apiKey,
+    };
+    if (signal) args.signal = signal;
+    return adapter.stream(args);
+  };
+
+  try {
+    for await (const e of withRetry(input.streamId, factory, input.retry ?? DEFAULT_RETRY, signal)) {
+      // Drop late events from a previous attempt / cancelled run.
+      if (e.streamId !== input.streamId) continue;
+      onEvent?.(e);
+      switch (e.type) {
+        case "token":
+          accumulated += e.text;
+          break;
+        case "usage":
+          inputTokens = e.input;
+          outputTokens = e.output;
+          estimated = e.estimated;
+          break;
+        case "error":
+          finalError = { message: e.message, transient: e.transient };
+          break;
+        case "cancelled":
+          cancelled = true;
+          break;
+        case "retrying":
+        case "complete":
+          break;
+      }
+    }
+  } catch (err) {
+    if ((err as { name?: string }).name !== "AbortError") {
+      finalError = { message: (err as Error).message, transient: false };
+    } else {
+      cancelled = true;
+    }
+  }
+
+  await messagesRepo.updateMessageContent(
+    placeholder.id,
+    accumulated,
+    finalError?.message ?? null,
+    finalError?.transient ?? false,
+  );
+
+  const kind: StreamRunOutcome["kind"] = cancelled
+    ? "cancelled"
+    : finalError
+      ? "failed"
+      : "completed";
+  return {
+    kind,
+    messageId: placeholder.id,
+    errorMessage: finalError?.message ?? null,
+    errorTransient: finalError?.transient ?? false,
+    inputTokens,
+    outputTokens,
+    estimated,
+  };
+}
+
+// Resolve the model id to use for a target: persona override, else the
+// provider default. Centralized so the send planner doesn't duplicate
+// the logic.
+export function modelForTarget(target: PersonaTarget, personas: Persona[]): string {
+  if (target.personaId) {
+    const p = personas.find((x) => x.id === target.personaId);
+    if (p?.modelOverride) return p.modelOverride;
+  }
+  return PROVIDER_REGISTRY[target.provider].defaultModel;
+}
