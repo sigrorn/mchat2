@@ -75,8 +75,29 @@ async function nextIndex(conversationId: string): Promise<number> {
   return rows[0]?.next ?? 0;
 }
 
+// Per-conversation serialization of appendMessage. Without this, parallel
+// DAG nodes all read the same MAX(idx)+1 before any has inserted and then
+// collide on the (conversation_id, idx) unique index.
+const appendChain: Map<string, Promise<unknown>> = new Map();
+
 // index, id, createdAt are assigned here so callers never race on them.
 export async function appendMessage(
+  partial: Omit<Message, "id" | "index" | "createdAt"> & {
+    id?: string;
+    createdAt?: number;
+  },
+): Promise<Message> {
+  const convId = partial.conversationId;
+  const prev = appendChain.get(convId) ?? Promise.resolve();
+  const next = prev.then(() => doAppend(partial));
+  appendChain.set(
+    convId,
+    next.catch(() => undefined),
+  );
+  return next;
+}
+
+async function doAppend(
   partial: Omit<Message, "id" | "index" | "createdAt"> & {
     id?: string;
     createdAt?: number;
