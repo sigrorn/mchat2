@@ -7,6 +7,16 @@ export { PROVIDER_REGISTRY, ALL_PROVIDER_IDS } from "./registry";
 export type { ProviderMeta } from "./registry";
 export type { ProviderAdapter, StreamArgs, ChatMessage } from "./adapter";
 export { mockAdapter } from "./mock";
+export { anthropicAdapter } from "./anthropic";
+export { geminiAdapter } from "./gemini";
+export {
+  openaiAdapter,
+  perplexityAdapter,
+  mistralAdapter,
+  apertusAdapter,
+  createOpenAICompatAdapter,
+} from "./openaiCompat";
+export { ADAPTERS, adapterFor } from "./registryOfAdapters";
 export {
   PREFIX_TO_PROVIDER,
   PROVIDER_COLORS,

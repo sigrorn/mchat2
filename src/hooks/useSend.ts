@@ -13,23 +13,12 @@ import { resolveTargets } from "@/lib/personas/resolver";
 import { planSend } from "@/lib/orchestration/sendPlanner";
 import { executeDag } from "@/lib/orchestration/dagExecutor";
 import { runStream, modelForTarget } from "@/lib/orchestration/streamRunner";
-import { mockAdapter } from "@/lib/providers/mock";
+import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
-import type { ProviderAdapter } from "@/lib/providers/adapter";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
-
-// Registry of live adapters. Only mock is wired today; real adapters
-// plug in at step 18 by extending this object.
-const ADAPTERS: Partial<Record<string, ProviderAdapter>> = {
-  mock: mockAdapter,
-};
-
-function adapterFor(provider: string): ProviderAdapter {
-  return ADAPTERS[provider] ?? mockAdapter;
-}
 
 export function useSend(conversation: Conversation) {
   const send = useCallback(
