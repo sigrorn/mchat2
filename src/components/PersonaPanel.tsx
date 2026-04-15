@@ -23,6 +23,16 @@ import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useMessagesStore } from "@/stores/messagesStore";
+import { useSendStore, type StreamStatus } from "@/stores/sendStore";
+
+const EMPTY_STATUS: Readonly<Record<string, StreamStatus>> = Object.freeze({});
+
+function statusBgClass(status: StreamStatus | undefined): string {
+  if (status === "queued") return "bg-green-50";
+  if (status === "streaming") return "bg-yellow-50";
+  if (status === "retrying") return "bg-red-50";
+  return "";
+}
 
 const SELECTABLE_PROVIDER_IDS = userSelectableProviderIds(import.meta.env.DEV);
 const DEFAULT_NEW_PROVIDER: ProviderId = SELECTABLE_PROVIDER_IDS[0] ?? "claude";
@@ -65,6 +75,7 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
             persona={p}
             selected={selection.includes(p.id)}
             cost={costs[p.id]}
+            conversationId={conversation.id}
             onToggle={() => toggle(p.id)}
             onSave={async (patch) => {
               const next = await updatePersona({ id: p.id, ...patch });
@@ -96,6 +107,7 @@ function PersonaRow({
   persona,
   selected,
   cost,
+  conversationId,
   onToggle,
   onSave,
   onDelete,
@@ -104,6 +116,7 @@ function PersonaRow({
   persona: Persona;
   selected: boolean;
   cost: CostResult | undefined;
+  conversationId: string;
   onToggle: () => void;
   onSave: (patch: {
     name?: string;
@@ -162,9 +175,15 @@ function PersonaRow({
   }, [editing, provider]);
 
   const color = persona.colorOverride ?? PROVIDER_COLORS[persona.provider];
+  // #31: subscribe to per-persona inflight status. Persona key in the
+  // store is the same id used for targeting, so look up by persona.id.
+  const status = useSendStore(
+    (s) => (s.streamStatusByConversation[conversationId] ?? EMPTY_STATUS)[persona.id],
+  );
+  const bg = statusBgClass(status);
 
   return (
-    <li className="border-b border-neutral-200 px-3 py-2">
+    <li className={`border-b border-neutral-200 px-3 py-2 transition-colors ${bg}`}>
       <div className="flex items-start gap-2">
         <input
           type="checkbox"

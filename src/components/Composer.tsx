@@ -209,7 +209,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
             onClick={onCancel}
             className="rounded border border-red-600 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
           >
-            Cancel ({active.length})
+            Cancel
           </button>
         ) : null}
       </div>

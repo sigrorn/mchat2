@@ -16,18 +16,28 @@ export interface ActiveStream {
   startedAt: number;
 }
 
+// Per-persona inflight state for the PersonaPanel row colouring (#31).
+//   queued    — DAG dependency hasn't run yet; adapter not contacted
+//   streaming — adapter open, tokens / usage flowing
+//   retrying  — last attempt failed transiently; runner is retrying
+export type StreamStatus = "queued" | "streaming" | "retrying";
+
 interface State {
   runIdByConversation: Record<string, number>;
   activeByConversation: Record<string, ActiveStream[]>;
+  streamStatusByConversation: Record<string, Record<string, StreamStatus>>;
   nextRunId: (conversationId: string) => number;
   registerStream: (conversationId: string, s: ActiveStream) => void;
   finishStream: (conversationId: string, streamId: string) => void;
   cancelAll: (conversationId: string) => void;
+  setTargetStatus: (conversationId: string, key: string, status: StreamStatus) => void;
+  clearTargetStatus: (conversationId: string, key: string) => void;
 }
 
 export const useSendStore = create<State>((set, get) => ({
   runIdByConversation: {},
   activeByConversation: {},
+  streamStatusByConversation: {},
   nextRunId(conversationId) {
     const current = get().runIdByConversation[conversationId] ?? 0;
     const next = current + 1;
@@ -59,6 +69,29 @@ export const useSendStore = create<State>((set, get) => ({
     for (const s of existing) s.controller.abort();
     set({
       activeByConversation: { ...get().activeByConversation, [conversationId]: [] },
+      streamStatusByConversation: {
+        ...get().streamStatusByConversation,
+        [conversationId]: {},
+      },
+    });
+  },
+  setTargetStatus(conversationId, key, status) {
+    const conv = get().streamStatusByConversation[conversationId] ?? {};
+    set({
+      streamStatusByConversation: {
+        ...get().streamStatusByConversation,
+        [conversationId]: { ...conv, [key]: status },
+      },
+    });
+  },
+  clearTargetStatus(conversationId, key) {
+    const conv = { ...(get().streamStatusByConversation[conversationId] ?? {}) };
+    delete conv[key];
+    set({
+      streamStatusByConversation: {
+        ...get().streamStatusByConversation,
+        [conversationId]: conv,
+      },
     });
   },
 }));

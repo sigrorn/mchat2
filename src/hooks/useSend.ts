@@ -79,6 +79,19 @@ export function useSend(conversation: Conversation) {
       const multiTarget = plan.kind !== "single";
       const bufferTokens = conversation.displayMode === "cols" && multiTarget;
 
+      // #31: mark every plan target as queued up-front. Single/parallel
+      // sends transition straight through to streaming below; only DAG
+      // runs leave personas visibly green for any meaningful duration.
+      const allTargets =
+        plan.kind === "single"
+          ? [plan.target]
+          : plan.kind === "parallel"
+            ? plan.targets
+            : Array.from(plan.plan.nodes.values()).map((n) => n.target);
+      for (const t of allTargets) {
+        useSendStore.getState().setTargetStatus(conversation.id, t.key, "queued");
+      }
+
       const runOne = async (target: PersonaTarget): Promise<"completed" | "failed" | "cancelled"> => {
         const streamId = `${runId}:${target.key}:${Date.now()}`;
         const controller = new AbortController();
@@ -88,6 +101,7 @@ export function useSend(conversation: Conversation) {
           target: target.key,
           startedAt: Date.now(),
         });
+        useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
         const apiKey = PROVIDER_REGISTRY[target.provider].requiresKey
           ? await keychain.get(PROVIDER_REGISTRY[target.provider].keychainKey)
           : null;
@@ -123,6 +137,11 @@ export function useSend(conversation: Conversation) {
             bufferTokens,
             signal: controller.signal,
             onEvent: (e: StreamEvent) => {
+              if (e.type === "retrying") {
+                useSendStore
+                  .getState()
+                  .setTargetStatus(conversation.id, target.key, "retrying");
+              }
               if (e.type === "token") {
                 // Live append to the placeholder row. The runner
                 // already suppresses token events in cols-multi mode.
@@ -139,6 +158,7 @@ export function useSend(conversation: Conversation) {
           return outcome.kind;
         } finally {
           useSendStore.getState().finishStream(conversation.id, streamId);
+          useSendStore.getState().clearTargetStatus(conversation.id, target.key);
         }
       };
 
