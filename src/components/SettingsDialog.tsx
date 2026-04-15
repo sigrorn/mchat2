@@ -9,6 +9,8 @@
 import { useEffect, useState } from "react";
 import { ALL_PROVIDER_IDS, PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
+import { getSetting, setSetting } from "@/lib/persistence/settings";
+import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 
 // Module-scope so the useEffect dependency is a stable reference —
 // otherwise every keystroke re-derives the array and re-runs the
@@ -31,10 +33,13 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
         v[id] = stored ?? "";
       }
       setValues(v);
+      const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
+      setApertusProductId(pid ?? "");
       setLoading(false);
     })().catch((e) => setError((e as Error).message));
   }, [providers]);
 
+  const [apertusProductId, setApertusProductId] = useState("");
   const [saving, setSaving] = useState(false);
   const save = async (): Promise<void> => {
     setError(null);
@@ -52,6 +57,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
           if (existing) await keychain.remove(key);
         }
       }
+      await setSetting(APERTUS_PRODUCT_ID_KEY, apertusProductId.trim());
       setSavedAt(Date.now());
     } catch (e) {
       console.error("keychain save failed", e);
@@ -108,6 +114,21 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                       {shown ? "hide" : "show"}
                     </button>
                   </div>
+                  {id === "apertus" ? (
+                    <div className="mt-2">
+                      <label className="mb-1 block text-xs text-neutral-600">
+                        Product-Id (Infomaniak account)
+                      </label>
+                      <input
+                        value={apertusProductId}
+                        onChange={(e) => setApertusProductId(e.target.value)}
+                        placeholder="e.g. 12345"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

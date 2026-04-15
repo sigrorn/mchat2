@@ -8,3 +8,7 @@
 
 // App-wide system prompt prepended above persona/conversation tier (#23).
 export const GLOBAL_SYSTEM_PROMPT_KEY = "general.systemPrompt";
+
+// Infomaniak Apertus account product id (#25). Account-level value that
+// pairs with the API key, not with any individual persona.
+export const APERTUS_PRODUCT_ID_KEY = "apertus.productId";

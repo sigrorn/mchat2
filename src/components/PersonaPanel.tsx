@@ -18,6 +18,8 @@ import { keychain } from "@/lib/tauri/keychain";
 import { createPersona, deletePersona, updatePersona, PersonaValidationError } from "@/lib/personas/service";
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
+import { getSetting } from "@/lib/persistence/settings";
+import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useMessagesStore } from "@/stores/messagesStore";
@@ -120,7 +122,6 @@ function PersonaRow({
   const [prompt, setPrompt] = useState(persona.systemPromptOverride ?? "");
   const [model, setModel] = useState(persona.modelOverride ?? "");
   const [runsAfter, setRunsAfter] = useState(persona.runsAfter ?? "");
-  const [productId, setProductId] = useState(persona.apertusProductId ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
@@ -132,7 +133,6 @@ function PersonaRow({
         systemPromptOverride: prompt ? prompt : null,
         modelOverride: model ? model : null,
         runsAfter: runsAfter ? runsAfter : null,
-        apertusProductId: provider === "apertus" ? productId.trim() || null : null,
       });
       setEditing(false);
     } catch (e) {
@@ -152,13 +152,14 @@ function PersonaRow({
       const key = PROVIDER_REGISTRY[provider].requiresKey
         ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
         : null;
-      const ids = await listModels(provider, key, { apertusProductId: productId || null });
+      const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
+      const ids = await listModels(provider, key, { apertusProductId: pid });
       if (!cancelled) setModelOptions(ids);
     })();
     return () => {
       cancelled = true;
     };
-  }, [editing, provider, productId]);
+  }, [editing, provider]);
 
   const color = persona.colorOverride ?? PROVIDER_COLORS[persona.provider];
 
@@ -224,16 +225,6 @@ function PersonaRow({
               ))}
             </select>
           </Field>
-          {provider === "apertus" ? (
-            <Field label="Product-Id (Infomaniak)">
-              <input
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
-                placeholder="e.g. 12345"
-                className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
-              />
-            </Field>
-          ) : null}
           <Field label="Model override">
             <input
               value={model}
@@ -307,7 +298,6 @@ function CreateForm({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [provider, setProvider] = useState<ProviderId>(DEFAULT_NEW_PROVIDER);
-  const [productId, setProductId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (): Promise<void> => {
@@ -319,13 +309,11 @@ function CreateForm({
         provider,
         name,
         currentMessageIndex: history.length,
-        apertusProductId: provider === "apertus" ? productId.trim() || null : null,
       });
       await ensureIdentityPin(conversationId, p, history, messagesRepo);
       await useMessagesStore.getState().load(conversationId);
       onCreated(p);
       setName("");
-      setProductId("");
       setOpen(false);
     } catch (e) {
       setError(e instanceof PersonaValidationError ? e.message : (e as Error).message);
@@ -409,16 +397,6 @@ function CreateForm({
           ))}
         </select>
       </Field>
-      {provider === "apertus" ? (
-        <Field label="Product-Id (Infomaniak)">
-          <input
-            value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-            placeholder="e.g. 12345"
-            className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
-          />
-        </Field>
-      ) : null}
       {error ? <div className="text-red-600">{error}</div> : null}
       <div className="flex gap-2">
         <button

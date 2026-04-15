@@ -60,15 +60,9 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
       throw new PersonaValidationError("unknown_parent", "runsAfter references a non-existent persona");
     }
   }
-  // Apertus is hosted by Infomaniak with a per-account product id in
-  // the URL path (#15). Without it the adapter can't construct a
-  // valid endpoint.
-  if (input.provider === "apertus" && !input.apertusProductId?.trim()) {
-    throw new PersonaValidationError(
-      "missing_apertus_product_id",
-      "Apertus personas require a Product-Id (Infomaniak account-specific).",
-    );
-  }
+  // Apertus product id used to be per-persona (#15) but is now a global
+  // setting (#25) since it's an Infomaniak account-level value. The
+  // send-time gate lives in useSend / the Apertus adapter.
   return repo.createPersona({
     conversationId: input.conversationId,
     provider: input.provider,
@@ -140,12 +134,6 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
       : current.apertusProductId;
 
   const provider = input.provider ?? current.provider;
-  if (provider === "apertus" && !apertusProductId) {
-    throw new PersonaValidationError(
-      "missing_apertus_product_id",
-      "Apertus personas require a Product-Id (Infomaniak account-specific).",
-    );
-  }
 
   const next: Persona = {
     ...current,
