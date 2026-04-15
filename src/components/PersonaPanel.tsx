@@ -5,10 +5,13 @@
 //                 (validation) and the personasStore (reactive cache).
 // ------------------------------------------------------------------
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Conversation, Persona, ProviderId } from "@/lib/types";
 import { ALL_PROVIDER_IDS, PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
+import { PRICING } from "@/lib/pricing/table";
+import { listModels } from "@/lib/providers/models";
+import { keychain } from "@/lib/tauri/keychain";
 import { createPersona, deletePersona, updatePersona, PersonaValidationError } from "@/lib/personas/service";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useMessagesStore } from "@/stores/messagesStore";
@@ -76,6 +79,7 @@ function PersonaRow({
   onToggle: () => void;
   onSave: (patch: {
     name?: string;
+    provider?: ProviderId;
     systemPromptOverride?: string | null;
     modelOverride?: string | null;
     runsAfter?: string | null;
@@ -85,6 +89,7 @@ function PersonaRow({
 }): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(persona.name);
+  const [provider, setProvider] = useState<ProviderId>(persona.provider);
   const [prompt, setPrompt] = useState(persona.systemPromptOverride ?? "");
   const [model, setModel] = useState(persona.modelOverride ?? "");
   const [runsAfter, setRunsAfter] = useState(persona.runsAfter ?? "");
@@ -95,6 +100,7 @@ function PersonaRow({
     try {
       await onSave({
         name,
+        provider,
         systemPromptOverride: prompt ? prompt : null,
         modelOverride: model ? model : null,
         runsAfter: runsAfter ? runsAfter : null,
@@ -104,6 +110,26 @@ function PersonaRow({
       setError(e instanceof PersonaValidationError ? e.message : (e as Error).message);
     }
   };
+
+  const [modelOptions, setModelOptions] = useState<string[]>(() =>
+    Object.keys(PRICING[provider] ?? {}),
+  );
+  const modelListId = `models-${persona.id}`;
+
+  useEffect(() => {
+    if (!editing) return;
+    let cancelled = false;
+    void (async () => {
+      const key = PROVIDER_REGISTRY[provider].requiresKey
+        ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
+        : null;
+      const ids = await listModels(provider, key);
+      if (!cancelled) setModelOptions(ids);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, provider]);
 
   const color = persona.colorOverride ?? PROVIDER_COLORS[persona.provider];
 
@@ -122,8 +148,8 @@ function PersonaRow({
           style={{ backgroundColor: color }}
         />
         <div className="flex-1">
-          <div className="text-sm font-medium">{persona.name}</div>
-          <div className="text-xs text-neutral-500">
+          <div className="text-sm font-medium text-neutral-900">{persona.name}</div>
+          <div className="text-xs text-neutral-600">
             {persona.provider}
             {persona.modelOverride ? ` · ${persona.modelOverride}` : ""}
             {persona.runsAfter ? ` · after ${labelFor(persona.runsAfter, allPersonas)}` : ""}
@@ -145,21 +171,35 @@ function PersonaRow({
               className="w-full rounded border border-neutral-300 px-2 py-1"
             />
           </Field>
-          <Field label="System prompt">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={3}
-              className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
-            />
+          <Field label="Provider">
+            <select
+              value={provider}
+              onChange={(e) => {
+                setProvider(e.target.value as ProviderId);
+                setModel("");
+              }}
+              className="w-full rounded border border-neutral-300 px-2 py-1"
+            >
+              {ALL_PROVIDER_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {PROVIDER_REGISTRY[id].displayName}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Model override">
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder={PROVIDER_REGISTRY[persona.provider].defaultModel}
+              list={modelListId}
+              placeholder={PROVIDER_REGISTRY[provider].defaultModel}
               className="w-full rounded border border-neutral-300 px-2 py-1"
             />
+            <datalist id={modelListId}>
+              {modelOptions.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
           </Field>
           <Field label="Runs after">
             <select
@@ -176,6 +216,14 @@ function PersonaRow({
                   </option>
                 ))}
             </select>
+          </Field>
+          <Field label="System prompt">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={3}
+              className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
+            />
           </Field>
           {error ? <div className="text-red-600">{error}</div> : null}
           <div className="flex gap-2">

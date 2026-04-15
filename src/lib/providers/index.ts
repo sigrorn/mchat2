@@ -17,6 +17,7 @@ export {
   createOpenAICompatAdapter,
 } from "./openaiCompat";
 export { ADAPTERS, adapterFor } from "./registryOfAdapters";
+export { listModels } from "./models";
 export {
   PREFIX_TO_PROVIDER,
   PROVIDER_COLORS,

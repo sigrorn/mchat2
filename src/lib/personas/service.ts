@@ -74,6 +74,10 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
 export interface UpdatePersonaInput {
   id: PersonaId;
   name?: string;
+  // Reassigning provider is allowed but affects subsequent sends only —
+  // historical assistant rows keep their original provider tag so past
+  // cost accounting and visibility filtering remain correct.
+  provider?: ProviderId;
   systemPromptOverride?: string | null;
   modelOverride?: string | null;
   colorOverride?: string | null;
@@ -119,6 +123,7 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     ...current,
     name,
     nameSlug: slug,
+    provider: input.provider ?? current.provider,
     systemPromptOverride:
       input.systemPromptOverride !== undefined
         ? input.systemPromptOverride
