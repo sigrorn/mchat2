@@ -25,6 +25,9 @@ interface Row {
   idx: number;
   error_message: string | null;
   error_transient: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  usage_estimated?: number;
 }
 
 function rowToMessage(r: Row): Message {
@@ -51,6 +54,9 @@ function rowToMessage(r: Row): Message {
     index: r.idx,
     errorMessage: r.error_message,
     errorTransient: r.error_transient !== 0,
+    inputTokens: r.input_tokens ?? 0,
+    outputTokens: r.output_tokens ?? 0,
+    usageEstimated: (r.usage_estimated ?? 0) !== 0,
   };
 }
 
@@ -114,8 +120,8 @@ async function doAppend(
     `INSERT INTO messages
        (id, conversation_id, role, content, provider, model, persona_id,
         display_mode, pinned, pin_target, addressed_to, created_at, idx,
-        error_message, error_transient)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        error_message, error_transient, input_tokens, output_tokens, usage_estimated)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       msg.id,
       msg.conversationId,
@@ -132,6 +138,9 @@ async function doAppend(
       msg.index,
       msg.errorMessage,
       msg.errorTransient ? 1 : 0,
+      msg.inputTokens,
+      msg.outputTokens,
+      msg.usageEstimated ? 1 : 0,
     ],
   );
   return msg;
@@ -147,6 +156,21 @@ export async function updateMessageContent(
   await sql.execute(
     "UPDATE messages SET content = ?, error_message = ?, error_transient = ? WHERE id = ?",
     [content, errorMessage, errorTransient ? 1 : 0, id],
+  );
+}
+
+// Separate UPDATE so the big content flush and the small token-counts
+// write can migrate independently (and so the streamRunner test can
+// assert on the token-writing statement without grepping the same SQL).
+export async function updateMessageUsage(
+  id: string,
+  inputTokens: number,
+  outputTokens: number,
+  usageEstimated: boolean,
+): Promise<void> {
+  await sql.execute(
+    "UPDATE messages SET input_tokens = ?, output_tokens = ?, usage_estimated = ? WHERE id = ?",
+    [inputTokens, outputTokens, usageEstimated ? 1 : 0, id],
   );
 }
 
@@ -184,6 +208,9 @@ export function makeMessage(overrides: Partial<Message> & { conversationId: stri
     index: 0,
     errorMessage: null,
     errorTransient: false,
+    inputTokens: 0,
+    outputTokens: 0,
+    usageEstimated: false,
   };
   return { ...base, ...overrides };
 }

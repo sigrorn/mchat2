@@ -77,6 +77,9 @@ export const useMessagesStore = create<State>((set, get) => ({
       addressedTo,
       errorMessage: null,
       errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
     });
     get().append(m);
     return m;

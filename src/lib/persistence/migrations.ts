@@ -67,6 +67,12 @@ export const MIGRATIONS: string[][] = [
       value  TEXT NOT NULL
     )`,
   ],
+  // 2 — token accounting columns on messages (issue #2)
+  [
+    `ALTER TABLE messages ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE messages ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE messages ADD COLUMN usage_estimated INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version

@@ -77,6 +77,18 @@ function memSql() {
         }
         return { rowsAffected: 1, lastInsertId: null };
       }
+      if (/^UPDATE messages SET input_tokens/.test(q)) {
+        const r = messages.rows.find((x) => x.id === p[3]);
+        if (r) {
+          r.input_tokens = p[0];
+          r.output_tokens = p[1];
+          r.usage_estimated = p[2];
+        }
+        return { rowsAffected: 1, lastInsertId: null };
+      }
+      if (/^ALTER TABLE messages/.test(q)) {
+        return { rowsAffected: 0, lastInsertId: null };
+      }
       if (/^INSERT INTO settings/.test(q)) {
         const [key, value] = p as [string, string];
         const r = settings.rows.find((x) => x.key === key);
@@ -178,6 +190,9 @@ const MSG_COLS = [
   "idx",
   "error_message",
   "error_transient",
+  "input_tokens",
+  "output_tokens",
+  "usage_estimated",
 ];
 
 function insertNamed(table: MemTable, cols: string[], params: unknown[]): void {

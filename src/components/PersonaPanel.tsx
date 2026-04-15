@@ -10,6 +10,8 @@ import type { Conversation, Persona, ProviderId } from "@/lib/types";
 import { ALL_PROVIDER_IDS, PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import { PRICING } from "@/lib/pricing/table";
+import { computePersonaCosts, formatPersonaCost } from "@/lib/pricing/personaCosts";
+import type { CostResult } from "@/lib/pricing/estimator";
 import { listModels } from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
 import { createPersona, deletePersona, updatePersona, PersonaValidationError } from "@/lib/personas/service";
@@ -19,12 +21,17 @@ import { useMessagesStore } from "@/stores/messagesStore";
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 const EMPTY_SEL: readonly string[] = Object.freeze([]);
 
+const EMPTY_MESSAGES: readonly import("@/lib/types").Message[] = Object.freeze([]);
+
 export function PersonaPanel({ conversation }: { conversation: Conversation }): JSX.Element {
   const personas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
   const selection = usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
+  const messages =
+    useMessagesStore((s) => s.byConversation[conversation.id]) ?? EMPTY_MESSAGES;
   const upsert = usePersonasStore((s) => s.upsert);
   const remove = usePersonasStore((s) => s.remove);
   const setSelection = usePersonasStore((s) => s.setSelection);
+  const costs = computePersonaCosts(messages, personas);
 
   const toggle = (id: string): void => {
     const next = selection.includes(id) ? selection.filter((x) => x !== id) : [...selection, id];
@@ -42,6 +49,7 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
             key={p.id}
             persona={p}
             selected={selection.includes(p.id)}
+            cost={costs[p.id]}
             onToggle={() => toggle(p.id)}
             onSave={async (patch) => {
               const next = await updatePersona({ id: p.id, ...patch });
@@ -69,6 +77,7 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
 function PersonaRow({
   persona,
   selected,
+  cost,
   onToggle,
   onSave,
   onDelete,
@@ -76,6 +85,7 @@ function PersonaRow({
 }: {
   persona: Persona;
   selected: boolean;
+  cost: CostResult | undefined;
   onToggle: () => void;
   onSave: (patch: {
     name?: string;
@@ -148,7 +158,15 @@ function PersonaRow({
           style={{ backgroundColor: color }}
         />
         <div className="flex-1">
-          <div className="text-sm font-medium text-neutral-900">{persona.name}</div>
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-sm font-medium text-neutral-900">{persona.name}</div>
+            <div
+              className="text-xs tabular-nums text-neutral-600"
+              title={cost?.approximate ? "approximate" : undefined}
+            >
+              {formatPersonaCost(cost)}
+            </div>
+          </div>
           <div className="text-xs text-neutral-600">
             {persona.provider}
             {persona.modelOverride ? ` · ${persona.modelOverride}` : ""}

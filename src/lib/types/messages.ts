@@ -40,4 +40,11 @@ export interface Message {
   // Error info for failed assistant rows. Null for normal completions.
   errorMessage: string | null;
   errorTransient: boolean;
+  // Usage accounting populated by streamRunner on completion. Zero on
+  // user/system rows and on pre-v2 rows predating the migration.
+  inputTokens: number;
+  outputTokens: number;
+  // True when the adapter had to approximate usage (no server-reported
+  // counts). Surfaces via the '~' prefix in cost displays.
+  usageEstimated: boolean;
 }

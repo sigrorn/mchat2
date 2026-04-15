@@ -69,6 +69,9 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     addressedTo: [],
     errorMessage: null,
     errorTransient: false,
+    inputTokens: 0,
+    outputTokens: 0,
+    usageEstimated: false,
   });
 
   let accumulated = "";
@@ -129,6 +132,9 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     finalError?.message ?? null,
     finalError?.transient ?? false,
   );
+  if (inputTokens > 0 || outputTokens > 0) {
+    await messagesRepo.updateMessageUsage(placeholder.id, inputTokens, outputTokens, estimated);
+  }
 
   const kind: StreamRunOutcome["kind"] = cancelled
     ? "cancelled"
