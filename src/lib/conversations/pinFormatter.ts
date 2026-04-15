@@ -34,7 +34,7 @@ export function formatPinsNotice(
     const n = userNumbers.get(m.index);
     const numLabel = n !== undefined ? `[${n}] ` : "";
     const targets = pinTargetLabel(m, personaById);
-    lines.push(`${numLabel}${targets}: ${m.content}`);
+    lines.push(`${numLabel}${targets} ${m.content}`);
   }
   if (lines.length === 0) {
     return filterPersonaName === null
