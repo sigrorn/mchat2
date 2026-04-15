@@ -11,7 +11,8 @@ test("//limit N marks earlier rows as excluded via data-excluded='true'", async 
   for (const word of ["alpha", "beta", "gamma"]) {
     await composer.fill(`@mock ${word} [[MOCK: tokens=${word}]]`);
     await composer.press("Enter");
-    await expect(page.getByText(word, { exact: false })).toBeVisible({ timeout: 10_000 });
+    // Assistant reply is the bubble whose entire text is exactly the word.
+    await expect(page.getByText(word, { exact: true })).toBeVisible({ timeout: 10_000 });
   }
 
   await composer.fill("//limit 3");

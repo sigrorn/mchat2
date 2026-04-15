@@ -12,6 +12,8 @@ import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import type { Message, Persona } from "@/lib/types";
 import { isPinnedToBottom } from "./scrollPin";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
+import { isExcludedByLimit } from "@/lib/context/excluded";
+import { useConversationsStore } from "@/stores/conversationsStore";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -47,6 +49,9 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
   });
 
   const userNumbers = userNumberByIndex(messages);
+  const conversation = useConversationsStore((s) =>
+    s.conversations.find((c) => c.id === conversationId),
+  );
 
   return (
     <div
@@ -60,6 +65,7 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
           message={m}
           personas={personas}
           userNumber={userNumbers.get(m.index) ?? null}
+          excluded={conversation ? isExcludedByLimit(m, conversation) : false}
         />
       ))}
     </div>
@@ -70,10 +76,12 @@ function MessageBubble({
   message,
   personas,
   userNumber,
+  excluded,
 }: {
   message: Message;
   personas: readonly Persona[];
   userNumber: number | null;
+  excluded: boolean;
 }): JSX.Element {
   // Notice rows (#8): UI-only info/error from in-app commands. Visually
   // distinct, italicized, never reach the LLM.
@@ -105,11 +113,19 @@ function MessageBubble({
   } else {
     headerParts.push(message.role);
   }
+  // Excluded rows (#9): muted background + slightly dimmed text so the
+  // user can see at a glance which bubbles are below the limit mark
+  // and won't reach the LLM. Pinned rows are not marked excluded
+  // because they survive the cut.
+  const bubbleBg = excluded
+    ? "bg-neutral-200/60 text-neutral-700"
+    : isAssistant
+      ? "bg-white"
+      : "bg-blue-50";
   return (
     <div
-      className={`mb-3 rounded border-l-4 px-3 py-2 text-neutral-900 shadow-sm ${
-        isAssistant ? "bg-white" : "bg-blue-50"
-      }`}
+      data-excluded={excluded ? "true" : undefined}
+      className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
       <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">
@@ -118,7 +134,11 @@ function MessageBubble({
       {message.errorMessage ? (
         <div className="text-sm text-red-700">error: {message.errorMessage}</div>
       ) : (
-        <div className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-900">
+        <div
+          className={`whitespace-pre-wrap text-sm leading-relaxed ${
+            excluded ? "text-neutral-600" : "text-neutral-900"
+          }`}
+        >
           {message.content}
         </div>
       )}
