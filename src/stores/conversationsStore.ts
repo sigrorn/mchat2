@@ -17,6 +17,7 @@ interface State {
   select: (id: string | null) => void;
   create: (init: Omit<Conversation, "id" | "createdAt">) => Promise<Conversation>;
   update: (c: Conversation) => Promise<void>;
+  rename: (id: string, title: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -40,6 +41,17 @@ export const useConversationsStore = create<State>((set, get) => ({
     await repo.updateConversation(c);
     set({
       conversations: get().conversations.map((x) => (x.id === c.id ? c : x)),
+    });
+  },
+  async rename(id, title) {
+    const trimmed = title.trim();
+    if (!trimmed) throw new Error("Title cannot be empty");
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = { ...current, title: trimmed };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
   },
   async remove(id) {
