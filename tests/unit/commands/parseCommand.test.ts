@@ -98,4 +98,24 @@ describe("parseCommand", () => {
     expect(parseCommand("//unpin 0").kind).toBe("error");
     expect(parseCommand("//unpin -1").kind).toBe("error");
   });
+
+  // Display mode — issue #16.
+  it("//lines (no arg) → displayMode lines", () => {
+    expect(parseCommand("//lines")).toEqual({
+      kind: "displayMode",
+      payload: { mode: "lines" },
+    });
+  });
+
+  it("//cols (no arg) → displayMode cols", () => {
+    expect(parseCommand("//cols")).toEqual({
+      kind: "displayMode",
+      payload: { mode: "cols" },
+    });
+  });
+
+  it("//lines with extra args → error", () => {
+    expect(parseCommand("//lines foo").kind).toBe("error");
+    expect(parseCommand("//cols 5").kind).toBe("error");
+  });
 });
