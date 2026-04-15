@@ -36,13 +36,6 @@ export function Sidebar(): JSX.Element {
       >
         New conversation
       </button>
-      <button
-        onClick={() => setSettingsOpen(true)}
-        className="mx-2 mb-2 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
-      >
-        Settings · API keys
-      </button>
-      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       <ul className="flex-1 overflow-auto">
         {conversations.map((c) => (
           <li key={c.id}>
@@ -73,6 +66,13 @@ export function Sidebar(): JSX.Element {
           </li>
         ))}
       </ul>
+      <button
+        onClick={() => setSettingsOpen(true)}
+        className="mx-2 mb-2 mt-2 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
+      >
+        Settings · API keys
+      </button>
+      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
     </aside>
   );
 }

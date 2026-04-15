@@ -45,6 +45,10 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
       <header className="border-b border-neutral-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-600">
         Personas
       </header>
+      <CreateForm
+        conversationId={conversation.id}
+        onCreated={(p) => upsert(p)}
+      />
       <ul className="flex-1 overflow-auto">
         {personas.map((p) => (
           <PersonaRow
@@ -75,10 +79,6 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
           <li className="px-3 py-3 text-xs text-neutral-500">No personas yet.</li>
         ) : null}
       </ul>
-      <CreateForm
-        conversationId={conversation.id}
-        onCreated={(p) => upsert(p)}
-      />
     </aside>
   );
 }
@@ -309,14 +309,14 @@ function CreateForm({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="border-t border-neutral-200 px-3 py-2 text-left text-xs text-neutral-600 hover:bg-neutral-100"
+        className="border-b border-neutral-200 px-3 py-2 text-left text-xs text-neutral-600 hover:bg-neutral-100"
       >
         + Add persona
       </button>
     );
   }
   return (
-    <div className="space-y-2 border-t border-neutral-200 px-3 py-2 text-xs">
+    <div className="space-y-2 border-b border-neutral-200 px-3 py-2 text-xs">
       <Field label="Name">
         <input
           autoFocus
