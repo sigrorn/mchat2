@@ -24,12 +24,12 @@ function persona(id: string, name: string): Persona {
 describe("formatUserHeader", () => {
   const personas = [persona("p_alice", "Alice"), persona("p_bob", "Bob")];
 
-  it("plain user when no number and no addressedTo", () => {
-    expect(formatUserHeader(null, [], personas)).toBe("user");
+  it("appends \u2192 @all when no addressedTo and no number", () => {
+    expect(formatUserHeader(null, [], personas)).toBe("user \u2192 @all");
   });
 
-  it("includes [N] prefix when number provided", () => {
-    expect(formatUserHeader(3, [], personas)).toBe("[3] user");
+  it("appends \u2192 @all when [N] is set but no addressedTo (#28)", () => {
+    expect(formatUserHeader(3, [], personas)).toBe("[3] user \u2192 @all");
   });
 
   it("appends → @name list when addressedTo present", () => {
@@ -44,5 +44,9 @@ describe("formatUserHeader", () => {
 
   it("works without [N] prefix when only addressedTo present", () => {
     expect(formatUserHeader(null, ["p_alice"], personas)).toBe("user \u2192 @Alice");
+  });
+
+  it("renders explicit @-list rather than @all when targets named (#28)", () => {
+    expect(formatUserHeader(5, ["p_alice"], personas)).toBe("[5] user \u2192 @Alice");
   });
 });
