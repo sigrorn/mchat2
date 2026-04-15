@@ -10,6 +10,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
+import { PersonaPanel } from "./PersonaPanel";
 
 export function ChatView(): JSX.Element {
   const currentId = useConversationsStore((s) => s.currentId);
@@ -33,12 +34,15 @@ export function ChatView(): JSX.Element {
     );
   }
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <header className="border-b border-neutral-200 px-4 py-2 text-sm font-medium">
-        {conversation.title}
-      </header>
-      <MessageList conversationId={conversation.id} />
-      <Composer conversation={conversation} />
+    <div className="flex h-full flex-1">
+      <div className="flex flex-1 flex-col">
+        <header className="border-b border-neutral-200 px-4 py-2 text-sm font-medium">
+          {conversation.title}
+        </header>
+        <MessageList conversationId={conversation.id} />
+        <Composer conversation={conversation} />
+      </div>
+      <PersonaPanel conversation={conversation} />
     </div>
   );
 }
