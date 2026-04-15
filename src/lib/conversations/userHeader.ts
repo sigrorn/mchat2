@@ -14,7 +14,7 @@ export function formatUserHeader(
   personas: readonly Persona[],
 ): string {
   const prefix = userNumber !== null ? `[${userNumber}] user` : "user";
-  if (addressedTo.length === 0) return prefix;
+  if (addressedTo.length === 0) return `${prefix} \u2192 @all`;
   const names = addressedTo.map((id) => {
     const p = personas.find((x) => x.id === id);
     return p ? `@${p.name}` : `@${id}`;
