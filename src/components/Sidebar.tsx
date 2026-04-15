@@ -4,9 +4,12 @@
 //                 presentation — drives the conversationsStore.
 // ------------------------------------------------------------------
 
+import { useState } from "react";
 import { useConversationsStore } from "@/stores/conversationsStore";
+import { SettingsDialog } from "./SettingsDialog";
 
 export function Sidebar(): JSX.Element {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const conversations = useConversationsStore((s) => s.conversations);
   const currentId = useConversationsStore((s) => s.currentId);
   const select = useConversationsStore((s) => s.select);
@@ -31,12 +34,19 @@ export function Sidebar(): JSX.Element {
       >
         New conversation
       </button>
+      <button
+        onClick={() => setSettingsOpen(true)}
+        className="mx-2 mb-2 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
+      >
+        Settings · API keys
+      </button>
+      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       <ul className="flex-1 overflow-auto">
         {conversations.map((c) => (
           <li key={c.id}>
             <button
               onClick={() => select(c.id)}
-              className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-neutral-200 ${
+              className={`block w-full truncate px-3 py-2 text-left text-sm text-neutral-900 hover:bg-neutral-200 ${
                 currentId === c.id ? "bg-neutral-200 font-medium" : ""
               }`}
             >

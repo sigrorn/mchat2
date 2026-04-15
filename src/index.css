@@ -7,3 +7,37 @@ body,
 #root {
   height: 100%;
 }
+
+/* Force a readable light theme regardless of OS color-scheme.
+   Tailwind v3 preflight doesn't set body color, so dark-mode browsers
+   (including Tauri's webview on a dark OS) render near-white text on
+   white inputs by default. */
+html {
+  color-scheme: light;
+}
+body {
+  background-color: #ffffff;
+  color: #111827;
+}
+
+/* Tailwind preflight sets button { color: inherit } but some Chromium
+   versions still darken disabled states unpredictably. Lock in explicit
+   colors so unstyled buttons and list rows stay readable. */
+button {
+  color: inherit;
+}
+
+/* Force readable colors on form controls regardless of OS color-scheme.
+   Tailwind's preflight resets background but not color, so dark-mode
+   browsers render white-on-white inputs by default. */
+input,
+textarea,
+select {
+  color: #111827;
+  background-color: #ffffff;
+  color-scheme: light;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}
