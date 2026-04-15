@@ -87,6 +87,31 @@ describe("formatPinsNotice", () => {
     expect(formatPinsNotice([], personas, "nobody")).toBeNull();
   });
 
+  it("renders one pin per line, no colon between target and content (#19)", () => {
+    const messages: Message[] = [
+      makeMessage({
+        conversationId: "c_1",
+        role: "user",
+        content: "for alice",
+        index: 0,
+        pinned: true,
+        addressedTo: ["p_alice"],
+      }),
+      makeMessage({
+        conversationId: "c_1",
+        role: "user",
+        content: "for everyone",
+        index: 1,
+        pinned: true,
+        addressedTo: [],
+      }),
+    ];
+    const out = formatPinsNotice(messages, personas, null);
+    expect(out).toBe(
+      ["Pinned messages:", "[1] @Alice for alice", "[2] @all for everyone"].join("\n"),
+    );
+  });
+
   it("identity pins (single pinTarget, empty addressedTo) included", () => {
     const messages: Message[] = [
       makeMessage({
