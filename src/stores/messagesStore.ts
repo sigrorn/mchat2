@@ -1,0 +1,84 @@
+// ------------------------------------------------------------------
+// Component: Messages store
+// Responsibility: Per-conversation message list. Supports in-place
+//                 updates for streaming tokens so React renders one
+//                 bubble growing instead of a new array each token.
+// Collaborators: persistence/messages.ts, orchestration/streamRunner.
+// ------------------------------------------------------------------
+
+import { create } from "zustand";
+import type { Message } from "@/lib/types";
+import * as repo from "@/lib/persistence/messages";
+
+interface State {
+  byConversation: Record<string, Message[]>;
+  load: (conversationId: string) => Promise<void>;
+  append: (m: Message) => void;
+  patchContent: (conversationId: string, messageId: string, content: string) => void;
+  patchError: (
+    conversationId: string,
+    messageId: string,
+    errorMessage: string | null,
+    errorTransient: boolean,
+  ) => void;
+  sendUserMessage: (args: {
+    conversationId: string;
+    content: string;
+    addressedTo: string[];
+  }) => Promise<Message>;
+}
+
+export const useMessagesStore = create<State>((set, get) => ({
+  byConversation: {},
+  async load(conversationId) {
+    const list = await repo.listMessages(conversationId);
+    set({ byConversation: { ...get().byConversation, [conversationId]: list } });
+  },
+  append(m) {
+    const existing = get().byConversation[m.conversationId] ?? [];
+    set({
+      byConversation: {
+        ...get().byConversation,
+        [m.conversationId]: [...existing, m],
+      },
+    });
+  },
+  patchContent(conversationId, messageId, content) {
+    const existing = get().byConversation[conversationId] ?? [];
+    set({
+      byConversation: {
+        ...get().byConversation,
+        [conversationId]: existing.map((m) => (m.id === messageId ? { ...m, content } : m)),
+      },
+    });
+  },
+  patchError(conversationId, messageId, errorMessage, errorTransient) {
+    const existing = get().byConversation[conversationId] ?? [];
+    set({
+      byConversation: {
+        ...get().byConversation,
+        [conversationId]: existing.map((m) =>
+          m.id === messageId ? { ...m, errorMessage, errorTransient } : m,
+        ),
+      },
+    });
+  },
+  async sendUserMessage({ conversationId, content, addressedTo }) {
+    const m = await repo.appendMessage({
+      conversationId,
+      role: "user",
+      content,
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo,
+      errorMessage: null,
+      errorTransient: false,
+    });
+    get().append(m);
+    return m;
+  },
+}));

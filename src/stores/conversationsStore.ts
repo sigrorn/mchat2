@@ -1,0 +1,52 @@
+// ------------------------------------------------------------------
+// Component: Conversations store
+// Responsibility: Reactive list + selection. Every mutation goes
+//                 through conversationsRepo; the store only caches.
+// Collaborators: persistence/conversations.ts.
+// ------------------------------------------------------------------
+
+import { create } from "zustand";
+import type { Conversation } from "@/lib/types";
+import * as repo from "@/lib/persistence/conversations";
+
+interface State {
+  conversations: Conversation[];
+  currentId: string | null;
+  loaded: boolean;
+  load: () => Promise<void>;
+  select: (id: string | null) => void;
+  create: (init: Omit<Conversation, "id" | "createdAt">) => Promise<Conversation>;
+  update: (c: Conversation) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+}
+
+export const useConversationsStore = create<State>((set, get) => ({
+  conversations: [],
+  currentId: null,
+  loaded: false,
+  async load() {
+    const list = await repo.listConversations();
+    set({ conversations: list, loaded: true });
+  },
+  select(id) {
+    set({ currentId: id });
+  },
+  async create(init) {
+    const c = await repo.createConversation(init);
+    set({ conversations: [c, ...get().conversations], currentId: c.id });
+    return c;
+  },
+  async update(c) {
+    await repo.updateConversation(c);
+    set({
+      conversations: get().conversations.map((x) => (x.id === c.id ? c : x)),
+    });
+  },
+  async remove(id) {
+    await repo.deleteConversation(id);
+    set({
+      conversations: get().conversations.filter((x) => x.id !== id),
+      currentId: get().currentId === id ? null : get().currentId,
+    });
+  },
+}));
