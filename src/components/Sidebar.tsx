@@ -8,6 +8,10 @@ import { useEffect, useRef, useState } from "react";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { SettingsDialog } from "./SettingsDialog";
 import { ContextMenu } from "./ContextMenu";
+import { exportConversationToHtml } from "@/lib/conversations/exportToFile";
+import * as messagesRepo from "@/lib/persistence/messages";
+import * as personasRepo from "@/lib/persistence/personas";
+import { useMessagesStore } from "@/stores/messagesStore";
 
 interface MenuPos {
   id: string;
@@ -36,6 +40,28 @@ export function Sidebar(): JSX.Element {
       displayMode: "lines",
       visibilityMode: "separated",
     });
+  };
+
+  const exportConversation = async (id: string): Promise<void> => {
+    const conv = conversations.find((c) => c.id === id);
+    if (!conv) return;
+    // Pull historical personas (includeDeleted=true) so assistant rows
+    // authored by since-removed personas still render with the right
+    // names in the export.
+    const [messages, personas] = await Promise.all([
+      messagesRepo.listMessages(id),
+      personasRepo.listPersonas(id, true),
+    ]);
+    const r = await exportConversationToHtml({
+      conversation: conv,
+      messages,
+      personas,
+      generatedAt: new Date().toISOString(),
+    });
+    if (r.ok) {
+      await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
+    }
+    // Cancellation is silent — the user dismissed the dialog on purpose.
   };
 
   return (
@@ -108,6 +134,12 @@ export function Sidebar(): JSX.Element {
             {
               label: "Rename",
               onSelect: () => setEditingId(menu.id),
+            },
+            {
+              label: "Export to HTML",
+              onSelect: () => {
+                void exportConversation(menu.id);
+              },
             },
             {
               label: "Delete",
