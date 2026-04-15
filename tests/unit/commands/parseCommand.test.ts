@@ -62,4 +62,40 @@ describe("parseCommand", () => {
     expect(parseCommand("//limit 0").kind).toBe("error");
     expect(parseCommand("//limit -3").kind).toBe("error");
   });
+
+  // Pin family — issue #11.
+  it("//pin <targets> <body> → pin command with the raw remainder", () => {
+    const r = parseCommand("//pin @claudio @gepetto do that");
+    expect(r).toEqual({ kind: "pin", payload: { rest: "@claudio @gepetto do that" } });
+  });
+
+  it("//pin without arguments → error", () => {
+    expect(parseCommand("//pin").kind).toBe("error");
+    expect(parseCommand("//pin   ").kind).toBe("error");
+  });
+
+  it("//pins (no arg) → list", () => {
+    expect(parseCommand("//pins")).toEqual({ kind: "pins", payload: { persona: null } });
+  });
+
+  it("//pins <name> → list filtered to persona", () => {
+    expect(parseCommand("//pins claudio")).toEqual({
+      kind: "pins",
+      payload: { persona: "claudio" },
+    });
+  });
+
+  it("//unpin N → unpin with numeric payload", () => {
+    expect(parseCommand("//unpin 5")).toEqual({ kind: "unpin", payload: { userNumber: 5 } });
+  });
+
+  it("//unpin without args → error", () => {
+    expect(parseCommand("//unpin").kind).toBe("error");
+  });
+
+  it("//unpin garbage → error", () => {
+    expect(parseCommand("//unpin foo").kind).toBe("error");
+    expect(parseCommand("//unpin 0").kind).toBe("error");
+    expect(parseCommand("//unpin -1").kind).toBe("error");
+  });
 });
