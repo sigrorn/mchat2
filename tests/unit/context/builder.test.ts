@@ -28,6 +28,7 @@ function persona(over: Partial<Persona> = {}): Persona {
     sortOrder: 0,
     runsAfter: null,
     deletedAt: null,
+    apertusProductId: null,
     ...over,
   };
 }

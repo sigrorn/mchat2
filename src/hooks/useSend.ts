@@ -84,6 +84,13 @@ export function useSend(conversation: Conversation) {
           ? await keychain.get(PROVIDER_REGISTRY[target.provider].keychainKey)
           : null;
         const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+        // Adapter-specific config from the resolved persona (#15).
+        // Currently only Apertus reads this; other adapters ignore it.
+        const persona = target.personaId
+          ? personas.find((p) => p.id === target.personaId)
+          : null;
+        const extraConfig: Record<string, unknown> = {};
+        if (persona?.apertusProductId) extraConfig.productId = persona.apertusProductId;
         try {
           const outcome = await runStream({
             streamId,
@@ -95,6 +102,7 @@ export function useSend(conversation: Conversation) {
             apiKey,
             model: modelForTarget(target, personas),
             displayMode: conversation.displayMode,
+            extraConfig,
             signal: controller.signal,
             onEvent: (e: StreamEvent) => {
               if (e.type === "token") {

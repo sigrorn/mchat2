@@ -77,6 +77,10 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE messages ADD COLUMN audience TEXT NOT NULL DEFAULT '[]'`,
   ],
+  // 4 — Apertus product id on personas (issue #15).
+  [
+    `ALTER TABLE personas ADD COLUMN apertus_product_id TEXT`,
+  ],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version

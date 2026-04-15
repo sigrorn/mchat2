@@ -18,6 +18,7 @@ function persona(id: string, provider: Persona["provider"] = "claude"): Persona 
     sortOrder: 0,
     runsAfter: null,
     deletedAt: null,
+    apertusProductId: null,
   };
 }
 

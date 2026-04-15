@@ -35,6 +35,9 @@ export interface StreamRunInput {
   displayMode: "lines" | "cols";
   retry?: RetryPolicy;
   signal?: AbortSignal;
+  // Adapter-specific runtime config (e.g. Apertus productId from the
+  // persona). Passed through to adapter.stream as args.extraConfig.
+  extraConfig?: Record<string, unknown>;
   // Called for every event emitted (including tokens) so the UI can
   // stream without polling the DB.
   onEvent?: (e: StreamEvent) => void;
@@ -97,6 +100,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
       apiKey: input.apiKey,
     };
     if (signal) args.signal = signal;
+    if (input.extraConfig) args.extraConfig = input.extraConfig;
     return adapter.stream(args);
   };
 

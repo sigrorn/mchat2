@@ -21,6 +21,7 @@ interface Row {
   sort_order: number;
   runs_after: string | null;
   deleted_at: number | null;
+  apertus_product_id?: string | null;
 }
 
 function rowToPersona(r: Row): Persona {
@@ -37,6 +38,7 @@ function rowToPersona(r: Row): Persona {
     sortOrder: r.sort_order,
     runsAfter: r.runs_after,
     deletedAt: r.deleted_at,
+    apertusProductId: r.apertus_product_id ?? null,
   };
 }
 
@@ -64,8 +66,9 @@ export async function createPersona(
     `INSERT INTO personas
        (id, conversation_id, provider, name, name_slug,
         system_prompt_override, model_override, color_override,
-        created_at_message_index, sort_order, runs_after, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        created_at_message_index, sort_order, runs_after, deleted_at,
+        apertus_product_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       p.id,
       p.conversationId,
@@ -79,6 +82,7 @@ export async function createPersona(
       p.sortOrder,
       p.runsAfter,
       p.deletedAt,
+      p.apertusProductId,
     ],
   );
   return p;
@@ -89,7 +93,8 @@ export async function updatePersona(p: Persona): Promise<void> {
     `UPDATE personas SET
        provider = ?, name = ?, name_slug = ?,
        system_prompt_override = ?, model_override = ?, color_override = ?,
-       sort_order = ?, runs_after = ?, deleted_at = ?
+       sort_order = ?, runs_after = ?, deleted_at = ?,
+       apertus_product_id = ?
      WHERE id = ?`,
     [
       p.provider,
@@ -101,6 +106,7 @@ export async function updatePersona(p: Persona): Promise<void> {
       p.sortOrder,
       p.runsAfter,
       p.deletedAt,
+      p.apertusProductId,
       p.id,
     ],
   );

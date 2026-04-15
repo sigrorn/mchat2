@@ -173,6 +173,7 @@ const PERSONA_COLS = [
   "sort_order",
   "runs_after",
   "deleted_at",
+  "apertus_product_id",
 ];
 const MSG_COLS = [
   "id",

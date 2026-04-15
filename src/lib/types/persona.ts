@@ -34,6 +34,10 @@ export interface Persona {
   runsAfter: PersonaId | null;
   // Tombstone (ms epoch). Null = active.
   deletedAt: number | null;
+  // Provider-specific config. Currently only Apertus uses this — its
+  // base URL embeds a per-persona Product-Id (#15). A second provider
+  // with knobs would justify refactoring this to a JSON blob.
+  apertusProductId: string | null;
 }
 
 // How the user's send intent was resolved.

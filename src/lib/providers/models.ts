@@ -28,25 +28,33 @@ const TTL_MS = 10 * 60_000;
 export async function listModels(
   provider: ProviderId,
   apiKey: string | null,
+  extra?: { apertusProductId?: string | null },
 ): Promise<string[]> {
-  const cached = cache.get(provider);
+  // Cache key: provider + productId for Apertus, since different
+  // products list different models.
+  const cacheKey = provider === "apertus" ? `apertus:${extra?.apertusProductId ?? ""}` : provider;
+  const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.ids;
 
   const fallback = Object.keys(PRICING[provider] ?? {});
   if (!apiKey) return fallback;
 
   try {
-    const ids = await fetchProviderModels(provider, apiKey);
+    const ids = await fetchProviderModels(provider, apiKey, extra);
     if (ids.length === 0) return fallback;
     const sorted = [...new Set(ids)].sort();
-    cache.set(provider, { at: Date.now(), ids: sorted });
+    cache.set(cacheKey, { at: Date.now(), ids: sorted });
     return sorted;
   } catch {
     return fallback;
   }
 }
 
-async function fetchProviderModels(provider: ProviderId, apiKey: string): Promise<string[]> {
+async function fetchProviderModels(
+  provider: ProviderId,
+  apiKey: string,
+  extra?: { apertusProductId?: string | null },
+): Promise<string[]> {
   switch (provider) {
     case "openai":
       return openAICompatList("https://api.openai.com/v1/models", apiKey);
@@ -56,8 +64,14 @@ async function fetchProviderModels(provider: ProviderId, apiKey: string): Promis
       return [];
     case "mistral":
       return openAICompatList("https://api.mistral.ai/v1/models", apiKey);
-    case "apertus":
-      return openAICompatList("https://api.apertus.swiss/v1/models", apiKey);
+    case "apertus": {
+      const pid = extra?.apertusProductId?.trim();
+      if (!pid) return [];
+      return openAICompatList(
+        `https://api.infomaniak.com/2/ai/${encodeURIComponent(pid)}/openai/v1/models`,
+        apiKey,
+      );
+    }
     case "claude":
       return anthropicList(apiKey);
     case "gemini":

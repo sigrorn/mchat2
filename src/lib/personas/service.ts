@@ -20,7 +20,8 @@ export class PersonaValidationError extends Error {
       | "name_in_use"
       | "cycle"
       | "unknown_parent"
-      | "not_found",
+      | "not_found"
+      | "missing_apertus_product_id",
     message: string,
   ) {
     super(message);
@@ -38,6 +39,7 @@ export interface CreatePersonaInput {
   runsAfter?: PersonaId | null;
   currentMessageIndex: number;
   sortOrder?: number;
+  apertusProductId?: string | null;
 }
 
 export async function createPersona(input: CreatePersonaInput): Promise<Persona> {
@@ -56,6 +58,15 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
       throw new PersonaValidationError("unknown_parent", "runsAfter references a non-existent persona");
     }
   }
+  // Apertus is hosted by Infomaniak with a per-account product id in
+  // the URL path (#15). Without it the adapter can't construct a
+  // valid endpoint.
+  if (input.provider === "apertus" && !input.apertusProductId?.trim()) {
+    throw new PersonaValidationError(
+      "missing_apertus_product_id",
+      "Apertus personas require a Product-Id (Infomaniak account-specific).",
+    );
+  }
   return repo.createPersona({
     conversationId: input.conversationId,
     provider: input.provider,
@@ -68,6 +79,7 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     sortOrder: input.sortOrder ?? existing.length,
     runsAfter: input.runsAfter ?? null,
     deletedAt: null,
+    apertusProductId: input.apertusProductId?.trim() || null,
   });
 }
 
@@ -83,6 +95,7 @@ export interface UpdatePersonaInput {
   colorOverride?: string | null;
   runsAfter?: PersonaId | null;
   sortOrder?: number;
+  apertusProductId?: string | null;
 }
 
 export async function updatePersona(input: UpdatePersonaInput): Promise<Persona> {
@@ -119,11 +132,24 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     }
   }
 
+  const apertusProductId =
+    input.apertusProductId !== undefined
+      ? input.apertusProductId?.trim() || null
+      : current.apertusProductId;
+
+  const provider = input.provider ?? current.provider;
+  if (provider === "apertus" && !apertusProductId) {
+    throw new PersonaValidationError(
+      "missing_apertus_product_id",
+      "Apertus personas require a Product-Id (Infomaniak account-specific).",
+    );
+  }
+
   const next: Persona = {
     ...current,
     name,
     nameSlug: slug,
-    provider: input.provider ?? current.provider,
+    provider,
     systemPromptOverride:
       input.systemPromptOverride !== undefined
         ? input.systemPromptOverride
@@ -132,6 +158,7 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     colorOverride: input.colorOverride !== undefined ? input.colorOverride : current.colorOverride,
     runsAfter: input.runsAfter !== undefined ? input.runsAfter : current.runsAfter,
     sortOrder: input.sortOrder ?? current.sortOrder,
+    apertusProductId,
   };
   await repo.updatePersona(next);
   return next;

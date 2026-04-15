@@ -10,7 +10,8 @@ import type { ProviderAdapter } from "./adapter";
 import type { ProviderId } from "../types";
 import { mockAdapter } from "./mock";
 import { anthropicAdapter } from "./anthropic";
-import { openaiAdapter, perplexityAdapter, mistralAdapter, apertusAdapter } from "./openaiCompat";
+import { openaiAdapter, perplexityAdapter, mistralAdapter } from "./openaiCompat";
+import { apertusAdapter } from "./apertus";
 import { geminiAdapter } from "./gemini";
 
 export const ADAPTERS: Record<ProviderId, ProviderAdapter> = {

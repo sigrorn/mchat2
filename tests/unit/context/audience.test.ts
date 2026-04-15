@@ -29,6 +29,7 @@ function persona(id: string): Persona {
     sortOrder: 0,
     runsAfter: null,
     deletedAt: null,
+    apertusProductId: null,
   };
 }
 

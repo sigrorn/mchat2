@@ -29,6 +29,7 @@ function makeMemSql() {
           sort_order,
           runs_after,
           deleted_at,
+          apertus_product_id,
         ] = p as (string | number | null)[];
         rows.set(String(id), {
           id: String(id),
@@ -43,6 +44,7 @@ function makeMemSql() {
           sortOrder: Number(sort_order),
           runsAfter: runs_after as string | null,
           deletedAt: deleted_at as number | null,
+          apertusProductId: (apertus_product_id as string | null) ?? null,
         });
       } else if (q.startsWith("UPDATE personas SET\n       provider")) {
         const [
@@ -55,6 +57,7 @@ function makeMemSql() {
           sort_order,
           runs_after,
           deleted_at,
+          apertus_product_id,
           id,
         ] = p as (string | number | null)[];
         const r = rows.get(String(id));
@@ -68,6 +71,7 @@ function makeMemSql() {
           r.sortOrder = Number(sort_order);
           r.runsAfter = runs_after as string | null;
           r.deletedAt = deleted_at as number | null;
+          r.apertusProductId = (apertus_product_id as string | null) ?? null;
         }
       } else if (q.startsWith("UPDATE personas SET deleted_at")) {
         const [at, id] = p as (string | number)[];
@@ -111,6 +115,7 @@ function toRow(p: Persona) {
     sort_order: p.sortOrder,
     runs_after: p.runsAfter,
     deleted_at: p.deletedAt,
+    apertus_product_id: p.apertusProductId,
   };
 }
 

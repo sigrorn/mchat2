@@ -28,6 +28,9 @@ export interface StreamArgs {
   // cache it. Mock adapter ignores this.
   apiKey: string | null;
   signal?: AbortSignal;
+  // Provider-specific runtime config carried from the resolved
+  // persona. Apertus reads .productId; other adapters ignore it.
+  extraConfig?: Record<string, unknown>;
 }
 
 export interface ProviderAdapter {

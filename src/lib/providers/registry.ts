@@ -77,7 +77,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     id: "apertus",
     displayName: "Apertus",
     prefix: "apertus",
-    defaultModel: "apertus-70b",
+    defaultModel: "swiss-ai/Apertus-70B-Instruct-2509",
     color: "#8b5cf6",
     keychainKey: "apertus_api_key",
     requiresKey: true,

@@ -13,9 +13,9 @@ export {
   openaiAdapter,
   perplexityAdapter,
   mistralAdapter,
-  apertusAdapter,
   createOpenAICompatAdapter,
 } from "./openaiCompat";
+export { apertusAdapter } from "./apertus";
 export { ADAPTERS, adapterFor } from "./registryOfAdapters";
 export { listModels } from "./models";
 export {

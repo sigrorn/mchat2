@@ -40,7 +40,10 @@ export const PRICING: PricingTable = {
     "mistral-large-latest": { inputUsdPerMTok: 2, outputUsdPerMTok: 6 },
   },
   apertus: {
-    "apertus-70b": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+    "swiss-ai/Apertus-70B-Instruct-2509": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+    "openai/gpt-oss-120b": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+    "Llama-3.3-70B-Instruct": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+    "Mistral-Small-3.2-24B-Instruct-2506": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
   },
   mock: {
     "mock-1": { inputUsdPerMTok: 0, outputUsdPerMTok: 0 },

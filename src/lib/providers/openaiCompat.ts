@@ -118,10 +118,5 @@ export const mistralAdapter = createOpenAICompatAdapter({
   url: "https://api.mistral.ai/v1/chat/completions",
 });
 
-// Apertus is a Swiss-hosted OpenAI-compatible inference endpoint
-// (base URL subject to change; revisit when we ship). Stubbed at the
-// public-facing shape so the registry compiles end-to-end.
-export const apertusAdapter = createOpenAICompatAdapter({
-  id: "apertus",
-  url: "https://api.apertus.swiss/v1/chat/completions",
-});
+// Apertus is hosted by Infomaniak with a per-account Product-Id in
+// the URL path, so it can't share this factory. See providers/apertus.ts.
