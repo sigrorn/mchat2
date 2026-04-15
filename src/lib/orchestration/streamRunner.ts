@@ -156,6 +156,23 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     }
   }
 
+  // #26/#27: a 'silent' stream (no tokens, no usage, no explicit error,
+  // no cancellation) leaves a blank assistant bubble with no signal
+  // about what failed. Treat it as a failure so the user sees a
+  // diagnostic rather than wondering whether the request even left.
+  if (
+    !cancelled &&
+    !finalError &&
+    accumulated === "" &&
+    inputTokens === 0 &&
+    outputTokens === 0
+  ) {
+    finalError = {
+      message: "adapter produced no response (no tokens, no usage, no error)",
+      transient: false,
+    };
+  }
+
   await messagesRepo.updateMessageContent(
     placeholder.id,
     accumulated,
