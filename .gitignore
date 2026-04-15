@@ -52,3 +52,4 @@ playwright/.cache/
 *.db-journal
 *.sqlite
 *.sqlite-journal
+src-tauri/gen/
