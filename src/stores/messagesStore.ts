@@ -26,6 +26,7 @@ interface State {
     content: string;
     addressedTo: string[];
   }) => Promise<Message>;
+  appendNotice: (conversationId: string, content: string) => Promise<Message>;
 }
 
 export const useMessagesStore = create<State>((set, get) => ({
@@ -75,6 +76,28 @@ export const useMessagesStore = create<State>((set, get) => ({
       pinned: false,
       pinTarget: null,
       addressedTo,
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
+    get().append(m);
+    return m;
+  },
+  async appendNotice(conversationId, content) {
+    const m = await repo.appendMessage({
+      conversationId,
+      role: "notice",
+      content,
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
       errorMessage: null,
       errorTransient: false,
       inputTokens: 0,

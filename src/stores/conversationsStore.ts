@@ -18,6 +18,7 @@ interface State {
   create: (init: Omit<Conversation, "id" | "createdAt">) => Promise<Conversation>;
   update: (c: Conversation) => Promise<void>;
   rename: (id: string, title: string) => Promise<void>;
+  setLimit: (id: string, limitMarkIndex: number | null) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -41,6 +42,15 @@ export const useConversationsStore = create<State>((set, get) => ({
     await repo.updateConversation(c);
     set({
       conversations: get().conversations.map((x) => (x.id === c.id ? c : x)),
+    });
+  },
+  async setLimit(id, limitMarkIndex) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = { ...current, limitMarkIndex };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
   },
   async rename(id, title) {

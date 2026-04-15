@@ -62,7 +62,7 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
 
   const out: ChatMessage[] = [];
   for (const m of messages) {
-    if (m.role === "system") continue;
+    if (m.role === "system" || m.role === "notice") continue;
     if (m.role === "assistant" && m.errorMessage !== null) continue;
 
     if (limitMark !== null && m.index < limitMark && !m.pinned) continue;

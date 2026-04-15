@@ -8,6 +8,10 @@ import { useState } from "react";
 import type { Conversation } from "@/lib/types";
 import { useSend } from "@/hooks/useSend";
 import { useSendStore, type ActiveStream } from "@/stores/sendStore";
+import { useMessagesStore } from "@/stores/messagesStore";
+import { useConversationsStore } from "@/stores/conversationsStore";
+import { parseCommand } from "@/lib/commands/parseCommand";
+import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMessageNumber";
 import { shouldSubmit } from "./composerKeys";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
@@ -25,11 +29,15 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
     setBusy(true);
     setHint(null);
     const t = text;
-    // Optimistically clear so the next keystrokes don't race with a
-    // failed send. If send rejects 'no targets', we restore the text
-    // so the user doesn't lose what they typed (#7).
     setText("");
     try {
+      // Intercept in-app commands BEFORE the send pipeline. Commands
+      // never reach an LLM and never become user-role rows.
+      const cmd = parseCommand(t);
+      if (cmd.kind !== "noop") {
+        await runCommand(t, cmd);
+        return;
+      }
       const result = await send(t);
       if (!result.ok) {
         setText(t);
@@ -41,6 +49,39 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       }
     } finally {
       setBusy(false);
+    }
+  };
+
+  const runCommand = async (
+    raw: string,
+    cmd: ReturnType<typeof parseCommand>,
+  ): Promise<void> => {
+    if (cmd.kind === "error") {
+      await useMessagesStore.getState().appendNotice(conversation.id, cmd.message);
+      setText(raw);
+      return;
+    }
+    if (cmd.kind === "limit") {
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const target = cmd.payload.userNumber;
+      if (target === null) {
+        // //limit ALL — clear the limit.
+        await useConversationsStore.getState().setLimit(conversation.id, null);
+        return;
+      }
+      const idx = indexByUserNumber(history, target);
+      if (idx === null) {
+        const total = userMessageCount(history);
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `limit: message ${target} does not exist (conversation has ${total} user message${total === 1 ? "" : "s"}).`,
+          );
+        setText(raw);
+        return;
+      }
+      await useConversationsStore.getState().setLimit(conversation.id, idx);
     }
   };
 

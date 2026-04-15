@@ -11,6 +11,7 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import type { Message, Persona } from "@/lib/types";
 import { isPinnedToBottom } from "./scrollPin";
+import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -45,6 +46,8 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
     el.scrollTop = el.scrollHeight;
   });
 
+  const userNumbers = userNumberByIndex(messages);
+
   return (
     <div
       ref={containerRef}
@@ -52,7 +55,12 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
       className="flex-1 overflow-auto bg-neutral-100 px-4 py-3"
     >
       {messages.map((m) => (
-        <MessageBubble key={m.id} message={m} personas={personas} />
+        <MessageBubble
+          key={m.id}
+          message={m}
+          personas={personas}
+          userNumber={userNumbers.get(m.index) ?? null}
+        />
       ))}
     </div>
   );
@@ -61,10 +69,24 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
 function MessageBubble({
   message,
   personas,
+  userNumber,
 }: {
   message: Message;
   personas: readonly Persona[];
+  userNumber: number | null;
 }): JSX.Element {
+  // Notice rows (#8): UI-only info/error from in-app commands. Visually
+  // distinct, italicized, never reach the LLM.
+  if (message.role === "notice") {
+    return (
+      <div
+        role="note"
+        className="mb-3 rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm italic text-amber-900 shadow-sm"
+      >
+        {message.content}
+      </div>
+    );
+  }
   const isAssistant = message.role === "assistant";
   const persona = message.personaId ? personas.find((p) => p.id === message.personaId) : null;
   const color = isAssistant
@@ -76,6 +98,10 @@ function MessageBubble({
     else headerParts.push("assistant");
     if (message.provider) headerParts.push(message.provider);
     if (message.model) headerParts.push(message.model);
+  } else if (message.role === "user") {
+    // [N] prefix is display-only — never written to message.content,
+    // never sent to the LLM, never in exports.
+    headerParts.push(userNumber !== null ? `[${userNumber}] user` : "user");
   } else {
     headerParts.push(message.role);
   }

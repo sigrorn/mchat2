@@ -6,7 +6,10 @@
 
 import type { ProviderId } from "./providers";
 
-export type Role = "user" | "assistant" | "system";
+// 'notice' is a UI-only row: rendered in the chat stream for the user
+// but always excluded from context projections. Used for command
+// errors and info messages that must never reach an LLM.
+export type Role = "user" | "assistant" | "system" | "notice";
 
 // How multi-target assistant output is laid out in the UI.
 // "lines" = interleaved, streaming per-token.
