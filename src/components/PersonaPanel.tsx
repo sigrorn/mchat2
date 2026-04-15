@@ -15,6 +15,8 @@ import type { CostResult } from "@/lib/pricing/estimator";
 import { listModels } from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
 import { createPersona, deletePersona, updatePersona, PersonaValidationError } from "@/lib/personas/service";
+import { ensureIdentityPin } from "@/lib/personas/identityPin";
+import * as messagesRepo from "@/lib/persistence/messages";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 
@@ -54,6 +56,13 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
             onSave={async (patch) => {
               const next = await updatePersona({ id: p.id, ...patch });
               upsert(next);
+              // If the rename changed the name, refresh the identity
+              // pin in-place so the LLM hears the new name on next send.
+              if (patch.name && patch.name !== p.name) {
+                const history = await messagesRepo.listMessages(conversation.id);
+                await ensureIdentityPin(conversation.id, next, history, messagesRepo);
+                await useMessagesStore.getState().load(conversation.id);
+              }
             }}
             onDelete={async () => {
               await deletePersona(p.id);
@@ -286,6 +295,8 @@ function CreateForm({
         name,
         currentMessageIndex: history.length,
       });
+      await ensureIdentityPin(conversationId, p, history, messagesRepo);
+      await useMessagesStore.getState().load(conversationId);
       onCreated(p);
       setName("");
       setOpen(false);

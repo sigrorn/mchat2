@@ -1,4 +1,6 @@
 export { slugify } from "./slug";
+export { buildIdentityPinContent, ensureIdentityPin } from "./identityPin";
+export type { IdentityPinRepo } from "./identityPin";
 export { resolveTargets } from "./resolver";
 export type { ResolveInput, ResolveResult } from "./resolver";
 export {
