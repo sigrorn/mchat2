@@ -17,9 +17,28 @@ describe("parseCommand", () => {
     });
   });
 
-  it("//limit ALL (case-insensitive) → clear", () => {
+  it("//limit NONE (case-insensitive) → clear", () => {
+    expect(parseCommand("//limit NONE")).toEqual({
+      kind: "limit",
+      payload: { userNumber: null },
+    });
+    expect(parseCommand("//limit none")).toEqual({
+      kind: "limit",
+      payload: { userNumber: null },
+    });
+  });
+
+  it("//limit ALL kept as a backwards-compat alias", () => {
     expect(parseCommand("//limit ALL")).toEqual({ kind: "limit", payload: { userNumber: null } });
     expect(parseCommand("//limit all")).toEqual({ kind: "limit", payload: { userNumber: null } });
+  });
+
+  it("help text mentions NONE", () => {
+    const r = parseCommand("//limit");
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") {
+      expect(r.message).toMatch(/NONE/);
+    }
   });
 
   it("//limit with no argument → error with help text", () => {
