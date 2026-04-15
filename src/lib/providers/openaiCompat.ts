@@ -34,7 +34,17 @@ export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdap
       const messages = args.systemPrompt
         ? [{ role: "system", content: args.systemPrompt }, ...args.messages]
         : args.messages;
-      const body = { model: args.model, stream: true, messages };
+      // stream_options.include_usage opts into a final SSE chunk that
+       // carries prompt/completion token counts (#12). Without it,
+       // OpenAI-style streams omit usage entirely and we'd have to
+       // estimate from message lengths. OpenAI-compat servers that
+       // don't recognize the field ignore it harmlessly.
+      const body = {
+        model: args.model,
+        stream: true,
+        stream_options: { include_usage: true },
+        messages,
+      };
       let inputTokens = 0;
       let outputTokens = 0;
       try {
