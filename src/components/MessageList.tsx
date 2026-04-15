@@ -9,8 +9,11 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import type { Message } from "@/lib/types";
 
+const EMPTY: readonly Message[] = Object.freeze([]);
+
 export function MessageList({ conversationId }: { conversationId: string }): JSX.Element {
-  const messages = useMessagesStore((s) => s.byConversation[conversationId] ?? []);
+  const messages =
+    useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
   return (
     <div className="flex-1 overflow-auto px-4 py-3">
       {messages.map((m) => (

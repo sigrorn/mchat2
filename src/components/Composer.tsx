@@ -7,13 +7,16 @@
 import { useState } from "react";
 import type { Conversation } from "@/lib/types";
 import { useSend } from "@/hooks/useSend";
-import { useSendStore } from "@/stores/sendStore";
+import { useSendStore, type ActiveStream } from "@/stores/sendStore";
+
+const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
 
 export function Composer({ conversation }: { conversation: Conversation }): JSX.Element {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const { send } = useSend(conversation);
-  const active = useSendStore((s) => s.activeByConversation[conversation.id] ?? []);
+  const active =
+    useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
 
   const onSend = async (): Promise<void> => {
     if (!text.trim() || busy) return;
