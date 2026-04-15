@@ -15,6 +15,7 @@ import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { isExcludedByLimit } from "@/lib/context/excluded";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { groupIntoColumns } from "@/lib/rendering/columnGroups";
+import { formatUserHeader } from "@/lib/conversations/userHeader";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -156,7 +157,7 @@ function MessageBubble({
   } else if (message.role === "user") {
     // [N] prefix is display-only — never written to message.content,
     // never sent to the LLM, never in exports.
-    headerParts.push(userNumber !== null ? `[${userNumber}] user` : "user");
+    headerParts.push(formatUserHeader(userNumber, message.addressedTo, personas));
   } else {
     headerParts.push(message.role);
   }
