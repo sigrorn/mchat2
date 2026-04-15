@@ -8,6 +8,7 @@ import { useState } from "react";
 import type { Conversation } from "@/lib/types";
 import { useSend } from "@/hooks/useSend";
 import { useSendStore, type ActiveStream } from "@/stores/sendStore";
+import { shouldSubmit } from "./composerKeys";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
 
@@ -40,10 +41,13 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void onSend();
+          if (shouldSubmit(e)) {
+            e.preventDefault();
+            void onSend();
+          }
         }}
         rows={3}
-        placeholder="Type a message. Use @alice @all @others to target personas. Ctrl+Enter to send."
+        placeholder="Type a message. Use @alice @all @others to target personas. Enter to send, Shift+Enter for newline."
         className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
       />
       <div className="mt-2 flex gap-2">
