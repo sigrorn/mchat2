@@ -33,7 +33,9 @@ test("Delete needs a confirm step and removes the conversation", async ({ page }
   await page.getByRole("button", { name: "New conversation" }).first().click();
   await page.getByRole("button", { name: "New conversation" }).first().click();
   // Two rows now.
-  const rows = page.locator("aside ul li");
+  // First aside is the sidebar; second is the persona panel which has
+  // its own ul/li ('No personas yet.') that we don't want to count.
+  const rows = page.locator("aside").first().locator("ul li");
   await expect(rows).toHaveCount(2);
 
   // Right-click the first row, choose Delete, then Cancel — count unchanged.
