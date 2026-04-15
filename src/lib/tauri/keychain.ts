@@ -34,57 +34,61 @@ const defaultImpl: KeychainImpl = {
     const { store, sh } = await openStore();
     await store.insert(key, Array.from(new TextEncoder().encode(value)));
     await sh.save();
-    await trackKey(key, true);
   },
   async remove(key) {
     const { store, sh } = await openStore();
     await store.remove(key);
     await sh.save();
-    await trackKey(key, false);
   },
+  // Stronghold's Store has no enumeration API. list() returns empty
+  // because no caller actually needs it — the settings dialog queries
+  // specific keys by provider. If we ever need enumeration, add a
+  // parallel JSON index blob and save it alongside each mutation.
   async list() {
-    // Stronghold's Store has no enumeration API. We maintain a parallel
-    // index blob under a reserved key so list() can return known keys
-    // without leaking the values themselves.
-    const { store } = await openStore();
-    const raw = await store.get(INDEX_KEY).catch(() => null);
-    if (!raw) return [];
-    try {
-      return JSON.parse(new TextDecoder().decode(new Uint8Array(raw))) as string[];
-    } catch {
-      return [];
-    }
+    return [];
   },
 };
 
-const INDEX_KEY = "__mchat2_index__";
+// Cache the promise, not the result, so concurrent callers all await
+// the same initialization instead of racing to create separate vaults.
+let cachedHandle: Promise<{ sh: StrongholdInstance; store: StrongholdStore }> | null = null;
 
-async function trackKey(key: string, present: boolean): Promise<void> {
-  if (key === INDEX_KEY) return;
-  const { store, sh } = await openStore();
-  const raw = await store.get(INDEX_KEY).catch(() => null);
-  let keys: string[] = [];
-  if (raw) {
-    try {
-      keys = JSON.parse(new TextDecoder().decode(new Uint8Array(raw))) as string[];
-    } catch {
-      keys = [];
-    }
-  }
-  const set = new Set(keys);
-  if (present) set.add(key);
-  else set.delete(key);
-  await store.insert(INDEX_KEY, Array.from(new TextEncoder().encode(JSON.stringify([...set]))));
-  await sh.save();
+function openStore(): Promise<{ sh: StrongholdInstance; store: StrongholdStore }> {
+  if (cachedHandle) return cachedHandle;
+  cachedHandle = doOpenStore().catch((e) => {
+    // Allow a retry on next call if initialization failed.
+    cachedHandle = null;
+    throw e;
+  });
+  return cachedHandle;
 }
 
-async function openStore(): Promise<{ sh: StrongholdInstance; store: StrongholdStore }> {
+async function doOpenStore(): Promise<{ sh: StrongholdInstance; store: StrongholdStore }> {
+  const log = (step: string, ...rest: unknown[]): void => console.log("[keychain]", step, ...rest);
+
   const { Stronghold } = await import("@tauri-apps/plugin-stronghold");
   const { appDataDir } = await import("@tauri-apps/api/path");
-  const vaultPath = `${await appDataDir()}/mchat2.stronghold`;
+  const { mkdir, exists } = await import("@tauri-apps/plugin-fs");
+
+  const dir = await appDataDir();
+  log("appDataDir", dir);
+  if (!(await exists(dir))) {
+    log("creating app data dir");
+    await mkdir(dir, { recursive: true });
+  }
+  const vaultPath = `${dir}/mchat2.stronghold`;
+  log("loading stronghold", vaultPath);
   const sh = (await Stronghold.load(vaultPath, VAULT_CLIENT)) as unknown as StrongholdInstance;
-  const client =
-    (await sh.loadClient(VAULT_CLIENT).catch(() => null)) ?? (await sh.createClient(VAULT_CLIENT));
+  log("stronghold loaded, loading client");
+  let client: StrongholdClient;
+  try {
+    client = await sh.loadClient(VAULT_CLIENT);
+    log("client loaded");
+  } catch (e) {
+    log("loadClient failed, creating", e);
+    client = await sh.createClient(VAULT_CLIENT);
+    log("client created");
+  }
   return { sh, store: client.getStore() };
 }
 
