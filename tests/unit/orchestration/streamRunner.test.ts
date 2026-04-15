@@ -92,6 +92,54 @@ describe("runStream", () => {
     expect(events.map((e) => e.type)).toContain("token");
   });
 
+  it("treats a silent run (no tokens, no usage, no error) as failed (#26/#27)", async () => {
+    const rec = makeSqlRecorder();
+    const silentAdapter = {
+      id: "mock" as const,
+      // eslint-disable-next-line require-yield
+      async *stream(): AsyncIterable<StreamEvent> {
+        // emit nothing — adapter just exits
+      },
+    };
+    const outcome = await runStream({
+      streamId: "s1",
+      conversation: CONV,
+      target: target(),
+      personas: [],
+      history: [
+        {
+          id: "m0",
+          conversationId: "c_1",
+          role: "user",
+          content: "hi",
+          provider: null,
+          model: null,
+          personaId: null,
+          displayMode: "lines",
+          pinned: false,
+          pinTarget: null,
+          addressedTo: [],
+          createdAt: 0,
+          index: 0,
+          errorMessage: null,
+          errorTransient: false,
+          inputTokens: 0,
+          outputTokens: 0,
+          usageEstimated: false,
+          audience: [],
+        },
+      ],
+      adapter: silentAdapter,
+      apiKey: null,
+      model: "mock-1",
+      displayMode: "lines",
+      retry: { maxAttempts: 1, initialDelayMs: 0, backoffFactor: 1, maxDelayMs: 0 },
+    });
+    expect(outcome.kind).toBe("failed");
+    expect(outcome.errorMessage).toMatch(/no (response|content|events)/i);
+    expect(rec.updates[outcome.messageId]?.errorMessage).toMatch(/no (response|content|events)/i);
+  });
+
   it("records permanent error without retrying", async () => {
     const rec = makeSqlRecorder();
     const outcome = await runStream({
