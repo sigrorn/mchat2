@@ -15,6 +15,7 @@ import type { CostResult } from "@/lib/pricing/estimator";
 import { listModels } from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
 import { createPersona, deletePersona, updatePersona, PersonaValidationError } from "@/lib/personas/service";
+import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { usePersonasStore } from "@/stores/personasStore";
@@ -47,6 +48,8 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
       </header>
       <CreateForm
         conversationId={conversation.id}
+        conversationTitle={conversation.title}
+        personas={personas}
         onCreated={(p) => upsert(p)}
       />
       <ul className="flex-1 overflow-auto">
@@ -288,9 +291,13 @@ function PersonaRow({
 
 function CreateForm({
   conversationId,
+  conversationTitle,
+  personas,
   onCreated,
 }: {
   conversationId: string;
+  conversationTitle: string;
+  personas: readonly Persona[];
   onCreated: (p: Persona) => void;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
@@ -321,14 +328,57 @@ function CreateForm({
     }
   };
 
+  const onExport = async (): Promise<void> => {
+    const r = await exportPersonasToFile(conversationTitle, personas);
+    if (r.ok) {
+      await useMessagesStore.getState().appendNotice(conversationId, `personas exported to ${r.path}.`);
+    }
+  };
+  const onImport = async (): Promise<void> => {
+    const history = useMessagesStore.getState().byConversation[conversationId] ?? [];
+    const r = await importPersonasFromFile(conversationId, history.length);
+    if (r.ok === false) {
+      if (r.reason === "error") {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversationId, `persona import failed: ${r.message}`);
+      }
+      return;
+    }
+    for (const p of r.created) onCreated(p);
+    const lines = [`imported ${r.created.length} persona${r.created.length === 1 ? "" : "s"}.`];
+    if (r.skipped.length > 0) {
+      lines.push(`skipped (name in use): ${r.skipped.join(", ")}.`);
+    }
+    await useMessagesStore.getState().appendNotice(conversationId, lines.join(" "));
+  };
+
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="border-b border-neutral-200 px-3 py-2 text-left text-xs text-neutral-600 hover:bg-neutral-100"
-      >
-        + Add persona
-      </button>
+      <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 text-xs">
+        <button
+          onClick={() => setOpen(true)}
+          className="text-neutral-600 hover:text-neutral-900"
+        >
+          + Add persona
+        </button>
+        <div className="flex gap-2 text-neutral-500">
+          <button
+            onClick={() => void onImport()}
+            className="hover:text-neutral-900 hover:underline"
+          >
+            Import
+          </button>
+          <span>·</span>
+          <button
+            onClick={() => void onExport()}
+            disabled={personas.length === 0}
+            className="hover:text-neutral-900 hover:underline disabled:opacity-40 disabled:no-underline"
+          >
+            Export
+          </button>
+        </div>
+      </div>
     );
   }
   return (
