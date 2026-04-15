@@ -12,6 +12,8 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { parseCommand } from "@/lib/commands/parseCommand";
 import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMessageNumber";
+import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
+import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
@@ -82,6 +84,81 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         return;
       }
       await useConversationsStore.getState().setLimit(conversation.id, idx);
+      return;
+    }
+    if (cmd.kind === "pin") {
+      // Reuse the resolver via useSend with pinned=true. Reject @others
+      // up-front since it's contextual and pins need a stable audience.
+      if (/^\s*@others\b/i.test(cmd.payload.rest)) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            "pin: @others is not allowed — pins need an explicit, stable audience. Use @name or @all.",
+          );
+        setText(raw);
+        return;
+      }
+      const r = await send(cmd.payload.rest, { pinned: true });
+      if (!r.ok) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            r.reason === "no targets"
+              ? "pin: specify the target persona(s) before the message body. e.g. //pin @claudio do this."
+              : `pin: could not send (${r.reason}).`,
+          );
+        setText(raw);
+      }
+      return;
+    }
+    if (cmd.kind === "pins") {
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const body = formatPinsNotice(history, personas, cmd.payload.persona);
+      if (body === null) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `pins: persona '${cmd.payload.persona ?? ""}' not found.`,
+          );
+        setText(raw);
+        return;
+      }
+      await useMessagesStore.getState().appendNotice(conversation.id, body);
+      return;
+    }
+    if (cmd.kind === "unpin") {
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const idx = indexByUserNumber(history, cmd.payload.userNumber);
+      if (idx === null) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `unpin: message ${cmd.payload.userNumber} does not exist.`,
+          );
+        setText(raw);
+        return;
+      }
+      const target = history.find((m) => m.index === idx);
+      if (!target?.pinned) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `unpin: message ${cmd.payload.userNumber} is not pinned.`,
+          );
+        setText(raw);
+        return;
+      }
+      await useMessagesStore.getState().setPinned(conversation.id, target.id, false);
+      await useMessagesStore
+        .getState()
+        .appendNotice(conversation.id, `unpinned message ${cmd.payload.userNumber}.`);
+      return;
     }
   };
 

@@ -125,10 +125,12 @@ function MessageBubble({
   return (
     <div
       data-excluded={excluded ? "true" : undefined}
+      data-pinned={message.pinned ? "true" : undefined}
       className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
       <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+        {message.pinned ? <span className="mr-1" aria-label="pinned">📌</span> : null}
         {headerParts.join(" · ")}
       </div>
       {message.errorMessage ? (

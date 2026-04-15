@@ -11,6 +11,9 @@
 export type ParsedCommand =
   | { kind: "noop" }
   | { kind: "limit"; payload: { userNumber: number | null } }
+  | { kind: "pin"; payload: { rest: string } }
+  | { kind: "pins"; payload: { persona: string | null } }
+  | { kind: "unpin"; payload: { userNumber: number } }
   | { kind: "error"; message: string };
 
 const LIMIT_HELP =
@@ -29,7 +32,47 @@ export function parseCommand(raw: string): ParsedCommand {
   const arg = spaceIdx === -1 ? "" : rest.slice(spaceIdx + 1).trim();
 
   if (verb === "limit") return parseLimit(arg);
+  if (verb === "pin") return parsePin(arg);
+  if (verb === "pins") return parsePins(arg);
+  if (verb === "unpin") return parseUnpin(arg);
   return { kind: "noop" };
+}
+
+function parsePin(arg: string): ParsedCommand {
+  if (arg.trim() === "") {
+    return {
+      kind: "error",
+      message:
+        "pin: specify the target persona(s) and the message body. " +
+        "Use //pin @name <message> or //pin @name1 @name2 <message> or //pin @all <message>.",
+    };
+  }
+  return { kind: "pin", payload: { rest: arg } };
+}
+
+function parsePins(arg: string): ParsedCommand {
+  const persona = arg.trim();
+  return { kind: "pins", payload: { persona: persona === "" ? null : persona } };
+}
+
+function parseUnpin(arg: string): ParsedCommand {
+  if (arg === "") {
+    return {
+      kind: "error",
+      message: "unpin: specify the user message number to unpin (e.g. //unpin 3).",
+    };
+  }
+  if (!/^-?\d+$/.test(arg)) {
+    return {
+      kind: "error",
+      message: `unpin: '${arg}' is not a valid message number.`,
+    };
+  }
+  const n = Number(arg);
+  if (n < 1) {
+    return { kind: "error", message: `unpin: '${arg}' is not a valid message number.` };
+  }
+  return { kind: "unpin", payload: { userNumber: n } };
 }
 
 function parseLimit(arg: string): ParsedCommand {

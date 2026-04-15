@@ -21,9 +21,15 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
 import { selectionAfterResolve } from "./sendSelection";
 
+export interface SendOptions {
+  // When true, the persisted user message has pinned=true. Set by the
+  // //pin command path so the message survives later //limit cuts.
+  pinned?: boolean;
+}
+
 export function useSend(conversation: Conversation) {
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, opts: SendOptions = {}) => {
       const personas: Persona[] = usePersonasStore.getState().byConversation[conversation.id] ?? [];
       const selection =
         usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
@@ -39,10 +45,21 @@ export function useSend(conversation: Conversation) {
         usePersonasStore.getState().setSelection(conversation.id, nextSelection);
       }
 
+      // Manual pins always carry their resolved audience as
+      // addressedTo so the visibility filter (rule 6) restricts them
+      // to the right personas. Non-pinned 'targeted' sends already
+      // do the same; this generalises for 'all' and 'implicit'.
+      const addressedTo = opts.pinned
+        ? resolved.targets.map((t) => t.key)
+        : resolved.mode === "targeted"
+          ? resolved.targets.map((t) => t.key)
+          : [];
+
       await useMessagesStore.getState().sendUserMessage({
         conversationId: conversation.id,
         content: resolved.strippedText,
-        addressedTo: resolved.mode === "targeted" ? resolved.targets.map((t) => t.key) : [],
+        addressedTo,
+        pinned: opts.pinned ?? false,
       });
 
       const runId = useSendStore.getState().nextRunId(conversation.id);

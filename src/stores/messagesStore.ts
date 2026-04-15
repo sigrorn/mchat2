@@ -25,8 +25,10 @@ interface State {
     conversationId: string;
     content: string;
     addressedTo: string[];
+    pinned?: boolean;
   }) => Promise<Message>;
   appendNotice: (conversationId: string, content: string) => Promise<Message>;
+  setPinned: (conversationId: string, messageId: string, pinned: boolean) => Promise<void>;
 }
 
 export const useMessagesStore = create<State>((set, get) => ({
@@ -64,7 +66,7 @@ export const useMessagesStore = create<State>((set, get) => ({
       },
     });
   },
-  async sendUserMessage({ conversationId, content, addressedTo }) {
+  async sendUserMessage({ conversationId, content, addressedTo, pinned = false }) {
     const m = await repo.appendMessage({
       conversationId,
       role: "user",
@@ -73,7 +75,7 @@ export const useMessagesStore = create<State>((set, get) => ({
       model: null,
       personaId: null,
       displayMode: "lines",
-      pinned: false,
+      pinned,
       pinTarget: null,
       addressedTo,
       errorMessage: null,
@@ -85,6 +87,22 @@ export const useMessagesStore = create<State>((set, get) => ({
     });
     get().append(m);
     return m;
+  },
+  async setPinned(conversationId, messageId, pinned) {
+    const existing = get().byConversation[conversationId] ?? [];
+    const target = existing.find((m) => m.id === messageId);
+    if (!target) return;
+    // Manual pins keep their addressedTo as the audience filter; we
+    // do not write a single pinTarget for them. Identity pins (which
+    // already have pinTarget set) keep theirs untouched on toggle.
+    const pinTarget = target.pinTarget;
+    await repo.setMessagePin(messageId, pinned, pinTarget);
+    set({
+      byConversation: {
+        ...get().byConversation,
+        [conversationId]: existing.map((m) => (m.id === messageId ? { ...m, pinned } : m)),
+      },
+    });
   },
   async appendNotice(conversationId, content) {
     const m = await repo.appendMessage({
