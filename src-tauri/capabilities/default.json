@@ -8,8 +8,50 @@
     "dialog:default",
     "fs:default",
     "http:default",
+    "http:allow-fetch",
+    "http:allow-fetch-send",
+    "http:allow-fetch-read-body",
+    "http:allow-fetch-cancel",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.anthropic.com/" },
+        { "url": "https://api.anthropic.com/*" },
+        { "url": "https://api.openai.com/" },
+        { "url": "https://api.openai.com/*" },
+        { "url": "https://generativelanguage.googleapis.com/" },
+        { "url": "https://generativelanguage.googleapis.com/*" },
+        { "url": "https://api.perplexity.ai/" },
+        { "url": "https://api.perplexity.ai/*" },
+        { "url": "https://api.mistral.ai/" },
+        { "url": "https://api.mistral.ai/*" },
+        { "url": "https://api.apertus.swiss/" },
+        { "url": "https://api.apertus.swiss/*" }
+      ]
+    },
     "shell:default",
     "sql:default",
-    "stronghold:default"
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "sql:allow-close",
+    "stronghold:default",
+    "stronghold:allow-initialize",
+    "stronghold:allow-destroy",
+    "stronghold:allow-load-client",
+    "stronghold:allow-create-client",
+    "stronghold:allow-save",
+    "stronghold:allow-save-store-record",
+    "stronghold:allow-get-store-record",
+    "stronghold:allow-remove-store-record",
+    "stronghold:allow-save-secret",
+    "stronghold:allow-remove-secret",
+    "stronghold:allow-execute-procedure",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$APPDATA/**" }, { "path": "$APPDATA" }]
+    }
   ]
 }

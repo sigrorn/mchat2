@@ -26,3 +26,28 @@ serde_json = "1"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+# Compile crypto-heavy deps with optimization even in dev builds, so
+# Stronghold's per-save KDF doesn't cost seconds each time.
+[profile.dev.package.iota_stronghold]
+opt-level = 3
+[profile.dev.package.iota-crypto]
+opt-level = 3
+[profile.dev.package.stronghold_engine]
+opt-level = 3
+[profile.dev.package.stronghold_stm]
+opt-level = 3
+[profile.dev.package.stronghold_p2p]
+opt-level = 3
+[profile.dev.package.aead]
+opt-level = 3
+[profile.dev.package.aes-gcm]
+opt-level = 3
+[profile.dev.package.chacha20poly1305]
+opt-level = 3
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
