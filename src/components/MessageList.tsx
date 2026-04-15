@@ -5,10 +5,12 @@
 //                 MessageBubble at a later pass.
 // ------------------------------------------------------------------
 
+import { useLayoutEffect, useRef } from "react";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import type { Message, Persona } from "@/lib/types";
+import { isPinnedToBottom } from "./scrollPin";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -19,8 +21,36 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
     useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
   const personas =
     usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
+
+  // Re-check pin status on every user-driven scroll. Cheap and avoids
+  // the trap where we mistake an auto-scroll for a manual one.
+  const onScroll = (): void => {
+    const el = containerRef.current;
+    if (!el) return;
+    pinnedRef.current = isPinnedToBottom({
+      scrollTop: el.scrollTop,
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+    });
+  };
+
+  // Layout effect runs synchronously after DOM mutation, before paint —
+  // critical for the no-jump experience: the user never sees an
+  // intermediate frame where new content is below the fold.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el || !pinnedRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  });
+
   return (
-    <div className="flex-1 overflow-auto bg-neutral-100 px-4 py-3">
+    <div
+      ref={containerRef}
+      onScroll={onScroll}
+      className="flex-1 overflow-auto bg-neutral-100 px-4 py-3"
+    >
       {messages.map((m) => (
         <MessageBubble key={m.id} message={m} personas={personas} />
       ))}

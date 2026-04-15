@@ -9,8 +9,8 @@ test("follows the tail when pinned to bottom, leaves scroll alone otherwise", as
 
   // Many-token mock message — produces a tall bubble that forces the
   // container to overflow so scroll semantics are meaningful.
-  const big = Array.from({ length: 40 }, (_, i) => `chunk ${i}`).join("|");
-  await composer.fill(`[[MOCK: tokens=${big}, delay=10]]`);
+  const big = Array.from({ length: 40 }, (_, i) => `chunk ${i}\n`).join("|");
+  await composer.fill(`@mock [[MOCK: tokens=${big}, delay=10]]`);
   await composer.press("Enter");
 
   await expect(page.getByText(/chunk 39/)).toBeVisible({ timeout: 10_000 });
@@ -30,7 +30,7 @@ test("follows the tail when pinned to bottom, leaves scroll alone otherwise", as
   await container.evaluate((el) => {
     el.scrollTop = 0;
   });
-  await composer.fill(`[[MOCK: tokens=${big}, delay=10]]`);
+  await composer.fill(`@mock [[MOCK: tokens=${big}, delay=10]]`);
   await composer.press("Enter");
   // Let the stream finish.
   await page.waitForTimeout(1500);
