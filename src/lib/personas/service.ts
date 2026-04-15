@@ -11,6 +11,8 @@ import type { Persona, PersonaId, ProviderId } from "../types";
 import { isReservedName } from "../providers/derived";
 import { slugify } from "./slug";
 import * as repo from "../persistence/personas";
+import * as messagesRepo from "../persistence/messages";
+import { pinMutationsForDeletion } from "./cleanupOnDeletion";
 
 export class PersonaValidationError extends Error {
   constructor(
@@ -186,5 +188,12 @@ function wouldCreateCycle(
 export async function deletePersona(id: PersonaId): Promise<void> {
   const p = await repo.getPersona(id);
   if (!p) throw new PersonaValidationError("not_found", "Persona does not exist");
+  // #21: clean up dangling pins before tombstoning so //pins doesn't
+  // surface unresolvable @id strings for personas that no longer exist.
+  const messages = await messagesRepo.listMessages(p.conversationId);
+  const mutations = pinMutationsForDeletion(messages, id);
+  for (const mut of mutations) {
+    await messagesRepo.applyMessageMutation(mut);
+  }
   await repo.tombstonePersona(id);
 }
