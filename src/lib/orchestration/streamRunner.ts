@@ -46,6 +46,9 @@ export interface StreamRunInput {
   // only the live UI patching is silenced. usage/error/complete events
   // continue to flow through onEvent.
   bufferTokens?: boolean;
+  // App-wide system prompt prepended above the persona/conversation
+  // tier (#23). Plumbed straight through to buildContext.
+  globalSystemPrompt?: string | null;
 }
 
 export interface StreamRunOutcome {
@@ -60,7 +63,13 @@ export interface StreamRunOutcome {
 
 export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome> {
   const { conversation, target, personas, history, adapter, signal, onEvent } = input;
-  const { systemPrompt, messages } = buildContext({ conversation, target, messages: history, personas });
+  const { systemPrompt, messages } = buildContext({
+    conversation,
+    target,
+    messages: history,
+    personas,
+    globalSystemPrompt: input.globalSystemPrompt ?? null,
+  });
 
   // Persist the empty shell up-front so the UI can render its bubble
   // and append tokens as they arrive.

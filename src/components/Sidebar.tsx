@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { SettingsDialog } from "./SettingsDialog";
+import { SettingsGeneralDialog } from "./SettingsGeneralDialog";
 import { ContextMenu } from "./ContextMenu";
 import { exportConversationToHtml } from "@/lib/conversations/exportToFile";
 import * as messagesRepo from "@/lib/persistence/messages";
@@ -21,6 +22,7 @@ interface MenuPos {
 
 export function Sidebar(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [generalOpen, setGeneralOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuPos | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -150,12 +152,19 @@ export function Sidebar(): JSX.Element {
         />
       ) : null}
       <button
+        onClick={() => setGeneralOpen(true)}
+        className="mx-2 mt-2 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
+      >
+        Settings · General
+      </button>
+      <button
         onClick={() => setSettingsOpen(true)}
-        className="mx-2 mb-2 mt-2 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
+        className="mx-2 mb-2 mt-1 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
       >
         Settings · API keys
       </button>
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {generalOpen ? <SettingsGeneralDialog onClose={() => setGeneralOpen(false)} /> : null}
     </aside>
   );
 }

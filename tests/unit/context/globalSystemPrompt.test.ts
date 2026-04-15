@@ -30,7 +30,7 @@ const persona: Persona = {
   apertusProductId: null,
 };
 
-const target: PersonaTarget = { provider: "claude", personaId: "p_a", key: "p_a" };
+const target: PersonaTarget = { provider: "claude", personaId: "p_a", key: "p_a", displayName: "Alice" };
 
 describe("buildContext globalSystemPrompt", () => {
   it("uses the global prompt when no other system prompt is set", () => {

@@ -16,6 +16,8 @@ import { runStream, modelForTarget } from "@/lib/orchestration/streamRunner";
 import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
+import { getSetting } from "@/lib/persistence/settings";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
@@ -97,8 +99,10 @@ export function useSend(conversation: Conversation) {
           : null;
         const extraConfig: Record<string, unknown> = {};
         if (persona?.apertusProductId) extraConfig.productId = persona.apertusProductId;
+        const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
         try {
           const outcome = await runStream({
+            globalSystemPrompt,
             streamId,
             conversation,
             target,

@@ -23,6 +23,9 @@ export interface BuildContextInput {
   messages: Message[];
   // Active personas for the conversation (tombstones excluded).
   personas: Persona[];
+  // Optional app-wide system prompt prepended above the persona /
+  // conversation tier (#23). Whitespace-only is treated as absent.
+  globalSystemPrompt?: string | null;
 }
 
 export interface BuildContextResult {
@@ -55,7 +58,12 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     ? (personas.find((p) => p.id === target.personaId) ?? null)
     : null;
 
-  const systemPrompt = persona?.systemPromptOverride ?? conversation.systemPrompt;
+  const localPrompt = persona?.systemPromptOverride ?? conversation.systemPrompt;
+  const globalPrompt = input.globalSystemPrompt?.trim() ? input.globalSystemPrompt.trim() : null;
+  const systemPrompt =
+    globalPrompt && localPrompt
+      ? `${globalPrompt}\n\n${localPrompt}`
+      : (globalPrompt ?? localPrompt);
   const personaKey = target.key;
   const limitMark = conversation.limitMarkIndex;
   const cutoff = persona?.createdAtMessageIndex ?? 0;
