@@ -41,4 +41,27 @@ describe("provider registry", () => {
     expect(RESERVED_PERSONA_NAMES.has("claude")).toBe(true);
     expect(isReservedName("alice")).toBe(false);
   });
+
+  it("provider aliases resolve to the right provider id (#41)", () => {
+    // Old mchat accepts both @gpt and @openai; we're matching that.
+    expect(providerForPrefix("openai")).toBe("openai");
+    expect(providerForPrefix("anthropic")).toBe("claude");
+    expect(providerForPrefix("google")).toBe("gemini");
+  });
+
+  it("aliases are reserved persona names too (#41)", () => {
+    // Can't name a persona 'openai' since it collides with the alias.
+    expect(isReservedName("openai")).toBe(true);
+    expect(isReservedName("anthropic")).toBe(true);
+  });
+
+  it("prefix + aliases form a non-colliding set across all providers (#41)", () => {
+    const tokens: string[] = [];
+    for (const id of ALL_PROVIDER_IDS) {
+      const meta = PROVIDER_REGISTRY[id];
+      tokens.push(meta.prefix);
+      for (const a of meta.aliases ?? []) tokens.push(a);
+    }
+    expect(new Set(tokens).size).toBe(tokens.length);
+  });
 });
