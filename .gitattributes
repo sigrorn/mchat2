@@ -1,0 +1,25 @@
+# Line-ending policy. 'text=auto' lets git normalize to LF in the repo
+# and respect each user's core.autocrlf setting on checkout. Explicit
+# eol pins follow for files where a specific ending matters regardless
+# of platform.
+
+* text=auto
+
+# Always LF — Unix tooling breaks on CRLF.
+*.sh text eol=lf
+*.rs text eol=lf
+
+# Always CRLF — Windows tooling expects it.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.zip binary
