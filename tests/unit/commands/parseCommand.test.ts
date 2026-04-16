@@ -58,8 +58,11 @@ describe("parseCommand", () => {
     }
   });
 
-  it("//limit 0 and negative numbers rejected", () => {
-    expect(parseCommand("//limit 0").kind).toBe("error");
+  it("//limit 0 is a valid sentinel meaning 'hide all' (#51)", () => {
+    expect(parseCommand("//limit 0")).toEqual({ kind: "limit", payload: { userNumber: 0 } });
+  });
+
+  it("//limit -N still rejected (negative numbers have no meaning)", () => {
     expect(parseCommand("//limit -3").kind).toBe("error");
   });
 
