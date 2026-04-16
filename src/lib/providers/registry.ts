@@ -15,6 +15,11 @@ export interface ProviderMeta {
   displayName: string;
   // @-prefix used in message input for targeting. Lowercase, unique.
   prefix: string;
+  // Alternate @-prefixes accepted by the resolver (#41). Useful for
+  // name parity with old mchat and with each provider's ecosystem
+  // jargon (@openai alongside @gpt, @anthropic alongside @claude).
+  // Must not collide with any other provider's prefix or alias.
+  aliases?: readonly string[];
   // Suggested default model id shown in the model picker when the user
   // first selects the provider. Can be overridden per-persona.
   defaultModel: string;
@@ -32,6 +37,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     id: "claude",
     displayName: "Claude",
     prefix: "claude",
+    aliases: ["anthropic"],
     defaultModel: "claude-sonnet-4-6",
     color: "#d97706",
     keychainKey: "anthropic_api_key",
@@ -41,6 +47,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     id: "openai",
     displayName: "GPT",
     prefix: "gpt",
+    aliases: ["openai"],
     defaultModel: "gpt-4o",
     color: "#10a37f",
     keychainKey: "openai_api_key",
@@ -50,6 +57,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     id: "gemini",
     displayName: "Gemini",
     prefix: "gemini",
+    aliases: ["google"],
     defaultModel: "gemini-1.5-pro",
     color: "#4285f4",
     keychainKey: "google_api_key",
@@ -68,6 +76,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     id: "mistral",
     displayName: "Mistral",
     prefix: "mistral",
+    aliases: ["mistralai"],
     defaultModel: "mistral-large-latest",
     color: "#ff7000",
     keychainKey: "mistral_api_key",
@@ -77,6 +86,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     id: "apertus",
     displayName: "Apertus",
     prefix: "apertus",
+    aliases: ["swissai", "infomaniak"],
     defaultModel: "swiss-ai/Apertus-70B-Instruct-2509",
     color: "#8b5cf6",
     keychainKey: "apertus_api_key",

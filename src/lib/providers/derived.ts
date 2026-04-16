@@ -10,9 +10,17 @@
 import type { ProviderId } from "../types";
 import { PROVIDER_REGISTRY, ALL_PROVIDER_IDS } from "./registry";
 
-export const PREFIX_TO_PROVIDER: ReadonlyMap<string, ProviderId> = new Map(
-  ALL_PROVIDER_IDS.map((id) => [PROVIDER_REGISTRY[id].prefix, id]),
-);
+// Map every accepted @-token (primary prefix + any aliases from #41)
+// to its provider id.
+export const PREFIX_TO_PROVIDER: ReadonlyMap<string, ProviderId> = (() => {
+  const m = new Map<string, ProviderId>();
+  for (const id of ALL_PROVIDER_IDS) {
+    const meta = PROVIDER_REGISTRY[id];
+    m.set(meta.prefix, id);
+    for (const a of meta.aliases ?? []) m.set(a, id);
+  }
+  return m;
+})();
 
 export const PROVIDER_COLORS: Readonly<Record<ProviderId, string>> = Object.freeze(
   Object.fromEntries(ALL_PROVIDER_IDS.map((id) => [id, PROVIDER_REGISTRY[id].color])) as Record<
@@ -29,11 +37,15 @@ export const PROVIDER_DISPLAY_NAMES: Readonly<Record<ProviderId, string>> = Obje
 
 // Reserved names cannot be used as persona names: provider prefixes,
 // "all", "others". Matched case-insensitively against the slug form.
-export const RESERVED_PERSONA_NAMES: ReadonlySet<string> = new Set<string>([
-  ...ALL_PROVIDER_IDS.map((id) => PROVIDER_REGISTRY[id].prefix),
-  "all",
-  "others",
-]);
+export const RESERVED_PERSONA_NAMES: ReadonlySet<string> = (() => {
+  const set = new Set<string>(["all", "others"]);
+  for (const id of ALL_PROVIDER_IDS) {
+    const meta = PROVIDER_REGISTRY[id];
+    set.add(meta.prefix);
+    for (const a of meta.aliases ?? []) set.add(a);
+  }
+  return set;
+})();
 
 export function isReservedName(slug: string): boolean {
   return RESERVED_PERSONA_NAMES.has(slug);
