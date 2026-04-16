@@ -55,6 +55,18 @@ const defaultImpl: HttpImpl = {
     if (!res.ok) {
       throw new HttpError(res.status, await res.text());
     }
+    // Assert the response is actually SSE. Some providers return HTTP
+    // 200 with a JSON error body or a plain-JSON stream; without this
+    // guard, streamSSE would silently yield zero frames and the caller
+    // would see an empty response with no diagnostic.
+    const ct = res.headers.get("content-type") ?? "";
+    if (!/text\/event-stream/i.test(ct)) {
+      const body = await res.text();
+      throw new HttpError(
+        res.status,
+        `expected text/event-stream, got '${ct}'${body ? `: ${body}` : ""}`,
+      );
+    }
     const reader = res.body?.getReader();
     if (!reader) throw new Error("HTTP: response has no body");
     const decoder = new TextDecoder();
