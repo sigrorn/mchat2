@@ -92,6 +92,100 @@ describe("runStream", () => {
     expect(events.map((e) => e.type)).toContain("token");
   });
 
+  it("emits trace rows to the sink before/after the stream when wired (#40)", async () => {
+    const outboundCalls: string[][] = [];
+    const inboundCalls: string[][] = [];
+    const order: string[] = [];
+    const sink = {
+      async outbound(rows: string[]) {
+        order.push("O");
+        outboundCalls.push(rows);
+      },
+      async inbound(rows: string[]) {
+        order.push("I");
+        inboundCalls.push(rows);
+      },
+    };
+    await runStream({
+      streamId: "s1",
+      conversation: CONV,
+      target: target(),
+      personas: [],
+      history: [
+        {
+          id: "m0",
+          conversationId: "c_1",
+          role: "user",
+          content: "[[MOCK: tokens=hi|there]]",
+          provider: null,
+          model: null,
+          personaId: null,
+          displayMode: "lines",
+          pinned: false,
+          pinTarget: null,
+          addressedTo: [],
+          createdAt: 0,
+          index: 0,
+          errorMessage: null,
+          errorTransient: false,
+          inputTokens: 0,
+          outputTokens: 0,
+          usageEstimated: false,
+          audience: [],
+        },
+      ],
+      adapter: mockAdapter,
+      apiKey: null,
+      model: "mock-1",
+      displayMode: "lines",
+      traceSink: sink,
+    });
+    // Outbound must fire before inbound so a partial-fail leaves the
+    // request payload in the file even if no reply was captured.
+    expect(order).toEqual(["O", "I"]);
+    expect(outboundCalls[0]?.some((r) => / O \[user\] /.test(r))).toBe(true);
+    expect(inboundCalls[0]?.some((r) => / I hithere/.test(r))).toBe(true);
+  });
+
+  it("does not call the trace sink when none is wired", async () => {
+    let called = false;
+    await runStream({
+      streamId: "s1",
+      conversation: CONV,
+      target: target(),
+      personas: [],
+      history: [
+        {
+          id: "m0",
+          conversationId: "c_1",
+          role: "user",
+          content: "[[MOCK: tokens=hi]]",
+          provider: null,
+          model: null,
+          personaId: null,
+          displayMode: "lines",
+          pinned: false,
+          pinTarget: null,
+          addressedTo: [],
+          createdAt: 0,
+          index: 0,
+          errorMessage: null,
+          errorTransient: false,
+          inputTokens: 0,
+          outputTokens: 0,
+          usageEstimated: false,
+          audience: [],
+        },
+      ],
+      adapter: mockAdapter,
+      apiKey: null,
+      model: "mock-1",
+      displayMode: "lines",
+      // intentionally no traceSink
+    });
+    expect(called).toBe(false);
+  });
+
   it("treats a silent run (no tokens, no usage, no error) as failed (#26/#27)", async () => {
     const rec = makeSqlRecorder();
     const silentAdapter = {
