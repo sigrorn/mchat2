@@ -134,11 +134,13 @@ function parseLimit(arg: string): ParsedCommand {
     };
   }
   const n = Number(arg);
-  if (n < 1) {
+  if (n < 0) {
     return {
       kind: "error",
-      message: `limit: '${arg}' is not a valid message number. Use //limit N or //limit NONE.`,
+      message: `limit: '${arg}' is not a valid message number. Use //limit N, //limit 0 to hide all, or //limit NONE to clear.`,
     };
   }
+  // #51: 0 is a special 'hide all current messages' sentinel. The
+  // dispatcher translates it to a limitMarkIndex past the last row.
   return { kind: "limit", payload: { userNumber: n } };
 }

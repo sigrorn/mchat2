@@ -67,8 +67,17 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
       const target = cmd.payload.userNumber;
       if (target === null) {
-        // //limit ALL — clear the limit.
+        // //limit NONE — clear the limit.
         await useConversationsStore.getState().setLimit(conversation.id, null);
+        return;
+      }
+      if (target === 0) {
+        // #51: //limit 0 — hide every current message. Set the mark
+        // to one past the last index so rule 3 of buildContext
+        // filters them all (pinned rows still survive). New messages
+        // appended after this point sit above the mark naturally.
+        const maxIdx = history.reduce((m, msg) => Math.max(m, msg.index), -1);
+        await useConversationsStore.getState().setLimit(conversation.id, maxIdx + 1);
         return;
       }
       const idx = indexByUserNumber(history, target);
