@@ -16,6 +16,7 @@ export type ParsedCommand =
   | { kind: "unpin"; payload: { userNumber: number } }
   | { kind: "edit"; payload: { userNumber: number | null } }
   | { kind: "pop" }
+  | { kind: "retry" }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -44,6 +45,12 @@ export function parseCommand(raw: string): ParsedCommand {
       return { kind: "error", message: "pop: this command takes no arguments." };
     }
     return { kind: "pop" };
+  }
+  if (verb === "retry") {
+    if (arg !== "") {
+      return { kind: "error", message: "retry: this command takes no arguments." };
+    }
+    return { kind: "retry" };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {

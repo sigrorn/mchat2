@@ -14,6 +14,7 @@ import { parseCommand } from "@/lib/commands/parseCommand";
 import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMessageNumber";
 import { resolveEditTarget } from "@/lib/conversations/resolveEditTarget";
 import { planPop } from "@/lib/conversations/popPlan";
+import { findFailedRowsInLastGroup } from "@/lib/orchestration/findFailedRowsInLastGroup";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { usePersonasStore } from "@/stores/personasStore";
@@ -25,7 +26,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
-  const { send } = useSend(conversation);
+  const { send, retry } = useSend(conversation);
   const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
 
   const onSend = async (): Promise<void> => {
@@ -131,6 +132,35 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore
         .getState()
         .appendNotice(conversation.id, `display: switched to ${cmd.payload.mode}.`);
+      return;
+    }
+    if (cmd.kind === "retry") {
+      // #49: batch-retry every failed assistant row in the last send
+      // group in parallel. Reuses #43's per-row retry machinery to
+      // create a fresh streamed row; the old failed row is then
+      // deleted so the final view shows only the successful retries.
+      // (Matches old mchat's morph-in-place outcome without requiring
+      // streamRunner to update existing rows.)
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const failed = findFailedRowsInLastGroup(history);
+      if (failed.length === 0) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, "retry: nothing to retry.");
+        setText(raw);
+        return;
+      }
+      const cleanupIds: string[] = [];
+      await Promise.all(
+        failed.map(async (m) => {
+          const r = await retry(m);
+          if (r.ok) cleanupIds.push(m.id);
+        }),
+      );
+      for (const id of cleanupIds) {
+        await messagesRepo.deleteMessage(id);
+      }
+      if (cleanupIds.length > 0) await useMessagesStore.getState().load(conversation.id);
       return;
     }
     if (cmd.kind === "pop") {
