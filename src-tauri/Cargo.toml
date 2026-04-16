@@ -23,6 +23,9 @@ tauri-plugin-stronghold = "2"
 tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# OS-native keychain: Credential Manager on Windows (DPAPI), Keychain on
+# macOS, Secret Service on Linux. Replaces Stronghold for #35.
+keyring = "3"
 
 [features]
 default = ["custom-protocol"]
