@@ -101,7 +101,6 @@ export function useSend(conversation: Conversation) {
           target: target.key,
           startedAt: Date.now(),
         });
-        useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
         const apiKey = PROVIDER_REGISTRY[target.provider].requiresKey
           ? await keychain.get(PROVIDER_REGISTRY[target.provider].keychainKey)
           : null;
@@ -121,6 +120,9 @@ export function useSend(conversation: Conversation) {
           if (productId) extraConfig.productId = productId;
         }
         const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+        // #32: keep the row green (queued) while keychain is unlocking;
+        // only flip to streaming right before we open the adapter.
+        useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
         try {
           const outcome = await runStream({
             globalSystemPrompt,

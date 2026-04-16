@@ -14,7 +14,9 @@ import { parseCommand } from "@/lib/commands/parseCommand";
 import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMessageNumber";
 import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { usePersonasStore } from "@/stores/personasStore";
+import { useUiStore } from "@/stores/uiStore";
 import { shouldSubmit } from "./composerKeys";
+import { useEffect } from "react";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
 
@@ -25,6 +27,19 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const { send } = useSend(conversation);
   const active =
     useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
+  // #32: Surface Stronghold unlocks (cold start is slow) in the hint
+  // line. Delay rendering by 300ms so a fast (cached) unlock doesn't
+  // flash the line and flicker the layout.
+  const keychainBusy = useUiStore((s) => s.keychainBusy);
+  const [unlocking, setUnlocking] = useState(false);
+  useEffect(() => {
+    if (keychainBusy > 0) {
+      const t = setTimeout(() => setUnlocking(true), 300);
+      return () => clearTimeout(t);
+    }
+    setUnlocking(false);
+    return;
+  }, [keychainBusy]);
 
   const onSend = async (): Promise<void> => {
     if (!text.trim() || busy) return;
@@ -195,6 +210,8 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       />
       {hint ? (
         <div className="mt-2 text-xs text-amber-700">{hint}</div>
+      ) : unlocking ? (
+        <div className="mt-2 text-xs text-amber-700">Unlocking secure storage…</div>
       ) : null}
       <div className="mt-2 flex gap-2">
         <button

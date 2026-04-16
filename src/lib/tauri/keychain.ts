@@ -108,11 +108,26 @@ interface StrongholdInstance {
 
 let impl: KeychainImpl = defaultImpl;
 
+// Wrap each keychain op with a busy-counter tick (#32) so the Composer
+// can render 'Unlocking secure storage...' while Stronghold is slow on
+// cold start. The counter lives in the UI store so every component can
+// subscribe without importing this module.
+import { useUiStore } from "../../stores/uiStore";
+
+async function withBusy<T>(op: () => Promise<T>): Promise<T> {
+  useUiStore.setState((s) => ({ keychainBusy: s.keychainBusy + 1 }));
+  try {
+    return await op();
+  } finally {
+    useUiStore.setState((s) => ({ keychainBusy: Math.max(0, s.keychainBusy - 1) }));
+  }
+}
+
 export const keychain = {
-  get: (k: string) => impl.get(k),
-  set: (k: string, v: string) => impl.set(k, v),
-  remove: (k: string) => impl.remove(k),
-  list: () => impl.list(),
+  get: (k: string) => withBusy(() => impl.get(k)),
+  set: (k: string, v: string) => withBusy(() => impl.set(k, v)),
+  remove: (k: string) => withBusy(() => impl.remove(k)),
+  list: () => withBusy(() => impl.list()),
 };
 
 export function __setImpl(mock: KeychainImpl): void {
