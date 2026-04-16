@@ -60,10 +60,16 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
 
   const localPrompt = persona?.systemPromptOverride ?? conversation.systemPrompt;
   const globalPrompt = input.globalSystemPrompt?.trim() ? input.globalSystemPrompt.trim() : null;
+  // #39: explicit persona identity goes in the system role, where the
+  // modern LLMs actually honor it. Pinned user-row identity (#38) stays
+  // as belt-and-suspenders. Bare-provider sends (no personaId) skip
+  // this — there's no persona name to assert.
+  const identityLine = persona
+    ? `You are ${persona.name}. Only respond as yourself \u2014 do not include or generate responses for other personas.`
+    : null;
   const systemPrompt =
-    globalPrompt && localPrompt
-      ? `${globalPrompt}\n\n${localPrompt}`
-      : (globalPrompt ?? localPrompt);
+    [globalPrompt, identityLine, localPrompt].filter((s): s is string => !!s).join("\n\n") ||
+    null;
   const personaKey = target.key;
   const limitMark = conversation.limitMarkIndex;
   const cutoff = persona?.createdAtMessageIndex ?? 0;

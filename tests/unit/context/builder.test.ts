@@ -39,9 +39,14 @@ function target(key = "p_alice", personaId: string | null = "p_alice"): PersonaT
 
 describe("buildContext", () => {
   it("uses persona systemPromptOverride if set, else conversation prompt", () => {
+    // Persona targets always carry a 'You are {name}' identity line in
+    // the system prompt (#39); the local layer (override or conversation
+    // prompt) follows it, joined by a blank line.
+    const identity =
+      "You are Alice. Only respond as yourself \u2014 do not include or generate responses for other personas.";
     const personas = [persona({ systemPromptOverride: "alice says hi" })];
     const r = buildContext({ conversation: CONV, target: target(), messages: [], personas });
-    expect(r.systemPrompt).toBe("alice says hi");
+    expect(r.systemPrompt).toBe(`${identity}\n\nalice says hi`);
 
     const r2 = buildContext({
       conversation: CONV,
@@ -49,7 +54,7 @@ describe("buildContext", () => {
       messages: [],
       personas: [persona({ systemPromptOverride: null })],
     });
-    expect(r2.systemPrompt).toBe("global");
+    expect(r2.systemPrompt).toBe(`${identity}\n\nglobal`);
   });
 
   it("excludes failed assistant rows (rule 2)", () => {
