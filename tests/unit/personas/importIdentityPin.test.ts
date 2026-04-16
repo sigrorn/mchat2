@@ -105,18 +105,25 @@ afterEach(() => {
 });
 
 describe("importPersonasFromFile identity pins (#36)", () => {
-  it("appends an identity pin row per imported persona", async () => {
+  it("appends both identity pins per imported persona (#38)", async () => {
     const { messageInserts, personas } = makeStubs();
     const r = await importPersonasFromFile("c_1", 0);
     if (!r.ok) throw new Error("import failed: " + ("message" in r ? r.message : r.reason));
     expect(personas).toHaveLength(2);
     const identityPins = messageInserts.filter((m) => m.pinned === 1 && m.pin_target);
-    expect(identityPins).toHaveLength(2);
-    const targets = identityPins.map((m) => m.pin_target);
-    expect(targets).toEqual(personas.map((p) => p.id));
-    for (const pin of identityPins) {
-      const persona = personas.find((p) => p.id === pin.pin_target);
-      expect(pin.content).toContain(persona!.name);
+    // 2 personas × 2 pins each (instruction + setup note) = 4
+    expect(identityPins).toHaveLength(4);
+    for (const persona of personas) {
+      const own = identityPins.filter((p) => p.pin_target === persona.id);
+      expect(own).toHaveLength(2);
+      const hasInstruction = own.some(
+        (p) => typeof p.content === "string" && p.content.includes("use " + persona.name),
+      );
+      const hasSetupNote = own.some(
+        (p) => typeof p.content === "string" && (p.content as string).startsWith(`Added persona "${persona.name}"`),
+      );
+      expect(hasInstruction).toBe(true);
+      expect(hasSetupNote).toBe(true);
     }
   });
 });
