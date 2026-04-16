@@ -17,6 +17,7 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { groupIntoColumns } from "@/lib/rendering/columnGroups";
 import { formatUserHeader } from "@/lib/conversations/userHeader";
 import { renderMessageBody } from "@/lib/rendering/messageBody";
+import { useSend } from "@/hooks/useSend";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -59,6 +60,21 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
     ? groupIntoColumns(messages)
     : messages.map((m) => ({ kind: "row" as const, message: m }));
 
+  // #43: manual retry on failed assistant rows. useSend needs the full
+  // Conversation object, which we already have from the store above.
+  const { retry } = useSend(
+    conversation ?? {
+      id: conversationId,
+      title: "",
+      systemPrompt: null,
+      createdAt: 0,
+      lastProvider: null,
+      limitMarkIndex: null,
+      displayMode: "lines",
+      visibilityMode: "separated",
+    },
+  );
+
   return (
     <div
       ref={containerRef}
@@ -74,6 +90,7 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
               personas={personas}
               userNumber={userNumbers.get(item.message.index) ?? null}
               excluded={conversation ? isExcludedByLimit(item.message, conversation) : false}
+              onRetry={() => void retry(item.message)}
             />
           );
         }
@@ -111,6 +128,7 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
                   personas={personas}
                   userNumber={null}
                   excluded={conversation ? isExcludedByLimit(m, conversation) : false}
+                  onRetry={() => void retry(m)}
                 />
               );
             })}
@@ -143,11 +161,13 @@ function MessageBubble({
   personas,
   userNumber,
   excluded,
+  onRetry,
 }: {
   message: Message;
   personas: readonly Persona[];
   userNumber: number | null;
   excluded: boolean;
+  onRetry?: () => void;
 }): JSX.Element {
   // Notice rows (#8): UI-only info/error from in-app commands. Visually
   // distinct, italicized, never reach the LLM.
@@ -204,7 +224,18 @@ function MessageBubble({
         {headerParts.join(" · ")}
       </div>
       {message.errorMessage ? (
-        <div className="text-sm text-red-700">error: {message.errorMessage}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-sm text-red-700">error: {message.errorMessage}</div>
+          {onRetry && message.role === "assistant" ? (
+            <button
+              onClick={onRetry}
+              className="shrink-0 rounded border border-red-600 px-2 py-0.5 text-xs text-red-700 hover:bg-red-50"
+              title="Retry this request with the same persona and context"
+            >
+              retry
+            </button>
+          ) : null}
+        </div>
       ) : (
         renderBubbleBody(message, excluded)
       )}

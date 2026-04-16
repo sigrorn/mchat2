@@ -6,10 +6,8 @@ import type { Persona } from "@/lib/types";
 
 function persona(over: Partial<Persona> & { id: string; name: string }): Persona {
   return {
-    id: over.id,
     conversationId: "c_1",
     provider: "claude",
-    name: over.name,
     nameSlug: over.name.toLowerCase(),
     systemPromptOverride: null,
     modelOverride: null,

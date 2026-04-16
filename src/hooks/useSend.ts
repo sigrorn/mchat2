@@ -8,11 +8,19 @@
 // ------------------------------------------------------------------
 
 import { useCallback } from "react";
-import type { Conversation, DagNode, Persona, PersonaTarget, StreamEvent } from "@/lib/types";
+import type {
+  Conversation,
+  DagNode,
+  Message,
+  Persona,
+  PersonaTarget,
+  StreamEvent,
+} from "@/lib/types";
 import { resolveTargets } from "@/lib/personas/resolver";
 import { planSend } from "@/lib/orchestration/sendPlanner";
 import { executeDag } from "@/lib/orchestration/dagExecutor";
 import { runStream, modelForTarget } from "@/lib/orchestration/streamRunner";
+import { buildRetryTarget } from "@/lib/orchestration/retryTarget";
 import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
@@ -187,5 +195,89 @@ export function useSend(conversation: Conversation) {
     [conversation],
   );
 
-  return { send };
+  const retry = useCallback(
+    async (failed: Message) => {
+      // #43: fire a fresh runStream for a failed assistant row. The
+      // placeholder is new (not overwriting the old failed row); the
+      // context builder already filters assistant rows with
+      // errorMessage !== null, so the failed bubble is invisible to
+      // the LLM but stays in the UI as an audit trail.
+      const personas: Persona[] =
+        usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const target = buildRetryTarget(failed, personas);
+      if (!target) {
+        return { ok: false as const, reason: "no retry target" };
+      }
+
+      const runId = useSendStore.getState().nextRunId(conversation.id);
+      const streamId = `${runId}:retry:${target.key}:${Date.now()}`;
+      const controller = new AbortController();
+
+      useSendStore.getState().setTargetStatus(conversation.id, target.key, "queued");
+      useSendStore.getState().registerStream(conversation.id, {
+        streamId,
+        controller,
+        target: target.key,
+        startedAt: Date.now(),
+      });
+
+      const apiKey = PROVIDER_REGISTRY[target.provider].requiresKey
+        ? await keychain.get(PROVIDER_REGISTRY[target.provider].keychainKey)
+        : null;
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
+      const extraConfig: Record<string, unknown> = {};
+      if (target.provider === "apertus") {
+        const globalProductId = await getSetting(APERTUS_PRODUCT_ID_KEY);
+        const productId = globalProductId?.trim() || persona?.apertusProductId || null;
+        if (productId) extraConfig.productId = productId;
+      }
+      const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+      const traceEnabled = await isDebugEnabled();
+      const slug = persona?.nameSlug ?? target.key;
+      const traceSink = traceEnabled ? await makeTraceFileSink({ slug }) : undefined;
+      useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
+
+      try {
+        await runStream({
+          globalSystemPrompt,
+          ...(traceSink ? { traceSink } : {}),
+          streamId,
+          conversation,
+          target,
+          personas,
+          history,
+          adapter: adapterFor(target.provider),
+          apiKey,
+          model: modelForTarget(target, personas),
+          displayMode: conversation.displayMode,
+          extraConfig,
+          signal: controller.signal,
+          onEvent: (e: StreamEvent) => {
+            if (e.type === "retrying") {
+              useSendStore.getState().setTargetStatus(conversation.id, target.key, "retrying");
+            }
+            if (e.type === "token") {
+              const list = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+              const last = list[list.length - 1];
+              if (last && last.role === "assistant") {
+                useMessagesStore
+                  .getState()
+                  .patchContent(conversation.id, last.id, last.content + e.text);
+              }
+            }
+          },
+        });
+      } finally {
+        useSendStore.getState().finishStream(conversation.id, streamId);
+        useSendStore.getState().clearTargetStatus(conversation.id, target.key);
+      }
+
+      await useMessagesStore.getState().load(conversation.id);
+      return { ok: true as const };
+    },
+    [conversation],
+  );
+
+  return { send, retry };
 }
