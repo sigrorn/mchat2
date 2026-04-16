@@ -15,6 +15,7 @@ export type ParsedCommand =
   | { kind: "pins"; payload: { persona: string | null } }
   | { kind: "unpin"; payload: { userNumber: number } }
   | { kind: "edit"; payload: { userNumber: number | null } }
+  | { kind: "pop" }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -38,6 +39,12 @@ export function parseCommand(raw: string): ParsedCommand {
   if (verb === "pins") return parsePins(arg);
   if (verb === "unpin") return parseUnpin(arg);
   if (verb === "edit") return parseEdit(arg);
+  if (verb === "pop") {
+    if (arg !== "") {
+      return { kind: "error", message: "pop: this command takes no arguments." };
+    }
+    return { kind: "pop" };
+  }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {
       return {

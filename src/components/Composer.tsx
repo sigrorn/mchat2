@@ -13,6 +13,8 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { parseCommand } from "@/lib/commands/parseCommand";
 import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMessageNumber";
 import { resolveEditTarget } from "@/lib/conversations/resolveEditTarget";
+import { planPop } from "@/lib/conversations/popPlan";
+import * as messagesRepo from "@/lib/persistence/messages";
 import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
@@ -129,6 +131,33 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore
         .getState()
         .appendNotice(conversation.id, `display: switched to ${cmd.payload.mode}.`);
+      return;
+    }
+    if (cmd.kind === "pop") {
+      // #48: drop the last user turn + every following row, restore
+      // the user message's text to the Composer so the user can edit
+      // and re-send manually. Destructive on purpose — //edit is the
+      // non-destructive variant (hides, regenerates automatically).
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const plan = planPop(history);
+      if (!plan.ok) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, "pop: nothing to pop.");
+        setText(raw);
+        return;
+      }
+      // Truncate at lastUserIndex - 1 (deleteMessagesAfter keeps the
+      // index strictly > arg, so -1 includes the user row itself).
+      await messagesRepo.deleteMessagesAfter(conversation.id, plan.lastUserIndex - 1);
+      await useMessagesStore.getState().load(conversation.id);
+      setText(plan.restoredText);
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          conversation.id,
+          `popped ${plan.deleteIds.length} message${plan.deleteIds.length === 1 ? "" : "s"}.`,
+        );
       return;
     }
     if (cmd.kind === "edit") {
