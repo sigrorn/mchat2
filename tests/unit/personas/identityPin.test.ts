@@ -1,6 +1,10 @@
 // Tests for the auto-inserted identity pin — issue #3.
 import { describe, it, expect } from "vitest";
-import { buildIdentityPinContent, ensureIdentityPin } from "@/lib/personas/identityPin";
+import {
+  buildIdentityPinContent,
+  buildIdentitySetupNote,
+  ensureIdentityPin,
+} from "@/lib/personas/identityPin";
 import { makeMessage } from "@/lib/persistence/messages";
 import type { Message, Persona } from "@/lib/types";
 
@@ -31,13 +35,24 @@ describe("buildIdentityPinContent", () => {
   });
 });
 
+describe("buildIdentitySetupNote (#38)", () => {
+  it("matches old mchat's setup-note phrasing", () => {
+    // Imported via re-export from identityPin module; keeps the magic
+    // string in one place.
+    expect(buildIdentitySetupNote("Alice", "claude")).toBe(
+      'Added persona "Alice" (claude, inherit)',
+    );
+  });
+});
+
 describe("ensureIdentityPin", () => {
-  it("inserts a new pinned user message when no identity pin exists yet", async () => {
+  it("inserts identity AND setup-note pinned user messages (#38)", async () => {
     const appended: Message[] = [];
     const updated: { id: string; content: string }[] = [];
+    let nextIdx = 99;
     const repo = {
       appendMessage: async (m: Parameters<typeof makeMessage>[0]): Promise<Message> => {
-        const full = makeMessage({ ...m, id: "m_new", index: 99 });
+        const full = makeMessage({ ...m, id: `m_${nextIdx}`, index: nextIdx++ });
         appended.push(full);
         return full;
       },
@@ -46,18 +61,92 @@ describe("ensureIdentityPin", () => {
       },
     };
     await ensureIdentityPin("c_1", persona(), [], repo);
-    expect(appended).toHaveLength(1);
-    expect(appended[0]?.pinned).toBe(true);
-    expect(appended[0]?.pinTarget).toBe("p_alice");
-    expect(appended[0]?.role).toBe("user");
-    expect(appended[0]?.content).toContain("Alice");
+    expect(appended).toHaveLength(2);
+    for (const m of appended) {
+      expect(m.pinned).toBe(true);
+      expect(m.pinTarget).toBe("p_alice");
+      expect(m.role).toBe("user");
+    }
+    expect(appended[0]?.content).toContain("use Alice as your name");
+    expect(appended[1]?.content).toBe('Added persona "Alice" (claude, inherit)');
     expect(updated).toHaveLength(0);
   });
 
-  it("is a no-op when the pin already exists with current text", async () => {
-    const existing = makeMessage({
+  it("is a no-op when both pins already exist with current text", async () => {
+    const existing1 = makeMessage({
       conversationId: "c_1",
-      id: "m_existing",
+      id: "m_existing_1",
+      role: "user",
+      pinned: true,
+      pinTarget: "p_alice",
+      content: buildIdentityPinContent("Alice"),
+    });
+    const existing2 = makeMessage({
+      conversationId: "c_1",
+      id: "m_existing_2",
+      role: "user",
+      pinned: true,
+      pinTarget: "p_alice",
+      content: buildIdentitySetupNote("Alice", "claude"),
+    });
+    const appended: Message[] = [];
+    const updated: { id: string; content: string }[] = [];
+    const repo = {
+      appendMessage: async (): Promise<Message> => {
+        throw new Error("should not append");
+      },
+      updateMessageContent: async (id: string, content: string) => {
+        updated.push({ id, content });
+      },
+    };
+    await ensureIdentityPin("c_1", persona(), [existing1, existing2], repo);
+    expect(appended).toHaveLength(0);
+    expect(updated).toHaveLength(0);
+  });
+
+  it("updates both pins in place on rename — no duplicate rows (#38)", async () => {
+    const existing1 = makeMessage({
+      conversationId: "c_1",
+      id: "m_existing_1",
+      role: "user",
+      pinned: true,
+      pinTarget: "p_alice",
+      content: buildIdentityPinContent("OldName"),
+    });
+    const existing2 = makeMessage({
+      conversationId: "c_1",
+      id: "m_existing_2",
+      role: "user",
+      pinned: true,
+      pinTarget: "p_alice",
+      content: buildIdentitySetupNote("OldName", "claude"),
+    });
+    const appended: Message[] = [];
+    const updated: { id: string; content: string }[] = [];
+    const repo = {
+      appendMessage: async (): Promise<Message> => {
+        throw new Error("should not append");
+      },
+      updateMessageContent: async (id: string, content: string) => {
+        updated.push({ id, content });
+      },
+    };
+    await ensureIdentityPin("c_1", persona({ name: "NewName" }), [existing1, existing2], repo);
+    expect(appended).toHaveLength(0);
+    expect(updated).toContainEqual({
+      id: "m_existing_1",
+      content: buildIdentityPinContent("NewName"),
+    });
+    expect(updated).toContainEqual({
+      id: "m_existing_2",
+      content: buildIdentitySetupNote("NewName", "claude"),
+    });
+  });
+
+  it("backfills the setup-note when only the legacy identity pin exists (#38)", async () => {
+    const legacy = makeMessage({
+      conversationId: "c_1",
+      id: "m_legacy",
       role: "user",
       pinned: true,
       pinTarget: "p_alice",
@@ -66,41 +155,18 @@ describe("ensureIdentityPin", () => {
     const appended: Message[] = [];
     const updated: { id: string; content: string }[] = [];
     const repo = {
-      appendMessage: async (): Promise<Message> => {
-        throw new Error("should not append");
+      appendMessage: async (m: Parameters<typeof makeMessage>[0]): Promise<Message> => {
+        const full = makeMessage({ ...m, id: "m_added", index: 100 });
+        appended.push(full);
+        return full;
       },
       updateMessageContent: async (id: string, content: string) => {
         updated.push({ id, content });
       },
     };
-    await ensureIdentityPin("c_1", persona(), [existing], repo);
-    expect(appended).toHaveLength(0);
+    await ensureIdentityPin("c_1", persona(), [legacy], repo);
+    expect(appended).toHaveLength(1);
+    expect(appended[0]?.content).toBe(buildIdentitySetupNote("Alice", "claude"));
     expect(updated).toHaveLength(0);
-  });
-
-  it("updates the existing pin in place on rename — no duplicate row", async () => {
-    const existing = makeMessage({
-      conversationId: "c_1",
-      id: "m_existing",
-      role: "user",
-      pinned: true,
-      pinTarget: "p_alice",
-      content: buildIdentityPinContent("OldName"),
-    });
-    const appended: Message[] = [];
-    const updated: { id: string; content: string }[] = [];
-    const repo = {
-      appendMessage: async (): Promise<Message> => {
-        throw new Error("should not append");
-      },
-      updateMessageContent: async (id: string, content: string) => {
-        updated.push({ id, content });
-      },
-    };
-    await ensureIdentityPin("c_1", persona({ name: "NewName" }), [existing], repo);
-    expect(appended).toHaveLength(0);
-    expect(updated).toEqual([
-      { id: "m_existing", content: buildIdentityPinContent("NewName") },
-    ]);
   });
 });
