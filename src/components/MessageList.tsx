@@ -18,6 +18,7 @@ import { groupIntoColumns } from "@/lib/rendering/columnGroups";
 import { formatUserHeader } from "@/lib/conversations/userHeader";
 import { renderMessageBody } from "@/lib/rendering/messageBody";
 import { useSend } from "@/hooks/useSend";
+import { useUiStore } from "@/stores/uiStore";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -84,11 +85,17 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
     useMessagesStore.getState().setEditing(conversationId, id);
   };
 
+  // #50: chat-pane font scale (Ctrl+/-/0). Applied as inline fontSize
+  // so all descendant text (bubble headers, markdown body, notices)
+  // scales together via em-based sizing inside the styled elements.
+  const fontScale = useUiStore((s) => s.chatFontScale);
+
   return (
     <div
       ref={containerRef}
       onScroll={onScroll}
       className="flex-1 overflow-auto bg-neutral-100 px-4 py-3"
+      style={{ fontSize: `${fontScale * 100}%` }}
     >
       {items.map((item) => {
         if (item.kind === "row") {

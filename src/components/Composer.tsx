@@ -19,6 +19,7 @@ import * as messagesRepo from "@/lib/persistence/messages";
 import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
+import { useUiStore } from "@/stores/uiStore";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
 
@@ -28,6 +29,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const [hint, setHint] = useState<string | null>(null);
   const { send, retry } = useSend(conversation);
   const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
+  const fontScale = useUiStore((s) => s.chatFontScale);
 
   const onSend = async (): Promise<void> => {
     if (!text.trim() || busy) return;
@@ -270,6 +272,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         rows={3}
         placeholder="Type a message. Use @alice @all @others to target personas. Enter to send, Shift+Enter for newline."
         className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+        style={{ fontSize: `${fontScale * 100}%` }}
       />
       {hint ? <div className="mt-2 text-xs text-amber-700">{hint}</div> : null}
       <div className="mt-2 flex gap-2">

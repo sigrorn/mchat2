@@ -8,6 +8,8 @@
 import { useEffect, useState } from "react";
 import { runMigrations } from "@/lib/persistence/migrations";
 import { useConversationsStore } from "@/stores/conversationsStore";
+import { useUiStore } from "@/stores/uiStore";
+import { nextScale } from "@/lib/ui/fontScale";
 import { lifecycle } from "@/lib/tauri/lifecycle";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
@@ -16,6 +18,7 @@ export function App(): JSX.Element {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadConversations = useConversationsStore((s) => s.load);
+  const loadFontScale = useUiStore((s) => s.loadFontScale);
 
   useEffect(() => {
     (async () => {
@@ -23,13 +26,36 @@ export function App(): JSX.Element {
         if (lifecycle.isTauri()) {
           await runMigrations();
           await loadConversations();
+          await loadFontScale();
         }
         setReady(true);
       } catch (e) {
         setError((e as Error).message);
       }
     })().catch((e) => setError(String(e)));
-  }, [loadConversations]);
+  }, [loadConversations, loadFontScale]);
+
+  // #50: Ctrl+/-/0 zoom for chat + composer. Intercept at the window
+  // level so focus inside the textarea doesn't swallow the chords, and
+  // preventDefault so the browser's own zoom doesn't also fire.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!e.ctrlKey || e.altKey || e.shiftKey) return;
+      const store = useUiStore.getState();
+      if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        store.setFontScale(nextScale(store.chatFontScale, "up"));
+      } else if (e.key === "-") {
+        e.preventDefault();
+        store.setFontScale(nextScale(store.chatFontScale, "down"));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        store.setFontScale(nextScale(store.chatFontScale, "reset"));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (error) {
     return (
