@@ -1,11 +1,15 @@
 // ------------------------------------------------------------------
 // Component: Keychain
-// Responsibility: Read/write provider API keys in OS secure storage via
-//                 the Stronghold plugin. Keys are read on demand and
-//                 never cached in reactive state.
-// Collaborators: providers/* (at call time), security/redact.ts,
-//                UI settings screen.
+// Responsibility: Read/write provider API keys via the OS-native
+//                 keychain (#35). Replaces the Stronghold vault; the
+//                 legacy Stronghold impl remains as a named export for
+//                 the one-off migration path.
+// Collaborators: src-tauri/src/keychain.rs (Rust commands),
+//                providers/* (at call time), security/redact.ts,
+//                keychainMigration.ts.
 // ------------------------------------------------------------------
+
+import { makeOsKeychainImpl } from "./keychainOs";
 
 export interface KeychainImpl {
   get(key: string): Promise<string | null>;
@@ -14,15 +18,33 @@ export interface KeychainImpl {
   list(): Promise<string[]>;
 }
 
-// Stronghold requires a client-password for the vault. We derive it from
-// a stable machine-specific salt; this protects against trivial disk
-// inspection but not against a compromised local account (which is also
-// true of any desktop keystore).
 const VAULT_CLIENT = "mchat2";
 
-const defaultImpl: KeychainImpl = {
+// OS-native default: Credential Manager on Windows, Keychain on macOS,
+// Secret Service on Linux. Instantaneous compared to Stronghold, so
+// the keychainBusy hint (#32) is no longer necessary for normal ops.
+const defaultImpl: KeychainImpl = makeOsKeychainImpl(async (cmd, args) => {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke(cmd, args) as unknown as never;
+});
+
+// Legacy Stronghold impl — retained only so the migration path (#35)
+// can read the old vault one last time. Never wired as the default.
+// If `$APPDATA/mchat2.stronghold` doesn't exist this impl's methods
+// all return null/no-op. Callers should consult `hasStrongholdVault`
+// first to avoid creating a fresh empty vault on disk.
+let cachedHandle: Promise<{ sh: StrongholdInstance; store: StrongholdStore }> | null = null;
+
+export async function hasStrongholdVault(): Promise<boolean> {
+  const { appDataDir } = await import("@tauri-apps/api/path");
+  const { exists } = await import("@tauri-apps/plugin-fs");
+  const dir = await appDataDir();
+  return exists(`${dir}/mchat2.stronghold`);
+}
+
+export const strongholdLegacyImpl: KeychainImpl = {
   async get(key) {
-    const { store } = await openStore();
+    const { store } = await openStronghold();
     try {
       const bytes = await store.get(key);
       return bytes ? new TextDecoder().decode(new Uint8Array(bytes)) : null;
@@ -31,63 +53,40 @@ const defaultImpl: KeychainImpl = {
     }
   },
   async set(key, value) {
-    const { store, sh } = await openStore();
+    const { store, sh } = await openStronghold();
     await store.insert(key, Array.from(new TextEncoder().encode(value)));
     await sh.save();
   },
   async remove(key) {
-    const { store, sh } = await openStore();
+    const { store, sh } = await openStronghold();
     await store.remove(key);
     await sh.save();
   },
-  // Stronghold's Store has no enumeration API. list() returns empty
-  // because no caller actually needs it — the settings dialog queries
-  // specific keys by provider. If we ever need enumeration, add a
-  // parallel JSON index blob and save it alongside each mutation.
   async list() {
     return [];
   },
 };
 
-// Cache the promise, not the result, so concurrent callers all await
-// the same initialization instead of racing to create separate vaults.
-let cachedHandle: Promise<{ sh: StrongholdInstance; store: StrongholdStore }> | null = null;
-
-function openStore(): Promise<{ sh: StrongholdInstance; store: StrongholdStore }> {
+function openStronghold(): Promise<{ sh: StrongholdInstance; store: StrongholdStore }> {
   if (cachedHandle) return cachedHandle;
-  cachedHandle = doOpenStore().catch((e) => {
-    // Allow a retry on next call if initialization failed.
+  cachedHandle = doOpenStronghold().catch((e) => {
     cachedHandle = null;
     throw e;
   });
   return cachedHandle;
 }
 
-async function doOpenStore(): Promise<{ sh: StrongholdInstance; store: StrongholdStore }> {
-  const log = (step: string, ...rest: unknown[]): void => console.log("[keychain]", step, ...rest);
-
+async function doOpenStronghold(): Promise<{ sh: StrongholdInstance; store: StrongholdStore }> {
   const { Stronghold } = await import("@tauri-apps/plugin-stronghold");
   const { appDataDir } = await import("@tauri-apps/api/path");
-  const { mkdir, exists } = await import("@tauri-apps/plugin-fs");
-
   const dir = await appDataDir();
-  log("appDataDir", dir);
-  if (!(await exists(dir))) {
-    log("creating app data dir");
-    await mkdir(dir, { recursive: true });
-  }
   const vaultPath = `${dir}/mchat2.stronghold`;
-  log("loading stronghold", vaultPath);
   const sh = (await Stronghold.load(vaultPath, VAULT_CLIENT)) as unknown as StrongholdInstance;
-  log("stronghold loaded, loading client");
   let client: StrongholdClient;
   try {
     client = await sh.loadClient(VAULT_CLIENT);
-    log("client loaded");
-  } catch (e) {
-    log("loadClient failed, creating", e);
+  } catch {
     client = await sh.createClient(VAULT_CLIENT);
-    log("client created");
   }
   return { sh, store: client.getStore() };
 }
@@ -108,10 +107,10 @@ interface StrongholdInstance {
 
 let impl: KeychainImpl = defaultImpl;
 
-// Wrap each keychain op with a busy-counter tick (#32) so the Composer
-// can render 'Unlocking secure storage...' while Stronghold is slow on
-// cold start. The counter lives in the UI store so every component can
-// subscribe without importing this module.
+// The keychainBusy counter (#32) stays plumbed through because the
+// legacy Stronghold migration path still benefits from the Composer
+// hint. Steady-state OS-keychain calls are instant and add/remove a
+// tick too fast to surface — the 300ms grace in the Composer hides it.
 import { useUiStore } from "../../stores/uiStore";
 
 async function withBusy<T>(op: () => Promise<T>): Promise<T> {
