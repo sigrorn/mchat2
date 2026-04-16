@@ -9,6 +9,12 @@ dist-ssr/
 build/
 *.local
 *.tsbuildinfo
+# tsc -b emits .js / .d.ts next to .ts config files under the node
+# project root. Vite/Vitest/Playwright never consume these; they're
+# strictly build-byproducts.
+/playwright.config.{js,d.ts}
+/vite.config.{js,d.ts}
+/vitest.config.{js,d.ts}
 
 # Tauri / Rust
 src-tauri/target/
