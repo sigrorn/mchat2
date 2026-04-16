@@ -40,8 +40,17 @@ export function App(): JSX.Element {
   // preventDefault so the browser's own zoom doesn't also fire.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (!e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (e.altKey) return;
       const store = useUiStore.getState();
+      // #53: Ctrl+F opens the find bar. preventDefault so the webview's
+      // own find (which doesn't work properly in Tauri's webview) doesn't
+      // also fire.
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        store.openFind();
+        return;
+      }
+      if (!e.ctrlKey || e.shiftKey) return;
       if (e.key === "+" || e.key === "=") {
         e.preventDefault();
         store.setFontScale(nextScale(store.chatFontScale, "up"));

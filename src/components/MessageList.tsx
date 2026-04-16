@@ -24,7 +24,13 @@ const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
 const EMPTY: readonly Message[] = Object.freeze([]);
 
-export function MessageList({ conversationId }: { conversationId: string }): JSX.Element {
+export function MessageList({
+  conversationId,
+  activeMatchMessageId = null,
+}: {
+  conversationId: string;
+  activeMatchMessageId?: string | null;
+}): JSX.Element {
   const messages = useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
   const personas = usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -89,6 +95,19 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
   // so all descendant text (bubble headers, markdown body, notices)
   // scales together via em-based sizing inside the styled elements.
   const fontScale = useUiStore((s) => s.chatFontScale);
+
+  // #53: when the find bar sets a new active match, scroll its bubble
+  // into view. Also temporarily unpin tail-follow so the scroll sticks.
+  useEffect(() => {
+    if (!activeMatchMessageId) return;
+    const el = containerRef.current?.querySelector<HTMLElement>(
+      `[data-message-id="${activeMatchMessageId}"]`,
+    );
+    if (el) {
+      pinnedRef.current = false;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [activeMatchMessageId]);
 
   return (
     <div
@@ -263,6 +282,7 @@ function MessageBubble({
     return (
       <div
         role="note"
+        data-message-id={message.id}
         className="mb-3 whitespace-pre-wrap rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm italic text-amber-900 shadow-sm"
       >
         {message.content}
@@ -300,6 +320,7 @@ function MessageBubble({
     <div
       data-excluded={excluded ? "true" : undefined}
       data-pinned={message.pinned ? "true" : undefined}
+      data-message-id={message.id}
       className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
