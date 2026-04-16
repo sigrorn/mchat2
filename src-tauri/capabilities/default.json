@@ -26,7 +26,9 @@
         { "url": "https://api.mistral.ai/" },
         { "url": "https://api.mistral.ai/*" },
         { "url": "https://api.apertus.swiss/" },
-        { "url": "https://api.apertus.swiss/*" }
+        { "url": "https://api.apertus.swiss/*" },
+        { "url": "https://api.infomaniak.com/" },
+        { "url": "https://api.infomaniak.com/*" }
       ]
     },
     "shell:default",
@@ -36,6 +38,7 @@
     "sql:allow-select",
     "sql:allow-close",
     "stronghold:default",
+    "window-state:default",
     "stronghold:allow-initialize",
     "stronghold:allow-destroy",
     "stronghold:allow-load-client",

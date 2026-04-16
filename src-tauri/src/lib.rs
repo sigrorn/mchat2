@@ -9,6 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_stronghold::Builder::new(|password| {
             // Derive stronghold encryption key from password. Users pick
             // their own on first run; we just hash it through argon-like
