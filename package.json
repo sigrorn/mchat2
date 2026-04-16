@@ -23,7 +23,6 @@
     "@tauri-apps/plugin-http": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-sql": "^2.0.0",
-    "@tauri-apps/plugin-stronghold": "^2.0.0",
     "@viz-js/viz": "^3.6.0",
     "mermaid": "^11.0.0",
     "react": "^19.0.0",

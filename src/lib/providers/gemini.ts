@@ -41,14 +41,21 @@ export const geminiAdapter: ProviderAdapter = {
         body: JSON.stringify(body),
       };
       if (args.signal) opts.signal = args.signal;
+      let frameCount = 0;
       for await (const evt of streamSSE(opts)) {
-        if (!evt.data) continue;
+        frameCount++;
+        if (!evt.data) {
+          console.log("[gemini] empty data frame", evt);
+          continue;
+        }
         let parsed: GeminiChunk;
         try {
           parsed = JSON.parse(evt.data) as GeminiChunk;
-        } catch {
+        } catch (e) {
+          console.warn("[gemini] non-JSON frame", evt.data.slice(0, 300), e);
           continue;
         }
+        console.log("[gemini] frame", frameCount, JSON.stringify(parsed).slice(0, 500));
         const parts = parsed.candidates?.[0]?.content?.parts ?? [];
         for (const part of parts) {
           if (part.text) yield { type: "token", streamId: args.streamId, text: part.text };
@@ -58,6 +65,7 @@ export const geminiAdapter: ProviderAdapter = {
           outputTokens = parsed.usageMetadata.candidatesTokenCount ?? outputTokens;
         }
       }
+      console.log("[gemini] stream closed, total frames:", frameCount);
     } catch (e) {
       if ((e as { name?: string }).name === "AbortError") {
         yield { type: "cancelled", streamId: args.streamId };

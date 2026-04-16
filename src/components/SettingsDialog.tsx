@@ -52,7 +52,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
           await keychain.set(key, val);
         } else {
           // Only attempt removal if we actually have a stored value —
-          // Stronghold throws on remove of a missing key.
+          // Some backends throw on remove of a missing key.
           const existing = await keychain.get(key);
           if (existing) await keychain.remove(key);
         }
@@ -78,7 +78,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
       >
         <h2 className="mb-3 text-lg font-semibold">API keys</h2>
         <p className="mb-4 text-xs text-neutral-500">
-          Stored in OS secure storage (Stronghold). Never sent anywhere except
+          Stored in the OS-native keychain. Never sent anywhere except
           the provider you entered them for.
         </p>
         {loading ? (
