@@ -67,8 +67,12 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   const identityLine = persona
     ? `You are ${persona.name}. Only respond as yourself \u2014 do not include or generate responses for other personas.`
     : null;
+  // Order matches old mchat: identity first (the persona's core), then
+  // global preference, then local override. Tracing both apps with the
+  // same persona setup confirmed Apertus only honors identity when the
+  // 'You are X' line sits at the top of the system block.
   const systemPrompt =
-    [globalPrompt, identityLine, localPrompt].filter((s): s is string => !!s).join("\n\n") ||
+    [identityLine, globalPrompt, localPrompt].filter((s): s is string => !!s).join("\n\n") ||
     null;
   const personaKey = target.key;
   const limitMark = conversation.limitMarkIndex;

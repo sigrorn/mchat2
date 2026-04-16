@@ -14,8 +14,11 @@ export function isDebugEnabled(): Promise<boolean> {
   cached = (async () => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      return await invoke<boolean>("debug_enabled");
-    } catch {
+      const v = await invoke<boolean>("debug_enabled");
+      console.log("[debugFlag] MCHAT2_DEBUG =", v);
+      return v;
+    } catch (e) {
+      console.warn("[debugFlag] invoke failed (cargo build needed?)", e);
       return false;
     }
   })();

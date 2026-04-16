@@ -57,7 +57,7 @@ describe("buildContext system prompt layering", () => {
     expect(r.systemPrompt).toBe(IDENTITY);
   });
 
-  it("global + identity, no local (#39)", () => {
+  it("identity + global, no local (#39, ordered to match old mchat)", () => {
     const r = buildContext({
       conversation: conv,
       target: personaTarget,
@@ -65,7 +65,7 @@ describe("buildContext system prompt layering", () => {
       personas: [persona],
       globalSystemPrompt: "be harsh",
     });
-    expect(r.systemPrompt).toBe(`be harsh\n\n${IDENTITY}`);
+    expect(r.systemPrompt).toBe(`${IDENTITY}\n\nbe harsh`);
   });
 
   it("identity + persona override (#39)", () => {
@@ -78,7 +78,7 @@ describe("buildContext system prompt layering", () => {
     expect(r.systemPrompt).toBe(`${IDENTITY}\n\nyou only speak Italian`);
   });
 
-  it("global + identity + persona override (#39)", () => {
+  it("identity + global + persona override, in that order (#39)", () => {
     const r = buildContext({
       conversation: conv,
       target: personaTarget,
@@ -86,10 +86,10 @@ describe("buildContext system prompt layering", () => {
       personas: [{ ...persona, systemPromptOverride: "you only speak Italian" }],
       globalSystemPrompt: "be harsh",
     });
-    expect(r.systemPrompt).toBe(`be harsh\n\n${IDENTITY}\n\nyou only speak Italian`);
+    expect(r.systemPrompt).toBe(`${IDENTITY}\n\nbe harsh\n\nyou only speak Italian`);
   });
 
-  it("global + identity + conversation prompt (no persona override) (#39)", () => {
+  it("identity + global + conversation prompt (no persona override) (#39)", () => {
     const r = buildContext({
       conversation: { ...conv, systemPrompt: "stay on topic" },
       target: personaTarget,
@@ -97,7 +97,7 @@ describe("buildContext system prompt layering", () => {
       personas: [persona],
       globalSystemPrompt: "be harsh",
     });
-    expect(r.systemPrompt).toBe(`be harsh\n\n${IDENTITY}\n\nstay on topic`);
+    expect(r.systemPrompt).toBe(`${IDENTITY}\n\nbe harsh\n\nstay on topic`);
   });
 
   it("bare-provider target gets NO identity line (#39)", () => {
@@ -129,6 +129,7 @@ describe("buildContext system prompt layering", () => {
       personas: [persona],
       globalSystemPrompt: "   ",
     });
+    // Only identity + local survive; whitespace-only global skipped.
     expect(r.systemPrompt).toBe(`${IDENTITY}\n\nstay on topic`);
   });
 });
