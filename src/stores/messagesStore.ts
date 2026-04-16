@@ -12,6 +12,9 @@ import * as repo from "@/lib/persistence/messages";
 
 interface State {
   byConversation: Record<string, Message[]>;
+  // UI-only: which user-row is currently in edit/replay mode (#44 + #47).
+  // Per-conversation so switching chats doesn't reopen a stale editor.
+  editingByConversation: Record<string, string | null>;
   load: (conversationId: string) => Promise<void>;
   append: (m: Message) => void;
   patchContent: (conversationId: string, messageId: string, content: string) => void;
@@ -29,10 +32,20 @@ interface State {
   }) => Promise<Message>;
   appendNotice: (conversationId: string, content: string) => Promise<Message>;
   setPinned: (conversationId: string, messageId: string, pinned: boolean) => Promise<void>;
+  setEditing: (conversationId: string, messageId: string | null) => void;
 }
 
 export const useMessagesStore = create<State>((set, get) => ({
   byConversation: {},
+  editingByConversation: {},
+  setEditing(conversationId, messageId) {
+    set({
+      editingByConversation: {
+        ...get().editingByConversation,
+        [conversationId]: messageId,
+      },
+    });
+  },
   async load(conversationId) {
     const list = await repo.listMessages(conversationId);
     set({ byConversation: { ...get().byConversation, [conversationId]: list } });

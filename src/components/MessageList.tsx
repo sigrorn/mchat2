@@ -75,7 +75,14 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
       visibilityMode: "separated",
     },
   );
-  const [editingId, setEditingId] = useState<string | null>(null);
+  // #47: editing state lives in messagesStore so the Composer's
+  // //edit command dispatcher can open the inline editor too.
+  const editingId = useMessagesStore(
+    (s) => s.editingByConversation[conversationId] ?? null,
+  );
+  const setEditingId = (id: string | null): void => {
+    useMessagesStore.getState().setEditing(conversationId, id);
+  };
 
   return (
     <div

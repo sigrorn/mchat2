@@ -12,6 +12,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { parseCommand } from "@/lib/commands/parseCommand";
 import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMessageNumber";
+import { resolveEditTarget } from "@/lib/conversations/resolveEditTarget";
 import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
@@ -128,6 +129,30 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore
         .getState()
         .appendNotice(conversation.id, `display: switched to ${cmd.payload.mode}.`);
+      return;
+    }
+    if (cmd.kind === "edit") {
+      // #47: target the specified user message and open MessageList's
+      // inline editor — same UI as clicking the per-row 'edit' button
+      // (#44). Routes through messagesStore.setEditing so the trigger
+      // doesn't need a local ref between components.
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const target = resolveEditTarget(history, cmd.payload.userNumber);
+      if (!target) {
+        const total = userMessageCount(history);
+        const label = cmd.payload.userNumber ?? "last";
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            total === 0
+              ? "edit: no user message to edit."
+              : `edit: message ${label} does not exist (conversation has ${total} user message${total === 1 ? "" : "s"}).`,
+          );
+        setText(raw);
+        return;
+      }
+      useMessagesStore.getState().setEditing(conversation.id, target.id);
       return;
     }
     if (cmd.kind === "unpin") {

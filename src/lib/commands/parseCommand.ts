@@ -14,6 +14,7 @@ export type ParsedCommand =
   | { kind: "pin"; payload: { rest: string } }
   | { kind: "pins"; payload: { persona: string | null } }
   | { kind: "unpin"; payload: { userNumber: number } }
+  | { kind: "edit"; payload: { userNumber: number | null } }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -36,6 +37,7 @@ export function parseCommand(raw: string): ParsedCommand {
   if (verb === "pin") return parsePin(arg);
   if (verb === "pins") return parsePins(arg);
   if (verb === "unpin") return parseUnpin(arg);
+  if (verb === "edit") return parseEdit(arg);
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {
       return {
@@ -83,6 +85,24 @@ function parseUnpin(arg: string): ParsedCommand {
     return { kind: "error", message: `unpin: '${arg}' is not a valid message number.` };
   }
   return { kind: "unpin", payload: { userNumber: n } };
+}
+
+function parseEdit(arg: string): ParsedCommand {
+  if (arg === "") return { kind: "edit", payload: { userNumber: null } };
+  if (!/^-?\d+$/.test(arg)) {
+    return {
+      kind: "error",
+      message: `edit: '${arg}' is not a valid message number. Use //edit, //edit N, or //edit -N.`,
+    };
+  }
+  const n = Number(arg);
+  if (n === 0) {
+    return {
+      kind: "error",
+      message: `edit: '${arg}' is not a valid message number. User messages are 1-indexed.`,
+    };
+  }
+  return { kind: "edit", payload: { userNumber: n } };
 }
 
 function parseLimit(arg: string): ParsedCommand {
