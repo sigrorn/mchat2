@@ -50,6 +50,7 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
   const upsert = usePersonasStore((s) => s.upsert);
   const remove = usePersonasStore((s) => s.remove);
   const setSelection = usePersonasStore((s) => s.setSelection);
+  const addToSelection = usePersonasStore((s) => s.addToSelection);
   const costs = computePersonaCosts(messages, personas);
 
   const toggle = (id: string): void => {
@@ -66,7 +67,13 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
         conversationId={conversation.id}
         conversationTitle={conversation.title}
         personas={personas}
-        onCreated={(p) => upsert(p)}
+        onCreated={(p) => {
+          upsert(p);
+          // #37: auto-select so the next implicit send reaches the
+          // freshly added persona without the user having to remember
+          // to tick its checkbox.
+          addToSelection(conversation.id, [p.id]);
+        }}
       />
       <ul className="flex-1 overflow-auto">
         {personas.map((p) => (

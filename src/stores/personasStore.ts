@@ -15,6 +15,9 @@ interface State {
   selectionByConversation: Record<string, string[]>;
   load: (conversationId: string) => Promise<void>;
   setSelection: (conversationId: string, keys: string[]) => void;
+  // Append-and-dedupe variant used by the create / import flows so a
+  // freshly added persona is part of the next implicit send (#37).
+  addToSelection: (conversationId: string, keys: string[]) => void;
   upsert: (p: Persona) => void;
   remove: (p: Persona) => void;
 }
@@ -33,6 +36,23 @@ export const usePersonasStore = create<State>((set, get) => ({
       selectionByConversation: {
         ...get().selectionByConversation,
         [conversationId]: keys,
+      },
+    });
+  },
+  addToSelection(conversationId, keys) {
+    const current = get().selectionByConversation[conversationId] ?? [];
+    const seen = new Set(current);
+    const next = [...current];
+    for (const k of keys) {
+      if (!seen.has(k)) {
+        next.push(k);
+        seen.add(k);
+      }
+    }
+    set({
+      selectionByConversation: {
+        ...get().selectionByConversation,
+        [conversationId]: next,
       },
     });
   },
