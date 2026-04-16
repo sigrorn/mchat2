@@ -36,17 +36,11 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.stronghold_engine]
 opt-level = 3
-[profile.dev.package.stronghold_stm]
-opt-level = 3
-[profile.dev.package.stronghold_p2p]
-opt-level = 3
 [profile.dev.package.aead]
 opt-level = 3
 [profile.dev.package.aes-gcm]
 opt-level = 3
 [profile.dev.package.chacha20poly1305]
-opt-level = 3
-[profile.dev.package.argon2]
 opt-level = 3
 [profile.dev.package.blake2]
 opt-level = 3
