@@ -29,7 +29,7 @@ import { keychain } from "@/lib/tauri/keychain";
 import { getSetting } from "@/lib/persistence/settings";
 import { GLOBAL_SYSTEM_PROMPT_KEY, APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
-import { isDebugEnabled } from "@/lib/tauri/debugFlag";
+import { useUiStore } from "@/stores/uiStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
@@ -131,12 +131,18 @@ export function useSend(conversation: Conversation) {
           if (productId) extraConfig.productId = productId;
         }
         const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-        // #40: tracing gated by MCHAT2_DEBUG env var (read once per
-        // process), not a persisted setting — keeps the disk-fill
-        // foot-gun under explicit per-launch control.
-        const traceEnabled = await isDebugEnabled();
+        // #46: tracing gated by the runtime debug toggle in the sidebar.
+        const { debugSession, workingDir } = useUiStore.getState();
         const slug = persona?.nameSlug ?? target.key;
-        const traceSink = traceEnabled ? await makeTraceFileSink({ slug }) : undefined;
+        const traceSink =
+          debugSession.enabled && debugSession.sessionTimestamp && workingDir
+            ? makeTraceFileSink({
+                workingDir,
+                sessionTimestamp: debugSession.sessionTimestamp,
+                conversationId: conversation.id,
+                slug,
+              })
+            : undefined;
         // #32: keep the row green (queued) while keychain is unlocking;
         // only flip to streaming right before we open the adapter.
         useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
@@ -235,9 +241,17 @@ export function useSend(conversation: Conversation) {
         if (productId) extraConfig.productId = productId;
       }
       const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-      const traceEnabled = await isDebugEnabled();
+      const { debugSession: ds, workingDir: wd } = useUiStore.getState();
       const slug = persona?.nameSlug ?? target.key;
-      const traceSink = traceEnabled ? await makeTraceFileSink({ slug }) : undefined;
+      const traceSink =
+        ds.enabled && ds.sessionTimestamp && wd
+          ? makeTraceFileSink({
+              workingDir: wd,
+              sessionTimestamp: ds.sessionTimestamp,
+              conversationId: conversation.id,
+              slug,
+            })
+          : undefined;
       useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
 
       try {
@@ -371,9 +385,17 @@ export function useSend(conversation: Conversation) {
           if (productId) extraConfig.productId = productId;
         }
         const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-        const traceEnabled = await isDebugEnabled();
+        const { debugSession: ds2, workingDir: wd2 } = useUiStore.getState();
         const slug = persona?.nameSlug ?? target.key;
-        const traceSink = traceEnabled ? await makeTraceFileSink({ slug }) : undefined;
+        const traceSink =
+          ds2.enabled && ds2.sessionTimestamp && wd2
+            ? makeTraceFileSink({
+                workingDir: wd2,
+                sessionTimestamp: ds2.sessionTimestamp,
+                conversationId: conversation.id,
+                slug,
+              })
+            : undefined;
         useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
         try {
           const outcome = await runStream({

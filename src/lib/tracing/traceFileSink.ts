@@ -1,40 +1,26 @@
 // ------------------------------------------------------------------
 // Component: Trace file sink
-// Responsibility: Concrete TraceSink that appends rows to
-//                 ${appData}/traces/{slug}.txt. Created on demand by
-//                 useSend when the debug.tracePersonas setting is on.
+// Responsibility: Concrete TraceSink that appends rows to the user's
+//                 working-dir-based trace file (#46 redesign).
+//                 Filename format:
+//                   {sessionTs}-{conversationId}-{personaSlug}.txt
 // Collaborators: streamRunner (consumer), tauri/filesystem (writer).
 // ------------------------------------------------------------------
 
 import { fs } from "../tauri/filesystem";
 import type { TraceSink } from "../orchestration/streamRunner";
+import { buildTraceFilename } from "./traceFilename";
 
 export interface TraceFileSinkOptions {
-  // Identifier used as the filename. Pass persona.nameSlug when
-  // available; falls back to the persona key for bare-provider sends.
+  workingDir: string;
+  sessionTimestamp: string;
+  conversationId: string;
   slug: string;
 }
 
-let cachedDir: Promise<string> | null = null;
-
-async function tracesDir(): Promise<string> {
-  if (cachedDir) return cachedDir;
-  cachedDir = (async () => {
-    const { appDataDir } = await import("@tauri-apps/api/path");
-    const { mkdir, exists } = await import("@tauri-apps/plugin-fs");
-    const root = await appDataDir();
-    const dir = `${root}/traces`;
-    if (!(await exists(dir))) {
-      await mkdir(dir, { recursive: true });
-    }
-    return dir;
-  })();
-  return cachedDir;
-}
-
-export async function makeTraceFileSink(opts: TraceFileSinkOptions): Promise<TraceSink> {
-  const dir = await tracesDir();
-  const path = `${dir}/${opts.slug}.txt`;
+export function makeTraceFileSink(opts: TraceFileSinkOptions): TraceSink {
+  const filename = buildTraceFilename(opts.sessionTimestamp, opts.conversationId, opts.slug);
+  const path = `${opts.workingDir}/${filename}`;
   return {
     async outbound(rows) {
       if (rows.length === 0) return;

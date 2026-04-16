@@ -9,7 +9,9 @@
 
 import { create } from "zustand";
 import { DEFAULT_SCALE } from "@/lib/ui/fontScale";
+import { buildSessionTimestamp } from "@/lib/tracing/traceFilename";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
+import { GENERAL_WORKING_DIR_KEY } from "@/lib/settings/keys";
 
 const FONT_SCALE_KEY = "ui.fontScale";
 
@@ -20,10 +22,21 @@ export interface FindState {
   activeIndex: number;
 }
 
+// #46: per-launch debug trace session. Not persisted — starts OFF.
+export interface DebugSession {
+  enabled: boolean;
+  sessionTimestamp: string | null;
+}
+
 interface State {
   chatFontScale: number;
   loadFontScale: () => Promise<void>;
   setFontScale: (scale: number) => void;
+  workingDir: string | null;
+  loadWorkingDir: () => Promise<void>;
+  setWorkingDir: (dir: string) => Promise<void>;
+  debugSession: DebugSession;
+  toggleDebug: () => void;
   // #53: Ctrl+F find state. Not persisted — per-session only.
   find: FindState;
   openFind: () => void;
@@ -35,7 +48,7 @@ interface State {
 
 const INITIAL_FIND: FindState = { open: false, query: "", caseSensitive: false, activeIndex: 0 };
 
-export const useUiStore = create<State>((set) => ({
+export const useUiStore = create<State>((set, get) => ({
   chatFontScale: DEFAULT_SCALE,
   async loadFontScale() {
     const raw = await getSetting(FONT_SCALE_KEY);
@@ -45,6 +58,30 @@ export const useUiStore = create<State>((set) => ({
   setFontScale(scale) {
     set({ chatFontScale: scale });
     void setSetting(FONT_SCALE_KEY, String(scale));
+  },
+  workingDir: null,
+  async loadWorkingDir() {
+    const raw = await getSetting(GENERAL_WORKING_DIR_KEY);
+    set({ workingDir: raw?.trim() || null });
+  },
+  async setWorkingDir(dir: string) {
+    const trimmed = dir.trim();
+    await setSetting(GENERAL_WORKING_DIR_KEY, trimmed);
+    set({ workingDir: trimmed || null });
+  },
+  debugSession: { enabled: false, sessionTimestamp: null },
+  toggleDebug() {
+    const prev = get().debugSession;
+    if (prev.enabled) {
+      set({ debugSession: { enabled: false, sessionTimestamp: null } });
+    } else {
+      set({
+        debugSession: {
+          enabled: true,
+          sessionTimestamp: buildSessionTimestamp(new Date()),
+        },
+      });
+    }
   },
   find: INITIAL_FIND,
   openFind() {

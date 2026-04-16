@@ -13,6 +13,6 @@ export const GLOBAL_SYSTEM_PROMPT_KEY = "general.systemPrompt";
 // pairs with the API key, not with any individual persona.
 export const APERTUS_PRODUCT_ID_KEY = "apertus.productId";
 
-// Note: per-persona trace files (#40) are gated by the MCHAT2_DEBUG
-// env var read once at process start, not a persisted setting — keeps
-// the disk-fill foot-gun under per-launch user control.
+// User-chosen working directory for import/export dialogs and debug
+// trace files (#46). Required before the debug toggle is enabled.
+export const GENERAL_WORKING_DIR_KEY = "general.workingDir";

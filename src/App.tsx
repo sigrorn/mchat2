@@ -27,6 +27,7 @@ export function App(): JSX.Element {
           await runMigrations();
           await loadConversations();
           await loadFontScale();
+          await useUiStore.getState().loadWorkingDir();
         }
         setReady(true);
       } catch (e) {

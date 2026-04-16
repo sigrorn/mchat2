@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { SettingsDialog } from "./SettingsDialog";
 import { SettingsGeneralDialog } from "./SettingsGeneralDialog";
+import { useUiStore } from "@/stores/uiStore";
 import { ContextMenu } from "./ContextMenu";
 import { exportConversationToHtml } from "@/lib/conversations/exportToFile";
 import * as messagesRepo from "@/lib/persistence/messages";
@@ -159,13 +160,41 @@ export function Sidebar(): JSX.Element {
       </button>
       <button
         onClick={() => setSettingsOpen(true)}
-        className="mx-2 mb-2 mt-1 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
+        className="mx-2 mt-1 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
       >
         Settings · API keys
       </button>
+      <DebugToggle />
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       {generalOpen ? <SettingsGeneralDialog onClose={() => setGeneralOpen(false)} /> : null}
     </aside>
+  );
+}
+
+function DebugToggle(): JSX.Element {
+  const workingDir = useUiStore((s) => s.workingDir);
+  const debug = useUiStore((s) => s.debugSession);
+  const toggle = useUiStore((s) => s.toggleDebug);
+  const disabled = !workingDir;
+  const label = disabled
+    ? "Debug · (set working directory first)"
+    : debug.enabled
+      ? `Debug · ON (${debug.sessionTimestamp})`
+      : "Debug · OFF";
+  return (
+    <button
+      onClick={toggle}
+      disabled={disabled}
+      className={`mx-2 mb-2 mt-1 rounded border px-3 py-1.5 text-xs ${
+        debug.enabled
+          ? "border-green-600 text-green-700 hover:bg-green-50"
+          : disabled
+            ? "border-neutral-200 text-neutral-400"
+            : "border-neutral-300 text-neutral-700 hover:bg-neutral-100"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

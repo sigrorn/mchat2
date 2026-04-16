@@ -8,10 +8,12 @@
 
 import { useEffect, useState } from "react";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
-import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
+import { GLOBAL_SYSTEM_PROMPT_KEY, GENERAL_WORKING_DIR_KEY } from "@/lib/settings/keys";
+import { useUiStore } from "@/stores/uiStore";
 
 export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const [value, setValue] = useState("");
+  const [workDir, setWorkDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -21,6 +23,8 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
     (async () => {
       const v = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
       setValue(v ?? "");
+      const wd = await getSetting(GENERAL_WORKING_DIR_KEY);
+      setWorkDir(wd ?? "");
       setLoading(false);
     })().catch((e) => setError((e as Error).message));
   }, []);
@@ -30,6 +34,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
     setSaving(true);
     try {
       await setSetting(GLOBAL_SYSTEM_PROMPT_KEY, value);
+      await useUiStore.getState().setWorkingDir(workDir);
       setSavedAt(Date.now());
     } catch (e) {
       setError((e as Error).message);
@@ -74,11 +79,20 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           placeholder="e.g. Be concise. Push back if my premise looks wrong."
           className="block w-full resize-y rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
-        <p className="mt-4 text-xs text-neutral-500">
-          Per-persona trace files (old-mchat <code className="font-mono">-debug</code>) are gated by
-          the <code className="font-mono">MCHAT2_DEBUG=1</code> environment variable, set before
-          launch — not a persisted setting, so a forgotten toggle can't quietly fill your disk.
+        <label className="mt-4 mb-1 block text-xs font-medium text-neutral-700">
+          Working directory
+        </label>
+        <p className="mb-2 text-xs text-neutral-500">
+          Default location for import/export and debug trace files. Required before the Debug toggle
+          is available.
         </p>
+        <input
+          value={workDir}
+          onChange={(e) => setWorkDir(e.target.value)}
+          disabled={loading}
+          placeholder="e.g. C:\Users\me\Documents\mchat2"
+          className="block w-full rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
+        />
         {error ? <div className="mt-2 text-sm text-red-700">{error}</div> : null}
         <div className="mt-3 flex items-center gap-2">
           <button
