@@ -10,9 +10,7 @@
 import type { Message } from "../types";
 import { renderMarkdownToHtml } from "./markdown";
 
-export type RenderedBody =
-  | { kind: "html"; html: string }
-  | { kind: "text"; text: string };
+export type RenderedBody = { kind: "html"; html: string } | { kind: "text"; text: string };
 
 export function renderMessageBody(message: Message): RenderedBody {
   // Only assistant content is markdown. User text is intentionally

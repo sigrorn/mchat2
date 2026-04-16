@@ -1,12 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(*)",
-      "Edit(*)",
-      "Write(*)",
-      "WebFetch(domain:*)",
-      "WebSearch(*)",
-      "Agent(*)"
-    ]
+    "allow": ["Bash(*)", "Edit(*)", "Write(*)", "WebFetch(domain:*)", "WebSearch(*)", "Agent(*)"]
   }
 }

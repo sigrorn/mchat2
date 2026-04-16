@@ -7,13 +7,7 @@
 // Collaborators: orchestration/streamRunner.ts, providers/adapter.ts.
 // ------------------------------------------------------------------
 
-import type {
-  Conversation,
-  Message,
-  Persona,
-  PersonaTarget,
-  ProviderId,
-} from "../types";
+import type { Conversation, Message, Persona, PersonaTarget, ProviderId } from "../types";
 import type { ChatMessage } from "../providers/adapter";
 
 export interface BuildContextInput {
@@ -72,8 +66,7 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   // same persona setup confirmed Apertus only honors identity when the
   // 'You are X' line sits at the top of the system block.
   const systemPrompt =
-    [identityLine, globalPrompt, localPrompt].filter((s): s is string => !!s).join("\n\n") ||
-    null;
+    [identityLine, globalPrompt, localPrompt].filter((s): s is string => !!s).join("\n\n") || null;
   const personaKey = target.key;
   const limitMark = conversation.limitMarkIndex;
   const cutoff = persona?.createdAtMessageIndex ?? 0;

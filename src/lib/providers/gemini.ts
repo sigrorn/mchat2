@@ -18,11 +18,15 @@ export const geminiAdapter: ProviderAdapter = {
   id: "gemini",
   async *stream(args: StreamArgs): AsyncIterable<StreamEvent> {
     if (!args.apiKey) {
-      yield { type: "error", streamId: args.streamId, transient: false, message: "No Gemini API key" };
+      yield {
+        type: "error",
+        streamId: args.streamId,
+        transient: false,
+        message: "No Gemini API key",
+      };
       return;
     }
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(args.apiKey)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(args.apiKey)}`;
     const contents = args.messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
@@ -68,7 +72,12 @@ export const geminiAdapter: ProviderAdapter = {
         yield { type: "error", streamId: args.streamId, transient, message: e.message };
         return;
       }
-      yield { type: "error", streamId: args.streamId, transient: true, message: (e as Error).message };
+      yield {
+        type: "error",
+        streamId: args.streamId,
+        transient: true,
+        message: (e as Error).message,
+      };
       return;
     }
     yield {

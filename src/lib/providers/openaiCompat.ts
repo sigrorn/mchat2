@@ -28,17 +28,22 @@ export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdap
     id: cfg.id,
     async *stream(args: StreamArgs): AsyncIterable<StreamEvent> {
       if (!args.apiKey) {
-        yield { type: "error", streamId: args.streamId, transient: false, message: `No ${cfg.id} API key` };
+        yield {
+          type: "error",
+          streamId: args.streamId,
+          transient: false,
+          message: `No ${cfg.id} API key`,
+        };
         return;
       }
       const messages = args.systemPrompt
         ? [{ role: "system", content: args.systemPrompt }, ...args.messages]
         : args.messages;
       // stream_options.include_usage opts into a final SSE chunk that
-       // carries prompt/completion token counts (#12). Without it,
-       // OpenAI-style streams omit usage entirely and we'd have to
-       // estimate from message lengths. OpenAI-compat servers that
-       // don't recognize the field ignore it harmlessly.
+      // carries prompt/completion token counts (#12). Without it,
+      // OpenAI-style streams omit usage entirely and we'd have to
+      // estimate from message lengths. OpenAI-compat servers that
+      // don't recognize the field ignore it harmlessly.
       const body = {
         model: args.model,
         stream: true,
@@ -86,7 +91,12 @@ export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdap
           yield { type: "error", streamId: args.streamId, transient, message: e.message };
           return;
         }
-        yield { type: "error", streamId: args.streamId, transient: true, message: (e as Error).message };
+        yield {
+          type: "error",
+          streamId: args.streamId,
+          transient: true,
+          message: (e as Error).message,
+        };
         return;
       }
       yield {

@@ -35,7 +35,8 @@ function rowToMessage(r: Row): Message {
   let addressedTo: string[] = [];
   try {
     const parsed: unknown = JSON.parse(r.addressed_to);
-    if (Array.isArray(parsed)) addressedTo = parsed.filter((x): x is string => typeof x === "string");
+    if (Array.isArray(parsed))
+      addressedTo = parsed.filter((x): x is string => typeof x === "string");
   } catch {
     addressedTo = [];
   }

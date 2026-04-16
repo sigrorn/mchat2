@@ -7,7 +7,13 @@
 // ------------------------------------------------------------------
 
 export { streamSSE, request, HttpError } from "./http";
-export type { SSEEvent, StreamSSEOptions, HttpRequestOptions, HttpResponse, HttpImpl } from "./http";
+export type {
+  SSEEvent,
+  StreamSSEOptions,
+  HttpRequestOptions,
+  HttpResponse,
+  HttpImpl,
+} from "./http";
 export { keychain } from "./keychain";
 export type { KeychainImpl } from "./keychain";
 export { sql } from "./sql";

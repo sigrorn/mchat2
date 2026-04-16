@@ -95,7 +95,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     conversationId: conversation.id,
     role: "assistant",
     content: "",
-    provider: (target.provider satisfies ProviderId),
+    provider: target.provider satisfies ProviderId,
     model: input.model,
     personaId: target.personaId,
     displayMode: input.displayMode,
@@ -138,7 +138,12 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   };
 
   try {
-    for await (const e of withRetry(input.streamId, factory, input.retry ?? DEFAULT_RETRY, signal)) {
+    for await (const e of withRetry(
+      input.streamId,
+      factory,
+      input.retry ?? DEFAULT_RETRY,
+      signal,
+    )) {
       // Drop late events from a previous attempt / cancelled run.
       if (e.streamId !== input.streamId) continue;
       // bufferTokens (#16): in cols mode, suppress per-token onEvent
@@ -179,13 +184,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   // no cancellation) leaves a blank assistant bubble with no signal
   // about what failed. Treat it as a failure so the user sees a
   // diagnostic rather than wondering whether the request even left.
-  if (
-    !cancelled &&
-    !finalError &&
-    accumulated === "" &&
-    inputTokens === 0 &&
-    outputTokens === 0
-  ) {
+  if (!cancelled && !finalError && accumulated === "" && inputTokens === 0 && outputTokens === 0) {
     finalError = {
       message: "adapter produced no response (no tokens, no usage, no error)",
       transient: false,

@@ -95,7 +95,9 @@ describe("streamRunner audience propagation", () => {
       displayMode: "lines",
     });
     const params = inserts[0]?.params ?? [];
-    const jsonParams = params.filter((p): p is string => typeof p === "string" && p.startsWith("["));
+    const jsonParams = params.filter(
+      (p): p is string => typeof p === "string" && p.startsWith("["),
+    );
     // audience param is the second JSON array (after addressed_to).
     expect(jsonParams).toContain("[]");
   });

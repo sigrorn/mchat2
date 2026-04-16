@@ -1,9 +1,6 @@
 // User-message-number helpers — issue #8.
 import { describe, it, expect } from "vitest";
-import {
-  userNumberByIndex,
-  indexByUserNumber,
-} from "@/lib/conversations/userMessageNumber";
+import { userNumberByIndex, indexByUserNumber } from "@/lib/conversations/userMessageNumber";
 import { makeMessage } from "@/lib/persistence/messages";
 import type { Message } from "@/lib/types";
 

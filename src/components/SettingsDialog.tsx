@@ -78,8 +78,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
       >
         <h2 className="mb-3 text-lg font-semibold">API keys</h2>
         <p className="mb-4 text-xs text-neutral-500">
-          Stored in the OS-native keychain. Never sent anywhere except
-          the provider you entered them for.
+          Stored in the OS-native keychain. Never sent anywhere except the provider you entered them
+          for.
         </p>
         {loading ? (
           <div className="text-sm text-neutral-500">Loading…</div>
@@ -97,18 +97,14 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
                     <input
                       type={shown ? "text" : "password"}
                       value={values[id] ?? ""}
-                      onChange={(e) =>
-                        setValues((v) => ({ ...v, [id]: e.target.value }))
-                      }
+                      onChange={(e) => setValues((v) => ({ ...v, [id]: e.target.value }))}
                       placeholder={`${meta.keychainKey}`}
                       autoComplete="off"
                       spellCheck={false}
                       className="flex-1 rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
                     />
                     <button
-                      onClick={() =>
-                        setReveal((r) => ({ ...r, [id]: !shown }))
-                      }
+                      onClick={() => setReveal((r) => ({ ...r, [id]: !shown }))}
                       className="rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100"
                     >
                       {shown ? "hide" : "show"}

@@ -35,8 +35,7 @@ export function useSend(conversation: Conversation) {
   const send = useCallback(
     async (text: string, opts: SendOptions = {}) => {
       const personas: Persona[] = usePersonasStore.getState().byConversation[conversation.id] ?? [];
-      const selection =
-        usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
+      const selection = usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
 
       const resolved = resolveTargets({ text, personas, selection });
       if (resolved.targets.length === 0) return { ok: false as const, reason: "no targets" };
@@ -94,7 +93,9 @@ export function useSend(conversation: Conversation) {
         useSendStore.getState().setTargetStatus(conversation.id, t.key, "queued");
       }
 
-      const runOne = async (target: PersonaTarget): Promise<"completed" | "failed" | "cancelled"> => {
+      const runOne = async (
+        target: PersonaTarget,
+      ): Promise<"completed" | "failed" | "cancelled"> => {
         const streamId = `${runId}:${target.key}:${Date.now()}`;
         const controller = new AbortController();
         useSendStore.getState().registerStream(conversation.id, {
@@ -109,9 +110,7 @@ export function useSend(conversation: Conversation) {
         const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
         // Adapter-specific config from the resolved persona (#15).
         // Currently only Apertus reads this; other adapters ignore it.
-        const persona = target.personaId
-          ? personas.find((p) => p.id === target.personaId)
-          : null;
+        const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
         const extraConfig: Record<string, unknown> = {};
         if (target.provider === "apertus") {
           // Global setting (#25) takes precedence; per-persona value is
@@ -149,9 +148,7 @@ export function useSend(conversation: Conversation) {
             signal: controller.signal,
             onEvent: (e: StreamEvent) => {
               if (e.type === "retrying") {
-                useSendStore
-                  .getState()
-                  .setTargetStatus(conversation.id, target.key, "retrying");
+                useSendStore.getState().setTargetStatus(conversation.id, target.key, "retrying");
               }
               if (e.type === "token") {
                 // Live append to the placeholder row. The runner

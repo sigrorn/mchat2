@@ -83,7 +83,13 @@ describe("buildContext", () => {
   it("applies limitMarkIndex but keeps pinned (rule 3)", () => {
     const messages = [
       makeMessage({ conversationId: "c_1", role: "user", content: "old", index: 0 }),
-      makeMessage({ conversationId: "c_1", role: "user", content: "pin-old", index: 1, pinned: true }),
+      makeMessage({
+        conversationId: "c_1",
+        role: "user",
+        content: "pin-old",
+        index: 1,
+        pinned: true,
+      }),
       makeMessage({ conversationId: "c_1", role: "user", content: "new", index: 3 }),
     ];
     const r = buildContext({

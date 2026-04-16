@@ -33,9 +33,7 @@ function rowToConversation(r: Row): Conversation {
 }
 
 export async function listConversations(): Promise<Conversation[]> {
-  const rows = await sql.select<Row>(
-    "SELECT * FROM conversations ORDER BY created_at DESC",
-  );
+  const rows = await sql.select<Row>("SELECT * FROM conversations ORDER BY created_at DESC");
   return rows.map(rowToConversation);
 }
 

@@ -15,7 +15,12 @@ import { computePersonaCosts, formatPersonaCost } from "@/lib/pricing/personaCos
 import type { CostResult } from "@/lib/pricing/estimator";
 import { listModels } from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
-import { createPersona, deletePersona, updatePersona, PersonaValidationError } from "@/lib/personas/service";
+import {
+  createPersona,
+  deletePersona,
+  updatePersona,
+  PersonaValidationError,
+} from "@/lib/personas/service";
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import { getSetting } from "@/lib/persistence/settings";
@@ -44,9 +49,9 @@ const EMPTY_MESSAGES: readonly import("@/lib/types").Message[] = Object.freeze([
 
 export function PersonaPanel({ conversation }: { conversation: Conversation }): JSX.Element {
   const personas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
-  const selection = usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
-  const messages =
-    useMessagesStore((s) => s.byConversation[conversation.id]) ?? EMPTY_MESSAGES;
+  const selection =
+    usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
+  const messages = useMessagesStore((s) => s.byConversation[conversation.id]) ?? EMPTY_MESSAGES;
   const upsert = usePersonasStore((s) => s.upsert);
   const remove = usePersonasStore((s) => s.remove);
   const setSelection = usePersonasStore((s) => s.setSelection);
@@ -349,7 +354,9 @@ function CreateForm({
   const onExport = async (): Promise<void> => {
     const r = await exportPersonasToFile(conversationTitle, personas);
     if (r.ok) {
-      await useMessagesStore.getState().appendNotice(conversationId, `personas exported to ${r.path}.`);
+      await useMessagesStore
+        .getState()
+        .appendNotice(conversationId, `personas exported to ${r.path}.`);
     }
   };
   const onImport = async (): Promise<void> => {
@@ -374,10 +381,7 @@ function CreateForm({
   if (!open) {
     return (
       <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 text-xs">
-        <button
-          onClick={() => setOpen(true)}
-          className="text-neutral-600 hover:text-neutral-900"
-        >
+        <button onClick={() => setOpen(true)} className="text-neutral-600 hover:text-neutral-900">
           + Add persona
         </button>
         <div className="flex gap-2 text-neutral-500">

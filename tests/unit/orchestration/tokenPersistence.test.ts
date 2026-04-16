@@ -59,7 +59,7 @@ describe("streamRunner token persistence", () => {
         inputTokens: 0,
         outputTokens: 0,
         usageEstimated: false,
-          audience: [],
+        audience: [],
       },
     ];
     await runStream({
@@ -73,8 +73,8 @@ describe("streamRunner token persistence", () => {
       model: "mock-1",
       displayMode: "lines",
     });
-    const tokenUpdate = calls.find((c) =>
-      c.sql.includes("UPDATE messages SET") && c.sql.includes("input_tokens"),
+    const tokenUpdate = calls.find(
+      (c) => c.sql.includes("UPDATE messages SET") && c.sql.includes("input_tokens"),
     );
     expect(tokenUpdate).toBeDefined();
     const params = tokenUpdate?.params ?? [];

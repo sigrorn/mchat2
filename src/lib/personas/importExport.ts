@@ -47,9 +47,7 @@ export function serializePersonas(personas: readonly Persona[]): string {
   return JSON.stringify(out, null, 2);
 }
 
-export type ParseResult =
-  | { ok: true; personas: ExportedPersona[] }
-  | { ok: false; error: string };
+export type ParseResult = { ok: true; personas: ExportedPersona[] } | { ok: false; error: string };
 
 export function parsePersonasImport(raw: string): ParseResult {
   let parsed: unknown;

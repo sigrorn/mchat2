@@ -32,7 +32,13 @@ function makeRecorder(selectResults: Record<string, unknown[]> = {}) {
   return calls;
 }
 
-beforeEach(() => __setImpl({ execute: async () => ({ rowsAffected: 0, lastInsertId: null }), select: async () => [], close: async () => {} }));
+beforeEach(() =>
+  __setImpl({
+    execute: async () => ({ rowsAffected: 0, lastInsertId: null }),
+    select: async () => [],
+    close: async () => {},
+  }),
+);
 afterEach(() => __resetImpl());
 
 describe("conversationsRepo", () => {
@@ -112,7 +118,7 @@ describe("messagesRepo", () => {
       inputTokens: 0,
       outputTokens: 0,
       usageEstimated: false,
-          audience: [],
+      audience: [],
     });
     expect(m.index).toBe(7);
     const insert = calls.find((c) => c.sql.includes("INSERT INTO messages"));

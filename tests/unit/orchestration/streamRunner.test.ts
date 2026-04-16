@@ -190,7 +190,6 @@ describe("runStream", () => {
     const rec = makeSqlRecorder();
     const silentAdapter = {
       id: "mock" as const,
-      // eslint-disable-next-line require-yield
       async *stream(): AsyncIterable<StreamEvent> {
         // emit nothing — adapter just exits
       },

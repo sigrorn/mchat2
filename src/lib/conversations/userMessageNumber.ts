@@ -26,10 +26,7 @@ export function userNumberByIndex(messages: readonly Message[]): Map<number, num
 
 // Return the internal Message.index of the Nth user row, or null if
 // N is out of range (≤ 0 or greater than the count of user rows).
-export function indexByUserNumber(
-  messages: readonly Message[],
-  userNumber: number,
-): number | null {
+export function indexByUserNumber(messages: readonly Message[], userNumber: number): number | null {
   if (userNumber < 1) return null;
   let n = 0;
   for (const msg of messages) {

@@ -29,11 +29,7 @@ export function groupIntoColumns(messages: readonly Message[]): RenderItem[] {
       let j = i + 1;
       while (j < messages.length) {
         const nxt = messages[j];
-        if (
-          !nxt ||
-          nxt.role !== "assistant" ||
-          !sameAudience(nxt.audience, audience)
-        ) {
+        if (!nxt || nxt.role !== "assistant" || !sameAudience(nxt.audience, audience)) {
           break;
         }
         run.push(nxt);

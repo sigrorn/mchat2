@@ -16,12 +16,12 @@ describe("isPinnedToBottom", () => {
   });
 
   it("honors an explicit threshold", () => {
-    expect(
-      isPinnedToBottom({ scrollTop: 850, clientHeight: 100, scrollHeight: 1000 }, 50),
-    ).toBe(true);
-    expect(
-      isPinnedToBottom({ scrollTop: 840, clientHeight: 100, scrollHeight: 1000 }, 50),
-    ).toBe(false);
+    expect(isPinnedToBottom({ scrollTop: 850, clientHeight: 100, scrollHeight: 1000 }, 50)).toBe(
+      true,
+    );
+    expect(isPinnedToBottom({ scrollTop: 840, clientHeight: 100, scrollHeight: 1000 }, 50)).toBe(
+      false,
+    );
   });
 
   it("treats non-overflow containers as pinned", () => {

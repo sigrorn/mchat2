@@ -7,11 +7,7 @@
 // ------------------------------------------------------------------
 
 import { fs } from "../tauri/filesystem";
-import {
-  serializePersonas,
-  parsePersonasImport,
-  resolveImport,
-} from "./importExport";
+import { serializePersonas, parsePersonasImport, resolveImport } from "./importExport";
 import { createPersona, updatePersona } from "./service";
 import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
@@ -19,9 +15,7 @@ import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
 import type { Persona } from "../types";
 
-export type ExportOutcome =
-  | { ok: true; path: string }
-  | { ok: false; reason: "cancelled" };
+export type ExportOutcome = { ok: true; path: string } | { ok: false; reason: "cancelled" };
 
 export async function exportPersonasToFile(
   conversationTitle: string,

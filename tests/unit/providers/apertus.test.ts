@@ -44,9 +44,7 @@ describe("apertusAdapter", () => {
         extraConfig: { productId: "12345" },
       }),
     );
-    expect(lastUrl).toBe(
-      "https://api.infomaniak.com/2/ai/12345/openai/v1/chat/completions",
-    );
+    expect(lastUrl).toBe("https://api.infomaniak.com/2/ai/12345/openai/v1/chat/completions");
   });
 
   it("emits a non-transient error when productId is missing", async () => {

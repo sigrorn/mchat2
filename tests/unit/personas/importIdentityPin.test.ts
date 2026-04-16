@@ -1,10 +1,7 @@
 // Imported personas must get their identity pin — issue #36.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
-import {
-  __setImpl as __setFsImpl,
-  __resetImpl as __resetFsImpl,
-} from "@/lib/tauri/filesystem";
+import { __setImpl as __setFsImpl, __resetImpl as __resetFsImpl } from "@/lib/tauri/filesystem";
 import { importPersonasFromFile } from "@/lib/personas/fileOps";
 
 interface PersonaRow {
@@ -121,7 +118,9 @@ describe("importPersonasFromFile identity pins (#36)", () => {
         (p) => typeof p.content === "string" && p.content.includes("use " + persona.name),
       );
       const hasSetupNote = own.some(
-        (p) => typeof p.content === "string" && (p.content as string).startsWith(`Added persona "${persona.name}"`),
+        (p) =>
+          typeof p.content === "string" &&
+          (p.content as string).startsWith(`Added persona "${persona.name}"`),
       );
       expect(hasInstruction).toBe(true);
       expect(hasSetupNote).toBe(true);

@@ -33,9 +33,7 @@ describe("formatUserHeader", () => {
   });
 
   it("appends → @name list when addressedTo present", () => {
-    expect(formatUserHeader(2, ["p_alice", "p_bob"], personas)).toBe(
-      "[2] user \u2192 @Alice @Bob",
-    );
+    expect(formatUserHeader(2, ["p_alice", "p_bob"], personas)).toBe("[2] user \u2192 @Alice @Bob");
   });
 
   it("falls back to id when persona missing", () => {

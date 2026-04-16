@@ -53,11 +53,17 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
   }
   const existing = await repo.listPersonas(input.conversationId);
   if (existing.some((p) => p.nameSlug === slug)) {
-    throw new PersonaValidationError("name_in_use", `'${name}' is already used in this conversation`);
+    throw new PersonaValidationError(
+      "name_in_use",
+      `'${name}' is already used in this conversation`,
+    );
   }
   if (input.runsAfter) {
     if (!existing.some((p) => p.id === input.runsAfter)) {
-      throw new PersonaValidationError("unknown_parent", "runsAfter references a non-existent persona");
+      throw new PersonaValidationError(
+        "unknown_parent",
+        "runsAfter references a non-existent persona",
+      );
     }
   }
   // Apertus product id used to be per-persona (#15) but is now a global

@@ -44,7 +44,8 @@ const bareTarget: PersonaTarget = {
   displayName: "Claude",
 };
 
-const IDENTITY = "You are Alice. Only respond as yourself — do not include or generate responses for other personas.";
+const IDENTITY =
+  "You are Alice. Only respond as yourself — do not include or generate responses for other personas.";
 
 describe("buildContext system prompt layering", () => {
   it("identity-line only: no global, no local, persona target (#39)", () => {

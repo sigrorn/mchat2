@@ -30,9 +30,7 @@ describe("renderMarkdownToHtml", () => {
   });
 
   it("escapes dangerous html", () => {
-    expect(escapeHtml("<script>alert(1)</script>")).toBe(
-      "&lt;script&gt;alert(1)&lt;/script&gt;",
-    );
+    expect(escapeHtml("<script>alert(1)</script>")).toBe("&lt;script&gt;alert(1)&lt;/script&gt;");
   });
 });
 

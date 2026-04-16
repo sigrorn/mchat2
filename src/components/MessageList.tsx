@@ -23,10 +23,8 @@ const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 const EMPTY: readonly Message[] = Object.freeze([]);
 
 export function MessageList({ conversationId }: { conversationId: string }): JSX.Element {
-  const messages =
-    useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
-  const personas =
-    usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
+  const messages = useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
+  const personas = usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
   const containerRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
 
@@ -57,7 +55,9 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
   );
 
   const isCols = conversation?.displayMode === "cols";
-  const items = isCols ? groupIntoColumns(messages) : messages.map((m) => ({ kind: "row" as const, message: m }));
+  const items = isCols
+    ? groupIntoColumns(messages)
+    : messages.map((m) => ({ kind: "row" as const, message: m }));
 
   return (
     <div
@@ -135,9 +135,7 @@ function renderBubbleBody(message: Message, excluded: boolean): JSX.Element {
       />
     );
   }
-  return (
-    <div className={`whitespace-pre-wrap text-sm leading-relaxed ${tone}`}>{body.text}</div>
-  );
+  return <div className={`whitespace-pre-wrap text-sm leading-relaxed ${tone}`}>{body.text}</div>;
 }
 
 function MessageBubble({
@@ -198,7 +196,11 @@ function MessageBubble({
       style={{ borderLeftColor: color }}
     >
       <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-        {message.pinned ? <span className="mr-1" aria-label="pinned">📌</span> : null}
+        {message.pinned ? (
+          <span className="mr-1" aria-label="pinned">
+            📌
+          </span>
+        ) : null}
         {headerParts.join(" · ")}
       </div>
       {message.errorMessage ? (

@@ -90,7 +90,9 @@ function makeMemSql() {
       if (q.includes("WHERE conversation_id = ?")) {
         const cid = String(ps[0]);
         const filtered = [...rows.values()].filter(
-          (r) => r.conversationId === cid && (q.includes("deleted_at IS NULL") ? r.deletedAt === null : true),
+          (r) =>
+            r.conversationId === cid &&
+            (q.includes("deleted_at IS NULL") ? r.deletedAt === null : true),
         );
         return filtered.map(toRow) as unknown as T[];
       }

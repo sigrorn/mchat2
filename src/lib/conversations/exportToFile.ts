@@ -21,9 +21,7 @@ export interface ExportInput {
   generatedAt: string;
 }
 
-export type ExportResult =
-  | { ok: true; path: string }
-  | { ok: false; reason: "cancelled" };
+export type ExportResult = { ok: true; path: string } | { ok: false; reason: "cancelled" };
 
 export async function exportConversationToHtml(input: ExportInput): Promise<ExportResult> {
   const knownSecrets = await collectKnownSecrets();
@@ -58,17 +56,21 @@ async function collectKnownSecrets(): Promise<string[]> {
 // timestamp. Colons and timezone separators get stripped so the name
 // is portable across Windows / macOS / Linux.
 export function defaultExportFilename(title: string, generatedAt: string): string {
-  const slug = slugify(title)
+  const slug =
+    slugify(title) ||
     // slugify drops punctuation already; re-introduce dashes between
     // word runs by splitting the original on non-alnum. The slugify
     // helper produces 'mychat' from 'My Chat'; we want 'my-chat'.
-    || "";
+    "";
   const dashed = title
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "");
   const base = dashed || slug || "chat";
-  const stamp = generatedAt.replace(/[:.]/g, "-").replace(/-\d+Z?$/, "").replace(/-?Z$/, "");
+  const stamp = generatedAt
+    .replace(/[:.]/g, "-")
+    .replace(/-\d+Z?$/, "")
+    .replace(/-?Z$/, "");
   return `${base}-${stamp}.html`;
 }

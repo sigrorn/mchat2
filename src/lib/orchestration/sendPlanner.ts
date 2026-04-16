@@ -7,14 +7,7 @@
 // Collaborators: personas/resolver.ts, orchestration/dagExecutor.ts.
 // ------------------------------------------------------------------
 
-import type {
-  DagNode,
-  DagPlan,
-  Persona,
-  PersonaTarget,
-  ResolveMode,
-  SendPlan,
-} from "../types";
+import type { DagNode, DagPlan, Persona, PersonaTarget, ResolveMode, SendPlan } from "../types";
 
 export interface PlanSendInput {
   mode: ResolveMode;

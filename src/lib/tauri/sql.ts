@@ -7,7 +7,10 @@
 // ------------------------------------------------------------------
 
 export interface SqlImpl {
-  execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number; lastInsertId: number | null }>;
+  execute(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ rowsAffected: number; lastInsertId: number | null }>;
   select<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
   close(): Promise<void>;
 }
@@ -27,7 +30,10 @@ async function openDb(): Promise<SqliteDatabase> {
 }
 
 interface SqliteDatabase {
-  execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number; lastInsertId?: number }>;
+  execute(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ rowsAffected: number; lastInsertId?: number }>;
   select<T>(sql: string, params?: unknown[]): Promise<T[]>;
   close(): Promise<boolean>;
 }

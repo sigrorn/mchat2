@@ -63,8 +63,8 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           Global system prompt
         </label>
         <p className="mb-2 text-xs text-neutral-500">
-          Prepended to every send, above the persona / conversation system prompt.
-          Leave empty to disable.
+          Prepended to every send, above the persona / conversation system prompt. Leave empty to
+          disable.
         </p>
         <textarea
           value={value}
@@ -75,10 +75,9 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           className="block w-full resize-y rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
         <p className="mt-4 text-xs text-neutral-500">
-          Per-persona trace files (old-mchat <code className="font-mono">-debug</code>) are
-          gated by the <code className="font-mono">MCHAT2_DEBUG=1</code> environment
-          variable, set before launch — not a persisted setting, so a forgotten toggle
-          can't quietly fill your disk.
+          Per-persona trace files (old-mchat <code className="font-mono">-debug</code>) are gated by
+          the <code className="font-mono">MCHAT2_DEBUG=1</code> environment variable, set before
+          launch — not a persisted setting, so a forgotten toggle can't quietly fill your disk.
         </p>
         {error ? <div className="mt-2 text-sm text-red-700">{error}</div> : null}
         <div className="mt-3 flex items-center gap-2">
@@ -90,7 +89,9 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
             {saving ? "Saving..." : "Save"}
           </button>
           {savedAt ? (
-            <span className="text-xs text-neutral-500">Saved at {new Date(savedAt).toLocaleTimeString()}</span>
+            <span className="text-xs text-neutral-500">
+              Saved at {new Date(savedAt).toLocaleTimeString()}
+            </span>
           ) : null}
         </div>
       </div>

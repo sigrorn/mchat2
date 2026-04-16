@@ -74,13 +74,9 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE messages ADD COLUMN usage_estimated INTEGER NOT NULL DEFAULT 0`,
   ],
   // 3 — assistant audience (issue #4). JSON-encoded persona key list.
-  [
-    `ALTER TABLE messages ADD COLUMN audience TEXT NOT NULL DEFAULT '[]'`,
-  ],
+  [`ALTER TABLE messages ADD COLUMN audience TEXT NOT NULL DEFAULT '[]'`],
   // 4 — Apertus product id on personas (issue #15).
-  [
-    `ALTER TABLE personas ADD COLUMN apertus_product_id TEXT`,
-  ],
+  [`ALTER TABLE personas ADD COLUMN apertus_product_id TEXT`],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version

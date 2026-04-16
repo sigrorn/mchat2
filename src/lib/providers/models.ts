@@ -116,7 +116,8 @@ async function geminiList(apiKey: string): Promise<string[]> {
   const parsed = JSON.parse(res.body) as GeminiModelsResponse;
   // Strip the 'models/' prefix that Gemini returns.
   return (
-    parsed.models?.map((m) => m.name.replace(/^models\//, "")).filter((n) => !n.includes("embedding")) ??
-    []
+    parsed.models
+      ?.map((m) => m.name.replace(/^models\//, ""))
+      .filter((n) => !n.includes("embedding")) ?? []
   );
 }

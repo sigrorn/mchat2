@@ -64,9 +64,7 @@ export function resolveTargets(input: ResolveInput): ResolveResult {
 
   if (names.includes("others")) {
     const selectionSet = new Set(selection);
-    const targets = personas
-      .filter((p) => !selectionSet.has(p.id))
-      .map(personaToTarget);
+    const targets = personas.filter((p) => !selectionSet.has(p.id)).map(personaToTarget);
     return { mode: "others", targets, strippedText, unknown: [] };
   }
 

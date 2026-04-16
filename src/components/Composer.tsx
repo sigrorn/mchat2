@@ -23,8 +23,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const { send } = useSend(conversation);
-  const active =
-    useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
+  const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
 
   const onSend = async (): Promise<void> => {
     if (!text.trim() || busy) return;
@@ -54,10 +53,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
     }
   };
 
-  const runCommand = async (
-    raw: string,
-    cmd: ReturnType<typeof parseCommand>,
-  ): Promise<void> => {
+  const runCommand = async (raw: string, cmd: ReturnType<typeof parseCommand>): Promise<void> => {
     if (cmd.kind === "error") {
       await useMessagesStore.getState().appendNotice(conversation.id, cmd.message);
       setText(raw);
@@ -120,10 +116,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       if (body === null) {
         await useMessagesStore
           .getState()
-          .appendNotice(
-            conversation.id,
-            `pins: persona '${cmd.payload.persona ?? ""}' not found.`,
-          );
+          .appendNotice(conversation.id, `pins: persona '${cmd.payload.persona ?? ""}' not found.`);
         setText(raw);
         return;
       }
@@ -131,15 +124,10 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       return;
     }
     if (cmd.kind === "displayMode") {
-      await useConversationsStore
-        .getState()
-        .setDisplayMode(conversation.id, cmd.payload.mode);
+      await useConversationsStore.getState().setDisplayMode(conversation.id, cmd.payload.mode);
       await useMessagesStore
         .getState()
-        .appendNotice(
-          conversation.id,
-          `display: switched to ${cmd.payload.mode}.`,
-        );
+        .appendNotice(conversation.id, `display: switched to ${cmd.payload.mode}.`);
       return;
     }
     if (cmd.kind === "unpin") {
@@ -159,10 +147,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       if (!target?.pinned) {
         await useMessagesStore
           .getState()
-          .appendNotice(
-            conversation.id,
-            `unpin: message ${cmd.payload.userNumber} is not pinned.`,
-          );
+          .appendNotice(conversation.id, `unpin: message ${cmd.payload.userNumber} is not pinned.`);
         setText(raw);
         return;
       }
@@ -193,9 +178,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         placeholder="Type a message. Use @alice @all @others to target personas. Enter to send, Shift+Enter for newline."
         className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
       />
-      {hint ? (
-        <div className="mt-2 text-xs text-amber-700">{hint}</div>
-      ) : null}
+      {hint ? <div className="mt-2 text-xs text-amber-700">{hint}</div> : null}
       <div className="mt-2 flex gap-2">
         <button
           onClick={() => void onSend()}

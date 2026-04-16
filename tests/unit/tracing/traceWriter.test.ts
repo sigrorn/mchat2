@@ -30,11 +30,7 @@ describe("formatTraceLines", () => {
 
   it("splits multi-line content across rows", () => {
     const rows = formatTraceLines(ts, "I", ["alpha\nbeta\ngamma"]);
-    expect(rows).toEqual([
-      "123045.678 I alpha",
-      "123045.678 I beta",
-      "123045.678 I gamma",
-    ]);
+    expect(rows).toEqual(["123045.678 I alpha", "123045.678 I beta", "123045.678 I gamma"]);
   });
 
   it("preserves blank lines (empty lines emit blank rows)", () => {
@@ -67,10 +63,7 @@ describe("buildOutboundRows", () => {
     // Old mchat puts the full '[role] content' string through splitlines, so
     // continuation lines do NOT carry the role bracket — they're raw text.
     const rows = buildOutboundRows(ts, null, [{ role: "user", content: "line1\nline2" }]);
-    expect(rows).toEqual([
-      "123045.678 O [user] line1",
-      "123045.678 O line2",
-    ]);
+    expect(rows).toEqual(["123045.678 O [user] line1", "123045.678 O line2"]);
   });
 });
 

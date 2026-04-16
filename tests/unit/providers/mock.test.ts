@@ -35,7 +35,9 @@ describe("mockAdapter", () => {
         apiKey: null,
       }),
     );
-    const tokens = events.filter((e) => e.type === "token").map((e) => (e as { text: string }).text);
+    const tokens = events
+      .filter((e) => e.type === "token")
+      .map((e) => (e as { text: string }).text);
     expect(tokens).toEqual(["foo", "bar", "baz"]);
   });
 

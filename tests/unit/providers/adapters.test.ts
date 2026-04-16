@@ -26,10 +26,28 @@ afterEach(() => __resetImpl());
 describe("anthropicAdapter", () => {
   it("parses text_delta events to tokens", async () => {
     mockSSE([
-      { event: "message_start", data: JSON.stringify({ type: "message_start", message: { usage: { input_tokens: 10 } } }) },
-      { event: "content_block_delta", data: JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text: "Hi " } }) },
-      { event: "content_block_delta", data: JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text: "there" } }) },
-      { event: "message_delta", data: JSON.stringify({ type: "message_delta", usage: { output_tokens: 2 } }) },
+      {
+        event: "message_start",
+        data: JSON.stringify({ type: "message_start", message: { usage: { input_tokens: 10 } } }),
+      },
+      {
+        event: "content_block_delta",
+        data: JSON.stringify({
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "Hi " },
+        }),
+      },
+      {
+        event: "content_block_delta",
+        data: JSON.stringify({
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "there" },
+        }),
+      },
+      {
+        event: "message_delta",
+        data: JSON.stringify({ type: "message_delta", usage: { output_tokens: 2 } }),
+      },
     ]);
     const events = await collect(
       anthropicAdapter.stream({
@@ -40,7 +58,9 @@ describe("anthropicAdapter", () => {
         apiKey: "sk-ant-test",
       }),
     );
-    const tokens = events.filter((e) => e.type === "token").map((e) => (e as { text: string }).text);
+    const tokens = events
+      .filter((e) => e.type === "token")
+      .map((e) => (e as { text: string }).text);
     expect(tokens).toEqual(["Hi ", "there"]);
     const usage = events.find((e) => e.type === "usage") as { input: number; output: number };
     expect(usage.input).toBe(10);
@@ -78,7 +98,9 @@ describe("openaiAdapter", () => {
         apiKey: "sk-test",
       }),
     );
-    const tokens = events.filter((e) => e.type === "token").map((e) => (e as { text: string }).text);
+    const tokens = events
+      .filter((e) => e.type === "token")
+      .map((e) => (e as { text: string }).text);
     expect(tokens).toEqual(["Hel", "lo"]);
     expect(events[events.length - 1]?.type).toBe("complete");
   });
@@ -108,7 +130,10 @@ describe("openaiAdapter", () => {
 describe("geminiAdapter", () => {
   it("parses candidates[].content.parts[].text", async () => {
     mockSSE([
-      { event: "message", data: JSON.stringify({ candidates: [{ content: { parts: [{ text: "abc" }] } }] }) },
+      {
+        event: "message",
+        data: JSON.stringify({ candidates: [{ content: { parts: [{ text: "abc" }] } }] }),
+      },
       {
         event: "message",
         data: JSON.stringify({
