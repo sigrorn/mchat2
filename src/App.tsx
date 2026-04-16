@@ -11,6 +11,14 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { lifecycle } from "@/lib/tauri/lifecycle";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
+import {
+  hasStrongholdVault,
+  strongholdLegacyImpl,
+  keychain as keychainFacade,
+} from "@/lib/tauri/keychain";
+import { runKeychainMigrationIfNeeded } from "@/lib/tauri/keychainStartup";
+import { ALL_PROVIDER_IDS, PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 
 export function App(): JSX.Element {
   const [ready, setReady] = useState(false);
@@ -22,6 +30,28 @@ export function App(): JSX.Element {
       try {
         if (lifecycle.isTauri()) {
           await runMigrations();
+          // #35: one-off Stronghold → OS-keychain copy. Runs only when
+          // the legacy vault file is present; renames it on success.
+          await runKeychainMigrationIfNeeded({
+            hasLegacy: hasStrongholdVault,
+            legacy: strongholdLegacyImpl,
+            target: {
+              get: (k) => keychainFacade.get(k),
+              set: (k, v) => keychainFacade.set(k, v),
+              remove: (k) => keychainFacade.remove(k),
+              list: () => keychainFacade.list(),
+            },
+            knownKeys: [
+              ...ALL_PROVIDER_IDS.map((id) => PROVIDER_REGISTRY[id].keychainKey),
+              APERTUS_PRODUCT_ID_KEY,
+            ],
+            renameVault: async () => {
+              const { appDataDir } = await import("@tauri-apps/api/path");
+              const { rename } = await import("@tauri-apps/plugin-fs");
+              const dir = await appDataDir();
+              await rename(`${dir}/mchat2.stronghold`, `${dir}/mchat2.stronghold.migrated`);
+            },
+          });
           await loadConversations();
         }
         setReady(true);
