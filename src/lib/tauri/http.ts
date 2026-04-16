@@ -74,7 +74,12 @@ const defaultImpl: HttpImpl = {
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      buf += decoder.decode(value, { stream: true });
+      // Normalize CRLF → LF so the frame-boundary search works regardless
+      // of whether the server emits Unix or DOS line endings. Google's
+      // Gemini streamGenerateContent endpoint emits \r\n\r\n between
+      // events, which used to cause indexOf('\n\n') to never match and
+      // the entire stream to be silently discarded.
+      buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
       let idx: number;
       while ((idx = buf.indexOf("\n\n")) !== -1) {
         const frame = buf.slice(0, idx);
