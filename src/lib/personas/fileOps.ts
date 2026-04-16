@@ -14,6 +14,8 @@ import {
 } from "./importExport";
 import { createPersona, updatePersona } from "./service";
 import * as repo from "../persistence/personas";
+import * as messagesRepo from "../persistence/messages";
+import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
 import type { Persona } from "../types";
 
@@ -82,6 +84,13 @@ export async function importPersonasFromFile(
     const persona = post.find((p) => p.nameSlug === slugify(entry.name));
     if (!persona) continue;
     await updatePersona({ id: persona.id, runsAfter: targetId });
+  }
+  // #36: every imported persona needs the same identity pin that
+  // CreateForm sets up — without it the LLM defaults to its provider
+  // identity ("My name is Claude") rather than the imported name.
+  const history = await messagesRepo.listMessages(conversationId);
+  for (const p of created) {
+    await ensureIdentityPin(conversationId, p, history, messagesRepo);
   }
   return { ok: true, created, skipped: resolved.skipped };
 }
