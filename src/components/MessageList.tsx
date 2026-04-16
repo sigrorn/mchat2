@@ -5,7 +5,7 @@
 //                 MessageBubble at a later pass.
 // ------------------------------------------------------------------
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
@@ -60,9 +60,10 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
     ? groupIntoColumns(messages)
     : messages.map((m) => ({ kind: "row" as const, message: m }));
 
-  // #43: manual retry on failed assistant rows. useSend needs the full
-  // Conversation object, which we already have from the store above.
-  const { retry } = useSend(
+  // #43/#44: useSend exposes retry + replay for failed-row retry and
+  // user-row edit+replay. Needs the full Conversation object, which
+  // we already have from the store above.
+  const { retry, replay } = useSend(
     conversation ?? {
       id: conversationId,
       title: "",
@@ -74,6 +75,7 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
       visibilityMode: "separated",
     },
   );
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   return (
     <div
@@ -83,16 +85,32 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
     >
       {items.map((item) => {
         if (item.kind === "row") {
-          return (
-            <MessageBubble
-              key={item.message.id}
-              message={item.message}
-              personas={personas}
-              userNumber={userNumbers.get(item.message.index) ?? null}
-              excluded={conversation ? isExcludedByLimit(item.message, conversation) : false}
-              onRetry={() => void retry(item.message)}
-            />
-          );
+          const m = item.message;
+          if (editingId === m.id && m.role === "user") {
+            return (
+              <EditReplayEditor
+                key={m.id}
+                initial={m.content}
+                onCancel={() => setEditingId(null)}
+                onCommit={async (next) => {
+                  setEditingId(null);
+                  const trimmed = next.trim();
+                  if (!trimmed || trimmed === m.content) return;
+                  await replay(m.id, trimmed);
+                }}
+              />
+            );
+          }
+          const bubbleProps = {
+            key: m.id,
+            message: m,
+            personas,
+            userNumber: userNumbers.get(m.index) ?? null,
+            excluded: conversation ? isExcludedByLimit(m, conversation) : false,
+            onRetry: () => void retry(m),
+            ...(m.role === "user" ? { onEdit: () => setEditingId(m.id) } : {}),
+          };
+          return <MessageBubble {...bubbleProps} />;
         }
         // Columns block (#16). One column per audience persona, in
         // the persona-panel sortOrder. Each column shows that
@@ -139,6 +157,60 @@ export function MessageList({ conversationId }: { conversationId: string }): JSX
   );
 }
 
+function EditReplayEditor({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (value: string) => void | Promise<void>;
+  onCancel: () => void;
+}): JSX.Element {
+  const [value, setValue] = useState(initial);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+  return (
+    <div className="mb-3 rounded border-l-4 border-blue-400 bg-blue-50 px-3 py-2 shadow-sm">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+        edit &amp; replay
+      </div>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            void onCommit(value);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        rows={Math.max(3, Math.min(12, value.split("\n").length + 1))}
+        className="block w-full resize-y rounded border border-neutral-300 px-2 py-1.5 text-sm"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={() => void onCommit(value)}
+          className="rounded bg-neutral-900 px-2 py-0.5 text-xs text-white hover:bg-neutral-700"
+        >
+          Replay (Ctrl+Enter)
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded border border-neutral-300 px-2 py-0.5 text-xs hover:bg-neutral-100"
+        >
+          Cancel (Esc)
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function renderBubbleBody(message: Message, excluded: boolean): JSX.Element {
   const body = renderMessageBody(message);
   const tone = excluded ? "text-neutral-600" : "text-neutral-900";
@@ -162,12 +234,14 @@ function MessageBubble({
   userNumber,
   excluded,
   onRetry,
+  onEdit,
 }: {
   message: Message;
   personas: readonly Persona[];
   userNumber: number | null;
   excluded: boolean;
   onRetry?: () => void;
+  onEdit?: () => void;
 }): JSX.Element {
   // Notice rows (#8): UI-only info/error from in-app commands. Visually
   // distinct, italicized, never reach the LLM.
@@ -215,13 +289,24 @@ function MessageBubble({
       className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-        {message.pinned ? (
-          <span className="mr-1" aria-label="pinned">
-            📌
-          </span>
+      <div className="mb-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-neutral-600">
+        <div>
+          {message.pinned ? (
+            <span className="mr-1" aria-label="pinned">
+              📌
+            </span>
+          ) : null}
+          {headerParts.join(" · ")}
+        </div>
+        {onEdit ? (
+          <button
+            onClick={onEdit}
+            className="ml-2 rounded border border-neutral-300 px-1.5 py-0 text-[10px] font-normal normal-case text-neutral-500 hover:bg-neutral-100"
+            title="Edit this message and regenerate replies"
+          >
+            edit
+          </button>
         ) : null}
-        {headerParts.join(" · ")}
       </div>
       {message.errorMessage ? (
         <div className="flex items-start justify-between gap-2">

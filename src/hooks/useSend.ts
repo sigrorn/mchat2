@@ -21,6 +21,8 @@ import { planSend } from "@/lib/orchestration/sendPlanner";
 import { executeDag } from "@/lib/orchestration/dagExecutor";
 import { runStream, modelForTarget } from "@/lib/orchestration/streamRunner";
 import { buildRetryTarget } from "@/lib/orchestration/retryTarget";
+import { planReplay } from "@/lib/conversations/replay";
+import * as messagesRepo from "@/lib/persistence/messages";
 import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
@@ -279,5 +281,153 @@ export function useSend(conversation: Conversation) {
     [conversation],
   );
 
-  return { send, retry };
+  const replay = useCallback(
+    async (messageId: string, newContent: string) => {
+      // #44: edit a user row + truncate everything after it + re-send.
+      // The flow mirrors `send` but skips creating a new user row; it
+      // updates the existing one in place and re-resolves targets from
+      // the new text against the current persona list / selection.
+      const personas: Persona[] =
+        usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const selection =
+        usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+
+      const resolved = resolveTargets({ text: newContent, personas, selection });
+      if (resolved.targets.length === 0) {
+        return { ok: false as const, reason: "no targets" };
+      }
+
+      const addressedTo =
+        resolved.mode === "targeted" ? resolved.targets.map((t) => t.key) : [];
+      const plan = planReplay(history, messageId, resolved.strippedText, addressedTo);
+      if (!plan.ok) return { ok: false as const, reason: plan.reason };
+
+      // Mutate the DB: update content + addressedTo on the edited row,
+      // delete every row at a later index so the regenerated replies
+      // take their place.
+      const edited = history.find((m) => m.id === messageId);
+      await messagesRepo.applyMessageMutation({
+        id: plan.update.id,
+        content: plan.update.content,
+        addressedTo: plan.update.addressedTo,
+      });
+      if (edited) {
+        await messagesRepo.deleteMessagesAfter(conversation.id, edited.index);
+      }
+      await useMessagesStore.getState().load(conversation.id);
+
+      // Sticky selection update (same as send).
+      if (resolved.mode !== "implicit") {
+        const nextSelection = selectionAfterResolve(resolved, selection);
+        usePersonasStore.getState().setSelection(conversation.id, nextSelection);
+      }
+
+      // Dispatch a fresh runStream for each target — reuses the same
+      // plan/DAG logic as send.
+      const runId = useSendStore.getState().nextRunId(conversation.id);
+      const runPlan = planSend({
+        mode: resolved.mode,
+        targets: resolved.targets,
+        personas,
+        runId,
+      });
+      if (!runPlan) return { ok: false as const, reason: "no plan" };
+
+      const multiTarget = runPlan.kind !== "single";
+      const bufferTokens = conversation.displayMode === "cols" && multiTarget;
+
+      const allTargets =
+        runPlan.kind === "single"
+          ? [runPlan.target]
+          : runPlan.kind === "parallel"
+            ? runPlan.targets
+            : Array.from(runPlan.plan.nodes.values()).map((n) => n.target);
+      for (const t of allTargets) {
+        useSendStore.getState().setTargetStatus(conversation.id, t.key, "queued");
+      }
+
+      const runOne = async (
+        target: PersonaTarget,
+      ): Promise<"completed" | "failed" | "cancelled"> => {
+        const streamId = `${runId}:${target.key}:${Date.now()}`;
+        const controller = new AbortController();
+        useSendStore.getState().registerStream(conversation.id, {
+          streamId,
+          controller,
+          target: target.key,
+          startedAt: Date.now(),
+        });
+        const apiKey = PROVIDER_REGISTRY[target.provider].requiresKey
+          ? await keychain.get(PROVIDER_REGISTRY[target.provider].keychainKey)
+          : null;
+        const freshHistory =
+          useMessagesStore.getState().byConversation[conversation.id] ?? [];
+        const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
+        const extraConfig: Record<string, unknown> = {};
+        if (target.provider === "apertus") {
+          const globalProductId = await getSetting(APERTUS_PRODUCT_ID_KEY);
+          const productId = globalProductId?.trim() || persona?.apertusProductId || null;
+          if (productId) extraConfig.productId = productId;
+        }
+        const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+        const traceEnabled = await isDebugEnabled();
+        const slug = persona?.nameSlug ?? target.key;
+        const traceSink = traceEnabled ? await makeTraceFileSink({ slug }) : undefined;
+        useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
+        try {
+          const outcome = await runStream({
+            globalSystemPrompt,
+            ...(traceSink ? { traceSink } : {}),
+            streamId,
+            conversation,
+            target,
+            personas,
+            history: freshHistory,
+            adapter: adapterFor(target.provider),
+            apiKey,
+            model: modelForTarget(target, personas),
+            displayMode: conversation.displayMode,
+            extraConfig,
+            bufferTokens,
+            signal: controller.signal,
+            onEvent: (e: StreamEvent) => {
+              if (e.type === "retrying") {
+                useSendStore.getState().setTargetStatus(conversation.id, target.key, "retrying");
+              }
+              if (e.type === "token") {
+                const list = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+                const last = list[list.length - 1];
+                if (last && last.role === "assistant") {
+                  useMessagesStore
+                    .getState()
+                    .patchContent(conversation.id, last.id, last.content + e.text);
+                }
+              }
+            },
+          });
+          return outcome.kind;
+        } finally {
+          useSendStore.getState().finishStream(conversation.id, streamId);
+          useSendStore.getState().clearTargetStatus(conversation.id, target.key);
+        }
+      };
+
+      if (runPlan.kind === "single") {
+        await runOne(runPlan.target);
+      } else if (runPlan.kind === "parallel") {
+        await Promise.all(runPlan.targets.map(runOne));
+      } else {
+        await executeDag({
+          plan: runPlan.plan,
+          runNode: (n: DagNode) => runOne(n.target),
+        });
+      }
+      await useMessagesStore.getState().load(conversation.id);
+      return { ok: true as const };
+    },
+    [conversation],
+  );
+
+  return { send, retry, replay };
 }

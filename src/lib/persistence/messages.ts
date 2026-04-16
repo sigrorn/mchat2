@@ -189,13 +189,14 @@ export async function updateMessageUsage(
 }
 
 // Apply a partial mutation to a message row. Used by the persona-
-// deletion cleanup so the caller can issue one UPDATE per affected
-// row touching only the columns that changed.
+// deletion cleanup and the edit/replay flow so callers can issue one
+// UPDATE per affected row touching only the columns that changed.
 export async function applyMessageMutation(mutation: {
   id: string;
   pinned?: boolean;
   pinTarget?: string | null;
   addressedTo?: string[];
+  content?: string;
 }): Promise<void> {
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -211,9 +212,26 @@ export async function applyMessageMutation(mutation: {
     sets.push("addressed_to = ?");
     values.push(JSON.stringify(mutation.addressedTo));
   }
+  if (mutation.content !== undefined) {
+    sets.push("content = ?");
+    values.push(mutation.content);
+  }
   if (sets.length === 0) return;
   values.push(mutation.id);
   await sql.execute(`UPDATE messages SET ${sets.join(", ")} WHERE id = ?`, values);
+}
+
+// Truncate the tail of a conversation — used by edit/replay (#44) to
+// drop every row after the edited user message so the regenerated
+// replies take their place.
+export async function deleteMessagesAfter(
+  conversationId: string,
+  index: number,
+): Promise<void> {
+  await sql.execute("DELETE FROM messages WHERE conversation_id = ? AND idx > ?", [
+    conversationId,
+    index,
+  ]);
 }
 
 export async function setMessagePin(
