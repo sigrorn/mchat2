@@ -1,6 +1,7 @@
 // Minimal Tauri entrypoint. Heavy lifting is in TypeScript — Rust just
 // wires up plugins so the frontend can call them.
 
+mod debug_flag;
 mod keychain;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -11,6 +12,7 @@ pub fn run() {
             keychain::keychain_set,
             keychain::keychain_remove,
             keychain::keychain_list,
+            debug_flag::debug_enabled,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

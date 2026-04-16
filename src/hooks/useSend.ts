@@ -17,12 +17,9 @@ import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
 import { getSetting } from "@/lib/persistence/settings";
-import {
-  GLOBAL_SYSTEM_PROMPT_KEY,
-  APERTUS_PRODUCT_ID_KEY,
-  TRACE_PERSONAS_KEY,
-} from "@/lib/settings/keys";
+import { GLOBAL_SYSTEM_PROMPT_KEY, APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
+import { isDebugEnabled } from "@/lib/tauri/debugFlag";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
@@ -125,10 +122,10 @@ export function useSend(conversation: Conversation) {
           if (productId) extraConfig.productId = productId;
         }
         const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-        // #40: read the trace-personas toggle once per send; build the
-        // file sink lazily so unit tests / non-Tauri envs aren't forced
-        // to import @tauri-apps/api.
-        const traceEnabled = (await getSetting(TRACE_PERSONAS_KEY)) === "1";
+        // #40: tracing gated by MCHAT2_DEBUG env var (read once per
+        // process), not a persisted setting — keeps the disk-fill
+        // foot-gun under explicit per-launch control.
+        const traceEnabled = await isDebugEnabled();
         const slug = persona?.nameSlug ?? target.key;
         const traceSink = traceEnabled ? await makeTraceFileSink({ slug }) : undefined;
         // #32: keep the row green (queued) while keychain is unlocking;

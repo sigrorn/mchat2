@@ -8,11 +8,10 @@
 
 import { useEffect, useState } from "react";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
-import { GLOBAL_SYSTEM_PROMPT_KEY, TRACE_PERSONAS_KEY } from "@/lib/settings/keys";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 
 export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const [value, setValue] = useState("");
-  const [tracePersonas, setTracePersonas] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -22,8 +21,6 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
     (async () => {
       const v = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
       setValue(v ?? "");
-      const trace = await getSetting(TRACE_PERSONAS_KEY);
-      setTracePersonas(trace === "1");
       setLoading(false);
     })().catch((e) => setError((e as Error).message));
   }, []);
@@ -33,7 +30,6 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
     setSaving(true);
     try {
       await setSetting(GLOBAL_SYSTEM_PROMPT_KEY, value);
-      await setSetting(TRACE_PERSONAS_KEY, tracePersonas ? "1" : "0");
       setSavedAt(Date.now());
     } catch (e) {
       setError((e as Error).message);
@@ -78,24 +74,12 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           placeholder="e.g. Be concise. Push back if my premise looks wrong."
           className="block w-full resize-y rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
-        <div className="mt-4 flex items-start gap-2">
-          <input
-            id="trace-personas"
-            type="checkbox"
-            checked={tracePersonas}
-            onChange={(e) => setTracePersonas(e.target.checked)}
-            disabled={loading}
-            className="mt-0.5"
-          />
-          <label htmlFor="trace-personas" className="text-xs text-neutral-700">
-            <div className="font-medium">Write per-persona trace files</div>
-            <div className="text-neutral-500">
-              Appends every outbound payload and reply to{" "}
-              <code className="font-mono">traces/&lt;persona&gt;.txt</code> in the app data folder
-              (old-mchat <code>-debug</code> format).
-            </div>
-          </label>
-        </div>
+        <p className="mt-4 text-xs text-neutral-500">
+          Per-persona trace files (old-mchat <code className="font-mono">-debug</code>) are
+          gated by the <code className="font-mono">MCHAT2_DEBUG=1</code> environment
+          variable, set before launch — not a persisted setting, so a forgotten toggle
+          can't quietly fill your disk.
+        </p>
         {error ? <div className="mt-2 text-sm text-red-700">{error}</div> : null}
         <div className="mt-3 flex items-center gap-2">
           <button
