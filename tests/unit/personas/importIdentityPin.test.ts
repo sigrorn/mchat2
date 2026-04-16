@@ -81,6 +81,7 @@ function makeStubs() {
       });
     },
     async writeText() {},
+    async appendText() {},
     async readBinary() {
       return new Uint8Array();
     },

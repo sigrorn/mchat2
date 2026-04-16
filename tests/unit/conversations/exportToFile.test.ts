@@ -33,6 +33,7 @@ beforeEach(() => {
     writeText: async (p, c) => {
       writes.push({ path: p, content: c });
     },
+    appendText: async () => {},
     readBinary: async () => new Uint8Array(),
     writeBinary: async () => {},
     exists: async () => true,

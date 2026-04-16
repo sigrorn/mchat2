@@ -238,6 +238,9 @@ function memFs() {
     writeText: async (p, c) => {
       store.set(p, c);
     },
+    appendText: async (p, c) => {
+      store.set(p, (store.get(p) ?? "") + c);
+    },
     readBinary: async () => new Uint8Array(),
     writeBinary: async () => {},
     exists: async (p) => store.has(p),

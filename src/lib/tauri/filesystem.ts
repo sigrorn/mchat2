@@ -9,6 +9,7 @@
 export interface FsImpl {
   readText(path: string): Promise<string>;
   writeText(path: string, contents: string): Promise<void>;
+  appendText(path: string, contents: string): Promise<void>;
   readBinary(path: string): Promise<Uint8Array>;
   writeBinary(path: string, contents: Uint8Array): Promise<void>;
   exists(path: string): Promise<boolean>;
@@ -33,6 +34,10 @@ const defaultImpl: FsImpl = {
   async writeText(path, contents) {
     const fs = await import("@tauri-apps/plugin-fs");
     await fs.writeTextFile(path, contents);
+  },
+  async appendText(path, contents) {
+    const fs = await import("@tauri-apps/plugin-fs");
+    await fs.writeTextFile(path, contents, { append: true });
   },
   async readBinary(path) {
     const fs = await import("@tauri-apps/plugin-fs");
@@ -68,6 +73,7 @@ let impl: FsImpl = defaultImpl;
 export const fs = {
   readText: (p: string) => impl.readText(p),
   writeText: (p: string, c: string) => impl.writeText(p, c),
+  appendText: (p: string, c: string) => impl.appendText(p, c),
   readBinary: (p: string) => impl.readBinary(p),
   writeBinary: (p: string, c: Uint8Array) => impl.writeBinary(p, c),
   exists: (p: string) => impl.exists(p),

@@ -60,6 +60,7 @@ describe("fs mock", () => {
       writeText: async (p, c) => {
         store.set(p, c);
       },
+      appendText: async () => {},
       readBinary: async () => new Uint8Array(),
       writeBinary: async () => {},
       exists: async (p) => store.has(p),

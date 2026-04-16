@@ -22,6 +22,15 @@ import type { ProviderAdapter } from "../providers/adapter";
 import { PROVIDER_REGISTRY } from "../providers/registry";
 import * as messagesRepo from "../persistence/messages";
 import { withRetry, DEFAULT_RETRY, type RetryPolicy } from "./retryManager";
+import { buildOutboundRows, buildInboundRows } from "../tracing/traceWriter";
+
+// Consumer-side sink for the per-persona trace files (#40). The file-
+// backed implementation lives next to useSend; streamRunner is agnostic
+// so unit tests can inject a record-only stub.
+export interface TraceSink {
+  outbound(rows: string[]): Promise<void> | void;
+  inbound(rows: string[]): Promise<void> | void;
+}
 
 export interface StreamRunInput {
   streamId: string;
@@ -49,6 +58,9 @@ export interface StreamRunInput {
   // App-wide system prompt prepended above the persona/conversation
   // tier (#23). Plumbed straight through to buildContext.
   globalSystemPrompt?: string | null;
+  // Per-persona trace sink (#40). When present, receives outbound rows
+  // before the stream opens and inbound rows after the reply is known.
+  traceSink?: TraceSink;
 }
 
 export interface StreamRunOutcome {
@@ -104,6 +116,13 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   let estimated = false;
   let finalError: { message: string; transient: boolean } | null = null;
   let cancelled = false;
+
+  // #40: emit the outbound rows once the built context is final and
+  // before the adapter opens. Done inside the try/catch to guarantee
+  // the inbound pairing below even on early abort.
+  if (input.traceSink) {
+    await input.traceSink.outbound(buildOutboundRows(new Date(), systemPrompt, messages));
+  }
 
   const factory = (): AsyncIterable<StreamEvent> => {
     const args: Parameters<ProviderAdapter["stream"]>[0] = {
@@ -171,6 +190,13 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
       message: "adapter produced no response (no tokens, no usage, no error)",
       transient: false,
     };
+  }
+
+  // #40: inbound rows mirror the old mchat one-row-per-reply convention
+  // (multiline splits happen inside buildInboundRows). Empty content
+  // emits nothing so silent-failed runs don't add a stray timestamp.
+  if (input.traceSink) {
+    await input.traceSink.inbound(buildInboundRows(new Date(), accumulated));
   }
 
   await messagesRepo.updateMessageContent(
