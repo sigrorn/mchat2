@@ -13,6 +13,7 @@ const baseConv: Conversation = {
   limitMarkIndex: null,
   displayMode: "lines",
   visibilityMode: "separated",
+  visibilityMatrix: {},
 };
 
 describe("isExcludedByLimit", () => {

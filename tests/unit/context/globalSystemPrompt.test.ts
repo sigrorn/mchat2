@@ -12,6 +12,7 @@ const conv: Conversation = {
   limitMarkIndex: null,
   displayMode: "lines",
   visibilityMode: "separated",
+  visibilityMatrix: {},
 };
 
 const persona: Persona = {

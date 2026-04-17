@@ -25,4 +25,12 @@ export interface Conversation {
   // and user messages; "joined" = personas see all assistant output too.
   // The visibility matrix layered on top can further restrict.
   visibilityMode: "separated" | "joined";
+  // Per-persona visibility matrix (#52). Maps an observer persona id to
+  // the list of source persona ids whose assistant rows the observer may
+  // see. Semantics:
+  //   Missing key → full visibility (observer sees everyone).
+  //   Empty array → isolated (observer sees only its own replies).
+  //   Non-empty   → observer sees only listed sources + self.
+  // Stored as a JSON string in the DB; deserialized on load.
+  visibilityMatrix: Record<string, string[]>;
 }

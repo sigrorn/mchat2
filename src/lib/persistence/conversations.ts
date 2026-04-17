@@ -17,6 +17,7 @@ interface Row {
   limit_mark_index: number | null;
   display_mode: string;
   visibility_mode: string;
+  visibility_matrix?: string;
 }
 
 function rowToConversation(r: Row): Conversation {
@@ -29,6 +30,7 @@ function rowToConversation(r: Row): Conversation {
     limitMarkIndex: r.limit_mark_index,
     displayMode: r.display_mode === "cols" ? "cols" : "lines",
     visibilityMode: r.visibility_mode === "joined" ? "joined" : "separated",
+    visibilityMatrix: parseMatrix(r.visibility_matrix ?? "{}"),
   };
 }
 
@@ -53,8 +55,8 @@ export async function createConversation(
   await sql.execute(
     `INSERT INTO conversations
        (id, title, system_prompt, created_at, last_provider,
-        limit_mark_index, display_mode, visibility_mode)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        limit_mark_index, display_mode, visibility_mode, visibility_matrix)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       conv.id,
       conv.title,
@@ -64,6 +66,7 @@ export async function createConversation(
       conv.limitMarkIndex,
       conv.displayMode,
       conv.visibilityMode,
+      JSON.stringify(conv.visibilityMatrix),
     ],
   );
   return conv;
@@ -73,7 +76,8 @@ export async function updateConversation(conv: Conversation): Promise<void> {
   await sql.execute(
     `UPDATE conversations SET
        title = ?, system_prompt = ?, last_provider = ?,
-       limit_mark_index = ?, display_mode = ?, visibility_mode = ?
+       limit_mark_index = ?, display_mode = ?, visibility_mode = ?,
+       visibility_matrix = ?
      WHERE id = ?`,
     [
       conv.title,
@@ -82,9 +86,26 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       conv.limitMarkIndex,
       conv.displayMode,
       conv.visibilityMode,
+      JSON.stringify(conv.visibilityMatrix),
       conv.id,
     ],
   );
+}
+
+function parseMatrix(raw: string): Record<string, string[]> {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    const out: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (Array.isArray(v)) {
+        out[k] = v.filter((x): x is string => typeof x === "string");
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export async function deleteConversation(id: string): Promise<void> {

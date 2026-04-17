@@ -14,6 +14,7 @@ function seedConv(over: Partial<Conversation> = {}): Conversation {
     limitMarkIndex: null,
     displayMode: "lines",
     visibilityMode: "separated",
+    visibilityMatrix: {},
     ...over,
   };
 }

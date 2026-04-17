@@ -15,6 +15,7 @@ const CONV: Conversation = {
   limitMarkIndex: null,
   displayMode: "lines",
   visibilityMode: "separated",
+  visibilityMatrix: {},
 };
 
 let writes: { path: string; content: string }[];

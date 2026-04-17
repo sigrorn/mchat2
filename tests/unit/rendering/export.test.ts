@@ -12,6 +12,7 @@ const CONV: Conversation = {
   limitMarkIndex: null,
   displayMode: "lines",
   visibilityMode: "separated",
+  visibilityMatrix: {},
 };
 
 describe("exportToHtml", () => {

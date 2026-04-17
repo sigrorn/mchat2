@@ -51,6 +51,7 @@ describe("conversationsRepo", () => {
       limitMarkIndex: null,
       displayMode: "lines",
       visibilityMode: "separated",
+      visibilityMatrix: {},
     });
     expect(c.id).toMatch(/^c_/);
     expect(c.createdAt).toBeGreaterThan(0);

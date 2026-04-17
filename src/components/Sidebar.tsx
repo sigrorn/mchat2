@@ -42,6 +42,7 @@ export function Sidebar(): JSX.Element {
       limitMarkIndex: null,
       displayMode: "lines",
       visibilityMode: "separated",
+      visibilityMatrix: {},
     });
   };
 

@@ -80,6 +80,7 @@ export function MessageList({
       limitMarkIndex: null,
       displayMode: "lines",
       visibilityMode: "separated",
+      visibilityMatrix: {},
     },
   );
   // #47: editing state lives in messagesStore so the Composer's
