@@ -110,15 +110,17 @@ describe("importPersonasFromFile identity pins (#36)", () => {
     if (!r.ok) throw new Error("import failed: " + ("message" in r ? r.message : r.reason));
     expect(personas).toHaveLength(2);
     const identityPins = messageInserts.filter((m) => m.pinned === 1 && m.pin_target);
-    // 2 personas × 2 pins each (instruction + setup note) = 4
-    expect(identityPins).toHaveLength(4);
+    // #88: 2 personas × 1 pin each (instruction only; setup is now a notice) = 2
+    expect(identityPins).toHaveLength(2);
+    const notices = messageInserts.filter((m) => m.role === "notice");
+    expect(notices).toHaveLength(2);
     for (const persona of personas) {
       const own = identityPins.filter((p) => p.pin_target === persona.id);
-      expect(own).toHaveLength(2);
+      expect(own).toHaveLength(1);
       const hasInstruction = own.some(
         (p) => typeof p.content === "string" && p.content.includes("use " + persona.name),
       );
-      const hasSetupNote = own.some(
+      const hasSetupNote = notices.some(
         (p) =>
           typeof p.content === "string" &&
           (p.content as string).startsWith(`Added persona "${persona.name}"`),

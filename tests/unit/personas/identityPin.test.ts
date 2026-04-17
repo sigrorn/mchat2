@@ -46,7 +46,7 @@ describe("buildIdentitySetupNote (#38)", () => {
 });
 
 describe("ensureIdentityPin", () => {
-  it("inserts identity AND setup-note pinned user messages (#38)", async () => {
+  it("inserts identity pin + setup notice (#38, #88)", async () => {
     const appended: Message[] = [];
     const updated: { id: string; content: string }[] = [];
     let nextIdx = 99;
@@ -62,12 +62,14 @@ describe("ensureIdentityPin", () => {
     };
     await ensureIdentityPin("c_1", persona(), [], repo);
     expect(appended).toHaveLength(2);
-    for (const m of appended) {
-      expect(m.pinned).toBe(true);
-      expect(m.pinTarget).toBe("p_alice");
-      expect(m.role).toBe("user");
-    }
+    // First: pinned identity instruction for the LLM
+    expect(appended[0]?.pinned).toBe(true);
+    expect(appended[0]?.pinTarget).toBe("p_alice");
+    expect(appended[0]?.role).toBe("user");
     expect(appended[0]?.content).toContain("use Alice as your name");
+    // Second: notice for the user (not sent to LLMs)
+    expect(appended[1]?.role).toBe("notice");
+    expect(appended[1]?.pinned).toBe(false);
     expect(appended[1]?.content).toBe('Added persona "Alice" (claude, inherit)');
     expect(updated).toHaveLength(0);
   });
@@ -104,7 +106,7 @@ describe("ensureIdentityPin", () => {
     expect(updated).toHaveLength(0);
   });
 
-  it("updates both pins in place on rename — no duplicate rows (#38)", async () => {
+  it("updates identity pin on rename; legacy setup pin blocks new notice (#38, #88)", async () => {
     const existing1 = makeMessage({
       conversationId: "c_1",
       id: "m_existing_1",
@@ -123,24 +125,25 @@ describe("ensureIdentityPin", () => {
     });
     const appended: Message[] = [];
     const updated: { id: string; content: string }[] = [];
+    let nextIdx = 200;
     const repo = {
-      appendMessage: async (): Promise<Message> => {
-        throw new Error("should not append");
+      appendMessage: async (m: Parameters<typeof makeMessage>[0]): Promise<Message> => {
+        const full = makeMessage({ ...m, id: `m_${nextIdx}`, index: nextIdx++ });
+        appended.push(full);
+        return full;
       },
       updateMessageContent: async (id: string, content: string) => {
         updated.push({ id, content });
       },
     };
     await ensureIdentityPin("c_1", persona({ name: "NewName" }), [existing1, existing2], repo);
-    expect(appended).toHaveLength(0);
+    // Identity pin updated in place
     expect(updated).toContainEqual({
       id: "m_existing_1",
       content: buildIdentityPinContent("NewName"),
     });
-    expect(updated).toContainEqual({
-      id: "m_existing_2",
-      content: buildIdentitySetupNote("NewName", "claude"),
-    });
+    // Legacy setup pin exists → no new notice appended
+    expect(appended).toHaveLength(0);
   });
 
   it("backfills the setup-note when only the legacy identity pin exists (#38)", async () => {

@@ -1,10 +1,8 @@
 // ------------------------------------------------------------------
 // Component: Identity pin
 // Responsibility: Auto-maintain the pinned user-role message that
-//                 tells a persona to refer to itself by its name.
-//                 Creates a new pin if missing; on rename, updates the
-//                 existing row's content rather than adding a new one
-//                 (the exact failure mode mchat#163 fixed).
+//                 tells a persona to refer to itself by its name,
+//                 and emit an "Added persona" notice for the user.
 // Collaborators: persistence/messages.ts (via injected repo),
 //                personas/service.ts callers after create/rename.
 // ------------------------------------------------------------------
@@ -20,18 +18,10 @@ export function buildIdentityPinContent(name: string): string {
   );
 }
 
-// Companion to the identity instruction (#38). Reframes the persona as
-// a chat-state fact ('Added persona X') rather than a hypothetical
-// instruction — modern LLMs (Claude Sonnet 4.6, GPT-4o, Mistral, etc.)
-// follow this anchored framing where they ignore the bare instruction
-// alone. Old mchat used the same wording.
 export function buildIdentitySetupNote(name: string, provider: string): string {
   return `Added persona "${name}" (${provider}, inherit)`;
 }
 
-// Detector for the legacy-single-pin case: a row matching the identity
-// instruction wording (so we don't treat the setup note as the identity
-// pin or vice versa).
 function isIdentityInstruction(content: string): boolean {
   return /^Unless I say otherwise, for the scope of our chat/.test(content);
 }
@@ -40,9 +30,6 @@ function isSetupNote(content: string): boolean {
   return /^Added persona "/.test(content);
 }
 
-// Subset of messagesRepo that we actually need. Kept as a parameter so
-// unit tests can inject a recorder and the hook-point in the service
-// doesn't need to import the repo module directly.
 export interface IdentityPinRepo {
   appendMessage(
     partial: Omit<Message, "id" | "index" | "createdAt"> & {
@@ -65,13 +52,12 @@ export async function ensureIdentityPin(
   repo: IdentityPinRepo,
 ): Promise<void> {
   const expectedInstruction = buildIdentityPinContent(persona.name);
-  const expectedSetup = buildIdentitySetupNote(persona.name, persona.provider);
 
+  // Identity instruction pin — sent to the LLM as a pinned user message.
   const ownPins = messages.filter(
     (m) => m.role === "user" && m.pinned && m.pinTarget === persona.id,
   );
   const existingInstruction = ownPins.find((m) => isIdentityInstruction(m.content));
-  const existingSetup = ownPins.find((m) => isSetupNote(m.content));
 
   if (existingInstruction) {
     if (existingInstruction.content !== expectedInstruction) {
@@ -81,12 +67,34 @@ export async function ensureIdentityPin(
     await appendPin(conversationId, persona.id, expectedInstruction, repo);
   }
 
-  if (existingSetup) {
-    if (existingSetup.content !== expectedSetup) {
-      await repo.updateMessageContent(existingSetup.id, expectedSetup, null, false);
-    }
-  } else {
-    await appendPin(conversationId, persona.id, expectedSetup, repo);
+  // #88: "Added persona" is a notice (user-facing only, not sent to LLMs).
+  // Skip if one already exists for this persona name.
+  const expectedSetup = buildIdentitySetupNote(persona.name, persona.provider);
+  const existingSetup = messages.find(
+    (m) => m.role === "notice" && isSetupNote(m.content) && m.content.includes(`"${persona.name}"`),
+  );
+  // Also check for legacy pinned setup notes.
+  const legacySetup = ownPins.find((m) => isSetupNote(m.content));
+
+  if (!existingSetup && !legacySetup) {
+    await repo.appendMessage({
+      conversationId,
+      role: "notice",
+      content: expectedSetup,
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
   }
 }
 
