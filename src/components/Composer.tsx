@@ -192,6 +192,13 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore.getState().appendNotice(conversation.id, body);
       return;
     }
+    if (cmd.kind === "visibilityStatus") {
+      const { formatVisibilityStatus } = await import("@/lib/commands/visibilityStatus");
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const notice = formatVisibilityStatus(conversation.visibilityMatrix, personas);
+      await useMessagesStore.getState().appendNotice(conversation.id, notice);
+      return;
+    }
     if (cmd.kind === "visibility") {
       // #52: //visibility separated|joined applies the preset matrix
       // to every current persona and updates visibilityMode.

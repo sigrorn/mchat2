@@ -19,6 +19,7 @@ export type ParsedCommand =
   | { kind: "retry" }
   | { kind: "limitsize"; payload: { kTokens: number | null } }
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
+  | { kind: "visibilityStatus" }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -65,12 +66,13 @@ export function parseCommand(raw: string): ParsedCommand {
     return { kind: "limitsize", payload: { kTokens: Number(arg) } };
   }
   if (verb === "visibility") {
+    if (arg === "") return { kind: "visibilityStatus" };
     const lc = arg.toLowerCase();
     if (lc === "separated") return { kind: "visibility", payload: { mode: "separated" } };
     if (lc === "full" || lc === "joined") return { kind: "visibility", payload: { mode: "joined" } };
     return {
       kind: "error",
-      message: `visibility: unknown mode '${arg}'. Use //visibility separated or //visibility full.`,
+      message: `visibility: unknown mode '${arg}'. Use //visibility, //visibility separated, or //visibility full.`,
     };
   }
   if (verb === "lines" || verb === "cols") {

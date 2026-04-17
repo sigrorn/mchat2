@@ -36,7 +36,7 @@ describe("parseCommand //visibility", () => {
     expect(r.kind).toBe("error");
   });
 
-  it("rejects missing argument", () => {
-    expect(parseCommand("//visibility").kind).toBe("error");
+  it("no argument → status query (#78)", () => {
+    expect(parseCommand("//visibility").kind).toBe("visibilityStatus");
   });
 });
