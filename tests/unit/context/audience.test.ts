@@ -113,11 +113,9 @@ describe("context builder — audience-based visibility", () => {
     expect(r.messages).toEqual([]);
   });
 
-  it("legacy rows with empty audience fall back to author-only filter", () => {
-    // Pre-migration assistant rows have audience=[] and must keep the
-    // old behavior: persona sees only its own authored rows, not other
-    // personas' rows. This prevents a sudden leak across conversations
-    // that predate the audience column.
+  it("empty audience = visible to everyone (no audience restriction)", () => {
+    // #75: empty audience means the row wasn't scoped to a specific
+    // set of personas. With empty matrix (full visibility), everyone sees it.
     const personas = [persona("p_a"), persona("p_b")];
     const messages = [
       makeMessage({
@@ -145,16 +143,18 @@ describe("context builder — audience-based visibility", () => {
       messages,
       personas,
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["a speaks"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["a speaks", "b speaks"]);
   });
 
-  it("joined mode is unaffected (both audience and non-audience rows visible)", () => {
+  it("audience restriction applies regardless of matrix (#75)", () => {
+    // If audience excludes persona A, A doesn't see the row even with
+    // full visibility in the matrix.
     const personas = [persona("p_a"), persona("p_b")];
     const messages = [
       makeMessage({
         conversationId: "c_1",
         role: "assistant",
-        content: "a",
+        content: "for b only",
         provider: "claude",
         personaId: "p_a",
         audience: ["p_b"],
@@ -162,11 +162,11 @@ describe("context builder — audience-based visibility", () => {
       }),
     ];
     const r = buildContext({
-      conversation: { ...CONV, visibilityMode: "joined" },
+      conversation: CONV,
       target: target("p_a"),
       messages,
       personas,
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["a"]);
+    expect(r.messages).toEqual([]);
   });
 });

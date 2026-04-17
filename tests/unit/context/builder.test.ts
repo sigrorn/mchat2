@@ -172,7 +172,7 @@ describe("buildContext", () => {
     expect(r.messages.map((m) => m.content)).toEqual(["to alice"]);
   });
 
-  it("separated visibility hides other personas' assistant rows (rule 7)", () => {
+  it("empty matrix = full visibility, persona sees all assistant rows (#75)", () => {
     const messages = [
       makeMessage({
         conversationId: "c_1",
@@ -197,7 +197,7 @@ describe("buildContext", () => {
       messages,
       personas: [persona()],
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["alice says"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["alice says", "bob says"]);
   });
 
   it("joined visibility keeps all assistant rows", () => {

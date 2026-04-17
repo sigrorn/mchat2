@@ -96,21 +96,20 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
       continue;
     }
 
-    // #52: visibility matrix overrides the conversation-wide toggle for
-    // observers present in the map. Observer missing from matrix → fall
-    // through to the conversation-level separated/joined default.
+    // #75: the visibility matrix is the single source of truth.
+    // Missing key = full visibility (observer sees everyone).
+    // Empty array = isolated (observer sees only self).
+    // //visibility separated fills every key with []; //visibility full
+    // clears the matrix to {}.
+    // Audience filter (#4) is orthogonal: assistant rows scoped to a
+    // specific audience are only visible to members of that audience,
+    // regardless of the matrix.
     if (m.role === "assistant") {
+      if (m.audience.length > 0 && !m.audience.includes(personaKey)) continue;
       const matrixRow = conversation.visibilityMatrix[personaKey];
       if (matrixRow !== undefined) {
-        // Matrix entry exists: observer sees self + listed sources.
         const sourceKey = messageKey(m);
         if (sourceKey !== personaKey && !matrixRow.includes(sourceKey)) continue;
-      } else if (conversation.visibilityMode === "separated") {
-        if (m.audience.length > 0) {
-          if (!m.audience.includes(personaKey)) continue;
-        } else if (messageKey(m) !== personaKey) {
-          continue;
-        }
       }
     }
 
@@ -159,14 +158,11 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
       if (m.role === "user" && m.addressedTo.length > 0 && !m.addressedTo.includes(personaKey))
         continue;
       if (m.role === "assistant") {
+        if (m.audience.length > 0 && !m.audience.includes(personaKey)) continue;
         const matrixRow = conversation.visibilityMatrix[personaKey];
         if (matrixRow !== undefined) {
           const sourceKey = messageKey(m);
           if (sourceKey !== personaKey && !matrixRow.includes(sourceKey)) continue;
-        } else if (conversation.visibilityMode === "separated") {
-          if (m.audience.length > 0) {
-            if (!m.audience.includes(personaKey)) continue;
-          } else if (messageKey(m) !== personaKey) continue;
         }
       }
       if (!m.content) continue;
