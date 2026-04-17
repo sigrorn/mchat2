@@ -61,6 +61,10 @@ export interface StreamRunInput {
   // Per-persona trace sink (#40). When present, receives outbound rows
   // before the stream opens and inbound rows after the reply is known.
   traceSink?: TraceSink;
+  // #58: called with the placeholder message id right after it's
+  // persisted, BEFORE any token events fire. This lets the caller
+  // patch by specific id instead of "the last assistant row".
+  onPlaceholderCreated?: (messageId: string) => void;
 }
 
 export interface StreamRunOutcome {
@@ -116,6 +120,8 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     usageEstimated: false,
     audience,
   });
+
+  input.onPlaceholderCreated?.(placeholder.id);
 
   let accumulated = "";
   let inputTokens = 0;
