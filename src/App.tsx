@@ -5,7 +5,7 @@
 // Collaborators: persistence/migrations.ts, stores/conversationsStore.
 // ------------------------------------------------------------------
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { runMigrations } from "@/lib/persistence/migrations";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -20,7 +20,12 @@ export function App(): JSX.Element {
   const loadConversations = useConversationsStore((s) => s.load);
   const loadFontScale = useUiStore((s) => s.loadFontScale);
 
+  // Guard against React 18 strict-mode double-invocation — migrations
+  // are not idempotent when run concurrently against the same DB.
+  const booted = useRef(false);
   useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
     (async () => {
       try {
         if (lifecycle.isTauri()) {
