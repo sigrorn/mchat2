@@ -1,4 +1,4 @@
-// Visibility matrix filtering in buildContext — issue #52.
+// Visibility matrix filtering in buildContext — issue #52, #75.
 import { describe, it, expect } from "vitest";
 import { buildContext } from "@/lib/context";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -40,7 +40,7 @@ const BASE: Conversation = {
   selectedPersonas: [],
 };
 
-describe("buildContext with visibilityMatrix", () => {
+describe("buildContext with visibilityMatrix (#75)", () => {
   const personas = [persona("p_a", "A"), persona("p_b", "B"), persona("p_c", "C")];
   const messages = [
     makeMessage({ conversationId: "c_1", role: "user", content: "hi", index: 0 }),
@@ -70,9 +70,23 @@ describe("buildContext with visibilityMatrix", () => {
     }),
   ];
 
-  it("empty matrix → default separated behaviour (observer sees only self)", () => {
+  it("empty matrix = full visibility (everyone sees everyone) (#75)", () => {
     const r = buildContext({
-      conversation: BASE,
+      conversation: { ...BASE, visibilityMatrix: {} },
+      target: target("p_a"),
+      messages,
+      personas,
+    });
+    // #73: user message reordered to end.
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "from C", "hi"]);
+  });
+
+  it("separated preset: each persona has [] → sees only self", () => {
+    const r = buildContext({
+      conversation: {
+        ...BASE,
+        visibilityMatrix: { p_a: [], p_b: [], p_c: [] },
+      },
       target: target("p_a"),
       messages,
       personas,
@@ -82,53 +96,65 @@ describe("buildContext with visibilityMatrix", () => {
 
   it("matrix allows p_a to see p_b but not p_c", () => {
     const r = buildContext({
-      conversation: { ...BASE, visibilityMatrix: { p_a: ["p_b"] } },
+      conversation: { ...BASE, visibilityMatrix: { p_a: ["p_b"], p_b: [], p_c: [] } },
       target: target("p_a"),
       messages,
       personas,
     });
+    // #73: user message reordered to end when 2+ assistants follow.
     expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "hi"]);
   });
 
-  it("empty array in matrix → fully isolated (same as separated with no override)", () => {
-    const r = buildContext({
-      conversation: { ...BASE, visibilityMatrix: { p_a: [] } },
-      target: target("p_a"),
-      messages,
-      personas,
-    });
-    expect(r.messages.map((m) => m.content)).toEqual(["hi", "from A"]);
-  });
-
-  it("matrix on joined conversation: observer still gets restricted", () => {
-    const r = buildContext({
+  it("asymmetric: alice sees bob but bob doesn't see alice", () => {
+    const r1 = buildContext({
       conversation: {
         ...BASE,
-        visibilityMode: "joined",
-        visibilityMatrix: { p_a: ["p_b"] },
+        visibilityMatrix: { p_a: ["p_b"], p_b: [] },
       },
       target: target("p_a"),
       messages,
       personas,
     });
-    // Joined would normally show all three; matrix restricts to self + p_b.
-    // #73: user message reordered to end when 2+ assistants follow.
-    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "hi"]);
+    expect(r1.messages.map((m) => m.content)).toEqual(["from A", "from B", "hi"]);
+
+    const r2 = buildContext({
+      conversation: {
+        ...BASE,
+        visibilityMatrix: { p_a: ["p_b"], p_b: [] },
+      },
+      target: target("p_b"),
+      messages,
+      personas,
+    });
+    expect(r2.messages.map((m) => m.content)).toEqual(["hi", "from B"]);
   });
 
-  it("observer not in matrix with joined → full visibility", () => {
+  it("persona missing from matrix → full visibility (sees everyone)", () => {
     const r = buildContext({
       conversation: {
         ...BASE,
-        visibilityMode: "joined",
         visibilityMatrix: { p_b: [] },
       },
       target: target("p_a"),
       messages,
       personas,
     });
-    // p_a not in matrix → joined default → sees everyone.
-    // #73: user message reordered to end when 3 assistants follow.
+    // p_a not in matrix → sees everyone.
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "from C", "hi"]);
+  });
+
+  it("visibilityMode is ignored — matrix is sole source of truth (#75)", () => {
+    const r = buildContext({
+      conversation: {
+        ...BASE,
+        visibilityMode: "separated",
+        visibilityMatrix: {},
+      },
+      target: target("p_a"),
+      messages,
+      personas,
+    });
+    // Empty matrix = full, regardless of visibilityMode.
     expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "from C", "hi"]);
   });
 });
