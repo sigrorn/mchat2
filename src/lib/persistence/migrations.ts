@@ -83,10 +83,44 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE conversations ADD COLUMN limit_size_tokens INTEGER`],
   // 7 — Persisted persona selection (#65).
   [`ALTER TABLE conversations ADD COLUMN selected_personas TEXT NOT NULL DEFAULT '[]'`],
-  // 8 — Multi-parent runsAfter (#66): convert single-id to JSON array.
+  // 8 — Multi-parent runsAfter (#66): drop the FK constraint on
+  // runs_after (it now stores a JSON array, not a single persona id)
+  // and convert existing values. SQLite requires a table rebuild to
+  // remove a FK constraint.
   [
-    `UPDATE personas SET runs_after = '["' || runs_after || '"]' WHERE runs_after IS NOT NULL AND runs_after != ''`,
-    `UPDATE personas SET runs_after = '[]' WHERE runs_after IS NULL OR runs_after = ''`,
+    `PRAGMA foreign_keys = OFF`,
+    `CREATE TABLE personas_new (
+      id                          TEXT PRIMARY KEY,
+      conversation_id             TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      provider                    TEXT NOT NULL,
+      name                        TEXT NOT NULL,
+      name_slug                   TEXT NOT NULL,
+      system_prompt_override      TEXT,
+      model_override              TEXT,
+      color_override              TEXT,
+      created_at_message_index    INTEGER NOT NULL,
+      sort_order                  INTEGER NOT NULL,
+      runs_after                  TEXT NOT NULL DEFAULT '[]',
+      deleted_at                  INTEGER,
+      apertus_product_id          TEXT
+    )`,
+    `INSERT INTO personas_new SELECT
+      id, conversation_id, provider, name, name_slug,
+      system_prompt_override, model_override, color_override,
+      created_at_message_index, sort_order,
+      CASE
+        WHEN runs_after IS NULL OR runs_after = '' THEN '[]'
+        ELSE '["' || runs_after || '"]'
+      END,
+      deleted_at, apertus_product_id
+    FROM personas`,
+    `DROP TABLE personas`,
+    `ALTER TABLE personas_new RENAME TO personas`,
+    `CREATE UNIQUE INDEX idx_personas_active_slug
+       ON personas(conversation_id, name_slug)
+       WHERE deleted_at IS NULL`,
+    `CREATE INDEX idx_personas_conv ON personas(conversation_id)`,
+    `PRAGMA foreign_keys = ON`,
   ],
 ];
 
