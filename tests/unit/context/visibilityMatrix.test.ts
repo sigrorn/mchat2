@@ -37,6 +37,7 @@ const BASE: Conversation = {
   visibilityMode: "separated",
   visibilityMatrix: {},
   limitSizeTokens: null,
+  selectedPersonas: [],
 };
 
 describe("buildContext with visibilityMatrix", () => {

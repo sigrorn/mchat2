@@ -19,6 +19,7 @@ interface Row {
   visibility_mode: string;
   visibility_matrix?: string;
   limit_size_tokens?: number | null;
+  selected_personas?: string;
 }
 
 function rowToConversation(r: Row): Conversation {
@@ -33,6 +34,7 @@ function rowToConversation(r: Row): Conversation {
     visibilityMode: r.visibility_mode === "joined" ? "joined" : "separated",
     visibilityMatrix: parseMatrix(r.visibility_matrix ?? "{}"),
     limitSizeTokens: r.limit_size_tokens ?? null,
+    selectedPersonas: parseStringArray(r.selected_personas ?? "[]"),
   };
 }
 
@@ -58,8 +60,8 @@ export async function createConversation(
     `INSERT INTO conversations
        (id, title, system_prompt, created_at, last_provider,
         limit_mark_index, display_mode, visibility_mode, visibility_matrix,
-        limit_size_tokens)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        limit_size_tokens, selected_personas)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       conv.id,
       conv.title,
@@ -71,6 +73,7 @@ export async function createConversation(
       conv.visibilityMode,
       JSON.stringify(conv.visibilityMatrix),
       conv.limitSizeTokens,
+      JSON.stringify(conv.selectedPersonas),
     ],
   );
   return conv;
@@ -81,7 +84,8 @@ export async function updateConversation(conv: Conversation): Promise<void> {
     `UPDATE conversations SET
        title = ?, system_prompt = ?, last_provider = ?,
        limit_mark_index = ?, display_mode = ?, visibility_mode = ?,
-       visibility_matrix = ?, limit_size_tokens = ?
+       visibility_matrix = ?, limit_size_tokens = ?,
+       selected_personas = ?
      WHERE id = ?`,
     [
       conv.title,
@@ -92,9 +96,20 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       conv.visibilityMode,
       JSON.stringify(conv.visibilityMatrix),
       conv.limitSizeTokens,
+      JSON.stringify(conv.selectedPersonas),
       conv.id,
     ],
   );
+}
+
+function parseStringArray(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === "string");
+  } catch {
+    return [];
+  }
 }
 
 function parseMatrix(raw: string): Record<string, string[]> {

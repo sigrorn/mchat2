@@ -9,6 +9,7 @@
 import { create } from "zustand";
 import type { Persona } from "@/lib/types";
 import * as repo from "@/lib/persistence/personas";
+import { useConversationsStore } from "./conversationsStore";
 
 interface State {
   byConversation: Record<string, Persona[]>;
@@ -30,6 +31,19 @@ export const usePersonasStore = create<State>((set, get) => ({
     set({
       byConversation: { ...get().byConversation, [conversationId]: list },
     });
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === conversationId);
+    if (conv && conv.selectedPersonas.length > 0) {
+      const activeIds = new Set(list.map((p) => p.id));
+      const valid = conv.selectedPersonas.filter((k) => activeIds.has(k));
+      set({
+        selectionByConversation: {
+          ...get().selectionByConversation,
+          [conversationId]: valid,
+        },
+      });
+    }
   },
   setSelection(conversationId, keys) {
     set({
@@ -38,6 +52,7 @@ export const usePersonasStore = create<State>((set, get) => ({
         [conversationId]: keys,
       },
     });
+    void useConversationsStore.getState().setSelectedPersonas(conversationId, keys);
   },
   addToSelection(conversationId, keys) {
     const current = get().selectionByConversation[conversationId] ?? [];
@@ -55,6 +70,7 @@ export const usePersonasStore = create<State>((set, get) => ({
         [conversationId]: next,
       },
     });
+    void useConversationsStore.getState().setSelectedPersonas(conversationId, next);
   },
   upsert(p) {
     const existing = get().byConversation[p.conversationId] ?? [];

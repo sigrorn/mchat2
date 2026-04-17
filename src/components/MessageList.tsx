@@ -86,6 +86,7 @@ export function MessageList({
       visibilityMode: "separated",
       visibilityMatrix: {},
       limitSizeTokens: null,
+      selectedPersonas: [],
     },
   );
   // #47: editing state lives in messagesStore so the Composer's

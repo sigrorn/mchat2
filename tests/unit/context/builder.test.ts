@@ -14,6 +14,7 @@ const CONV: Conversation = {
   visibilityMode: "separated",
   visibilityMatrix: {},
   limitSizeTokens: null,
+  selectedPersonas: [],
 };
 
 function persona(over: Partial<Persona> = {}): Persona {

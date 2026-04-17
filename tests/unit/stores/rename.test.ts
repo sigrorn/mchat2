@@ -16,6 +16,7 @@ function seedConv(over: Partial<Conversation> = {}): Conversation {
     visibilityMode: "separated",
     visibilityMatrix: {},
     limitSizeTokens: null,
+    selectedPersonas: [],
     ...over,
   };
 }

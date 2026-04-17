@@ -47,6 +47,7 @@ export function Sidebar(): JSX.Element {
       visibilityMode: "separated",
       visibilityMatrix: {},
       limitSizeTokens: null,
+      selectedPersonas: [],
     });
   };
 

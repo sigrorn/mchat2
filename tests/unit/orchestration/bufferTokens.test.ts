@@ -17,6 +17,7 @@ const CONV: Conversation = {
   visibilityMode: "separated",
   visibilityMatrix: {},
   limitSizeTokens: null,
+  selectedPersonas: [],
 };
 
 function target(): PersonaTarget {

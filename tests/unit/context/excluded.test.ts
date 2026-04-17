@@ -15,6 +15,7 @@ const baseConv: Conversation = {
   visibilityMode: "separated",
   visibilityMatrix: {},
   limitSizeTokens: null,
+  selectedPersonas: [],
 };
 
 describe("isExcludedByLimit", () => {

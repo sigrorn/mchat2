@@ -81,6 +81,8 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE conversations ADD COLUMN visibility_matrix TEXT NOT NULL DEFAULT '{}'`],
   // 6 — Sliding token-budget limit on conversations (#64).
   [`ALTER TABLE conversations ADD COLUMN limit_size_tokens INTEGER`],
+  // 7 — Persisted persona selection (#65).
+  [`ALTER TABLE conversations ADD COLUMN selected_personas TEXT NOT NULL DEFAULT '[]'`],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version

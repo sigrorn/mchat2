@@ -37,4 +37,7 @@ export interface Conversation {
   // to min(limitSizeTokens, provider.maxContextTokens). null = no
   // override (use provider defaults only).
   limitSizeTokens: number | null;
+  // Persisted persona selection (#65). Stores the selected persona keys
+  // so the selection survives restarts. Empty array = nothing selected.
+  selectedPersonas: string[];
 }
