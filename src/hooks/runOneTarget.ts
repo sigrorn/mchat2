@@ -92,23 +92,33 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
         placeholderId = id;
         useMessagesStore.getState().append(placeholder);
       },
-      onEvent: (e: StreamEvent) => {
-        if (e.type === "retrying") {
-          useSendStore.getState().setTargetStatus(conversation.id, target.key, "retrying");
-        }
-        if (e.type === "token" && placeholderId) {
-          useMessagesStore
-            .getState()
-            .patchContent(
-              conversation.id,
-              placeholderId,
-              (useMessagesStore
-                .getState()
-                .byConversation[conversation.id]?.find((m) => m.id === placeholderId)?.content ??
-                "") + e.text,
-            );
-        }
-      },
+      onEvent: (() => {
+        let pendingTokens = "";
+        let rafId = 0;
+        const flushTokens = (): void => {
+          rafId = 0;
+          if (!placeholderId || !pendingTokens) return;
+          const current =
+            useMessagesStore
+              .getState()
+              .byConversation[conversation.id]?.find((m) => m.id === placeholderId)?.content ?? "";
+          useMessagesStore.getState().patchContent(conversation.id, placeholderId, current + pendingTokens);
+          pendingTokens = "";
+        };
+        return (e: StreamEvent) => {
+          if (e.type === "retrying") {
+            useSendStore.getState().setTargetStatus(conversation.id, target.key, "retrying");
+          }
+          if (e.type === "token" && placeholderId) {
+            pendingTokens += e.text;
+            if (!rafId) rafId = requestAnimationFrame(flushTokens);
+          }
+          if (e.type === "complete" || e.type === "error") {
+            if (rafId) cancelAnimationFrame(rafId);
+            flushTokens();
+          }
+        };
+      })(),
     });
 
     if (outcome.contextDropped > 0) {
