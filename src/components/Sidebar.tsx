@@ -38,7 +38,7 @@ export function Sidebar(): JSX.Element {
   const removeConv = useConversationsStore((s) => s.remove);
 
   const onNew = async (): Promise<void> => {
-    await create({
+    const conv = await create({
       title: "New conversation",
       systemPrompt: null,
       lastProvider: null,
@@ -49,6 +49,9 @@ export function Sidebar(): JSX.Element {
       limitSizeTokens: null,
       selectedPersonas: [],
     });
+    await useMessagesStore
+      .getState()
+      .appendNotice(conv.id, "Add some personas to get started. Use //help for a list of available commands.");
   };
 
   const getExportData = async (id: string) => {
