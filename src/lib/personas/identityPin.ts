@@ -18,8 +18,13 @@ export function buildIdentityPinContent(name: string): string {
   );
 }
 
-export function buildIdentitySetupNote(name: string, provider: string): string {
-  return `Added persona "${name}" (${provider}, inherit)`;
+export function buildIdentitySetupNote(
+  name: string,
+  provider: string,
+  scope: "inherit" | { newAtMsg: number },
+): string {
+  const scopeLabel = scope === "inherit" ? "inherit" : `new @ msg ${scope.newAtMsg}`;
+  return `Added persona "${name}" (${provider}, ${scopeLabel})`;
 }
 
 function isIdentityInstruction(content: string): boolean {
@@ -50,6 +55,7 @@ export async function ensureIdentityPin(
   persona: Persona,
   messages: readonly Message[],
   repo: IdentityPinRepo,
+  scope: "inherit" | { newAtMsg: number } = "inherit",
 ): Promise<void> {
   const expectedInstruction = buildIdentityPinContent(persona.name);
 
@@ -68,8 +74,7 @@ export async function ensureIdentityPin(
   }
 
   // #88: "Added persona" is a notice (user-facing only, not sent to LLMs).
-  // Skip if one already exists for this persona name.
-  const expectedSetup = buildIdentitySetupNote(persona.name, persona.provider);
+  const expectedSetup = buildIdentitySetupNote(persona.name, persona.provider, scope);
   const existingSetup = messages.find(
     (m) => m.role === "notice" && isSetupNote(m.content) && m.content.includes(`"${persona.name}"`),
   );

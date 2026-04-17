@@ -341,22 +341,50 @@ function CreateForm({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [provider, setProvider] = useState<ProviderId>(DEFAULT_NEW_PROVIDER);
+  const [model, setModel] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [scope, setScope] = useState<"inherit" | "new">("inherit");
   const [error, setError] = useState<string | null>(null);
+
+  const [modelOptions, setModelOptions] = useState<ModelInfo[]>([]);
+  const modelListId = "create-model-list";
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      const key = PROVIDER_REGISTRY[provider].requiresKey
+        ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
+        : null;
+      const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
+      const infos = await listModelInfos(provider, key, { apertusProductId: pid });
+      if (!cancelled) setModelOptions(infos);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, provider]);
 
   const submit = async (): Promise<void> => {
     setError(null);
     try {
       const history = useMessagesStore.getState().byConversation[conversationId] ?? [];
+      const currentIdx = scope === "inherit" ? 0 : history.length;
       const p = await createPersona({
         conversationId,
         provider,
         name,
-        currentMessageIndex: history.length,
+        currentMessageIndex: currentIdx,
+        ...(model ? { modelOverride: model } : {}),
+        ...(prompt ? { systemPromptOverride: prompt } : {}),
       });
-      await ensureIdentityPin(conversationId, p, history, messagesRepo);
+      const scopeInfo = scope === "inherit" ? ("inherit" as const) : { newAtMsg: history.length };
+      await ensureIdentityPin(conversationId, p, history, messagesRepo, scopeInfo);
       await useMessagesStore.getState().load(conversationId);
       onCreated(p);
       setName("");
+      setModel("");
+      setPrompt("");
+      setScope("inherit");
       setOpen(false);
     } catch (e) {
       setError(e instanceof PersonaValidationError ? e.message : (e as Error).message);
@@ -429,7 +457,10 @@ function CreateForm({
       <Field label="Provider">
         <select
           value={provider}
-          onChange={(e) => setProvider(e.target.value as ProviderId)}
+          onChange={(e) => {
+            setProvider(e.target.value as ProviderId);
+            setModel("");
+          }}
           className="w-full rounded border border-neutral-300 px-2 py-1"
         >
           {SELECTABLE_PROVIDER_IDS.map((id) => (
@@ -438,6 +469,42 @@ function CreateForm({
             </option>
           ))}
         </select>
+      </Field>
+      <Field label="Model override">
+        <input
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          list={modelListId}
+          placeholder={PROVIDER_REGISTRY[provider].defaultModel}
+          className="w-full rounded border border-neutral-300 px-2 py-1"
+        />
+        <datalist id={modelListId}>
+          {modelOptions.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.id}
+              {m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : ""}
+            </option>
+          ))}
+        </datalist>
+      </Field>
+      <Field label="Scope">
+        <select
+          value={scope}
+          onChange={(e) => setScope(e.target.value as "inherit" | "new")}
+          className="w-full rounded border border-neutral-300 px-2 py-1"
+        >
+          <option value="inherit">inherit (sees full history)</option>
+          <option value="new">new (sees only future messages)</option>
+        </select>
+      </Field>
+      <Field label="System prompt">
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={2}
+          placeholder="(inherits global)"
+          className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
+        />
       </Field>
       {error ? <div className="text-red-600">{error}</div> : null}
       <div className="flex gap-2">

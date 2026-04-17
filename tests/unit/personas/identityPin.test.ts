@@ -39,7 +39,7 @@ describe("buildIdentitySetupNote (#38)", () => {
   it("matches old mchat's setup-note phrasing", () => {
     // Imported via re-export from identityPin module; keeps the magic
     // string in one place.
-    expect(buildIdentitySetupNote("Alice", "claude")).toBe(
+    expect(buildIdentitySetupNote("Alice", "claude", "inherit")).toBe(
       'Added persona "Alice" (claude, inherit)',
     );
   });
@@ -89,7 +89,7 @@ describe("ensureIdentityPin", () => {
       role: "user",
       pinned: true,
       pinTarget: "p_alice",
-      content: buildIdentitySetupNote("Alice", "claude"),
+      content: buildIdentitySetupNote("Alice", "claude", "inherit"),
     });
     const appended: Message[] = [];
     const updated: { id: string; content: string }[] = [];
@@ -121,7 +121,7 @@ describe("ensureIdentityPin", () => {
       role: "user",
       pinned: true,
       pinTarget: "p_alice",
-      content: buildIdentitySetupNote("OldName", "claude"),
+      content: buildIdentitySetupNote("OldName", "claude", "inherit"),
     });
     const appended: Message[] = [];
     const updated: { id: string; content: string }[] = [];
@@ -169,7 +169,7 @@ describe("ensureIdentityPin", () => {
     };
     await ensureIdentityPin("c_1", persona(), [legacy], repo);
     expect(appended).toHaveLength(1);
-    expect(appended[0]?.content).toBe(buildIdentitySetupNote("Alice", "claude"));
+    expect(appended[0]?.content).toBe(buildIdentitySetupNote("Alice", "claude", "inherit"));
     expect(updated).toHaveLength(0);
   });
 });
