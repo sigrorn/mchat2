@@ -40,6 +40,7 @@ beforeEach(() => {
     readBinary: async () => new Uint8Array(),
     writeBinary: async () => {},
     exists: async () => true,
+    mkdir: async () => {},
     saveDialog: async () => saveReturn,
     openDialog: async () => null,
   });

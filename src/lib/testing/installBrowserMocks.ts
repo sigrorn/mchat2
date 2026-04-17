@@ -255,6 +255,7 @@ function memFs() {
     readBinary: async () => new Uint8Array(),
     writeBinary: async () => {},
     exists: async (p) => store.has(p),
+    mkdir: async () => {},
     saveDialog: async () => "/tmp/export.html",
     openDialog: async () => null,
   });

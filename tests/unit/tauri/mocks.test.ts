@@ -64,6 +64,7 @@ describe("fs mock", () => {
       readBinary: async () => new Uint8Array(),
       writeBinary: async () => {},
       exists: async (p) => store.has(p),
+    mkdir: async () => {},
       saveDialog: async () => "/tmp/x",
       openDialog: async () => null,
     });
