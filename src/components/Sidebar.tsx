@@ -44,7 +44,7 @@ export function Sidebar(): JSX.Element {
       lastProvider: null,
       limitMarkIndex: null,
       displayMode: "lines",
-      visibilityMode: "separated",
+      visibilityMode: "joined",
       visibilityMatrix: {},
       limitSizeTokens: null,
       selectedPersonas: [],
