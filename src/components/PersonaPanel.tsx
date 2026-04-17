@@ -135,6 +135,7 @@ function PersonaRow({
     provider?: ProviderId;
     systemPromptOverride?: string | null;
     modelOverride?: string | null;
+    colorOverride?: string | null;
     runsAfter?: string[];
     apertusProductId?: string | null;
   }) => Promise<void>;
@@ -147,6 +148,7 @@ function PersonaRow({
   const [prompt, setPrompt] = useState(persona.systemPromptOverride ?? "");
   const [model, setModel] = useState(persona.modelOverride ?? "");
   const [runsAfter, setRunsAfter] = useState<string[]>(persona.runsAfter);
+  const [colorOverride, setColorOverride] = useState<string | null>(persona.colorOverride);
   const [error, setError] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
@@ -157,6 +159,7 @@ function PersonaRow({
         provider,
         systemPromptOverride: prompt ? prompt : null,
         modelOverride: model ? model : null,
+        colorOverride,
         runsAfter,
       });
       setEditing(false);
@@ -275,6 +278,28 @@ function PersonaRow({
               ))}
             </datalist>
           </Field>
+          <Field label="Color">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={colorOverride ?? PROVIDER_COLORS[provider]}
+                onChange={(e) => setColorOverride(e.target.value)}
+                className="h-6 w-8 cursor-pointer rounded border border-neutral-300 p-0"
+              />
+              <span className="text-neutral-500">
+                {colorOverride ? "custom" : "provider default"}
+              </span>
+              {colorOverride !== null && (
+                <button
+                  type="button"
+                  onClick={() => setColorOverride(null)}
+                  className="text-neutral-500 hover:text-neutral-900"
+                >
+                  reset
+                </button>
+              )}
+            </div>
+          </Field>
           <Field label="Runs after">
             <div className="flex flex-wrap gap-2">
               {allPersonas
@@ -344,6 +369,7 @@ function CreateForm({
   const [model, setModel] = useState("");
   const [prompt, setPrompt] = useState("");
   const [scope, setScope] = useState<"inherit" | "new">("inherit");
+  const [colorOverride, setColorOverride] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [modelOptions, setModelOptions] = useState<ModelInfo[]>([]);
@@ -376,6 +402,7 @@ function CreateForm({
         currentMessageIndex: currentIdx,
         ...(model ? { modelOverride: model } : {}),
         ...(prompt ? { systemPromptOverride: prompt } : {}),
+        ...(colorOverride ? { colorOverride } : {}),
       });
       const scopeInfo = scope === "inherit" ? ("inherit" as const) : { newAtMsg: history.length };
       await ensureIdentityPin(conversationId, p, history, messagesRepo, scopeInfo);
@@ -385,6 +412,7 @@ function CreateForm({
       setModel("");
       setPrompt("");
       setScope("inherit");
+      setColorOverride(null);
       setOpen(false);
     } catch (e) {
       setError(e instanceof PersonaValidationError ? e.message : (e as Error).message);
@@ -496,6 +524,28 @@ function CreateForm({
           <option value="inherit">inherit (sees full history)</option>
           <option value="new">new (sees only future messages)</option>
         </select>
+      </Field>
+      <Field label="Color">
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={colorOverride ?? PROVIDER_COLORS[provider]}
+            onChange={(e) => setColorOverride(e.target.value)}
+            className="h-6 w-8 cursor-pointer rounded border border-neutral-300 p-0"
+          />
+          <span className="text-neutral-500">
+            {colorOverride ? "custom" : "provider default"}
+          </span>
+          {colorOverride !== null && (
+            <button
+              type="button"
+              onClick={() => setColorOverride(null)}
+              className="text-neutral-500 hover:text-neutral-900"
+            >
+              reset
+            </button>
+          )}
+        </div>
       </Field>
       <Field label="System prompt">
         <textarea
