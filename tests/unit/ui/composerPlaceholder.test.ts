@@ -44,10 +44,9 @@ describe("buildPlaceholder", () => {
     expect(text).toContain("Add a persona");
   });
 
-  it("shows a single name without commas", () => {
+  it("shows a single name without a comma-separated list", () => {
     const personas = [persona("p_a", "claudio")];
     const text = buildPlaceholder(personas, ["p_a"]);
-    expect(text).toContain("claudio");
-    expect(text).not.toContain(",");
+    expect(text).toMatch(/Message to claudio\./);
   });
 });

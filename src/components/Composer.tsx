@@ -20,8 +20,12 @@ import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
 import { useUiStore } from "@/stores/uiStore";
+import { buildPlaceholder } from "@/lib/ui/composerPlaceholder";
+import type { Persona } from "@/lib/types";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
+const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
+const EMPTY_SEL: readonly string[] = Object.freeze([]);
 
 export function Composer({ conversation }: { conversation: Conversation }): JSX.Element {
   const [text, setText] = useState("");
@@ -30,6 +34,11 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const { send, retry } = useSend(conversation);
   const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
   const fontScale = useUiStore((s) => s.chatFontScale);
+  const cPersonas =
+    usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
+  const cSelection =
+    usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
+  const placeholder = buildPlaceholder(cPersonas, cSelection);
 
   const onSend = async (): Promise<void> => {
     if (!text.trim() || busy) return;
@@ -279,7 +288,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
           }
         }}
         rows={3}
-        placeholder="Type a message. Use @alice @all @others to target personas. Enter to send, Shift+Enter for newline."
+        placeholder={placeholder}
         className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
         style={{ fontSize: `${fontScale * 100}%` }}
       />
