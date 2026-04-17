@@ -66,12 +66,11 @@ export function parseCommand(raw: string): ParsedCommand {
   }
   if (verb === "visibility") {
     const lc = arg.toLowerCase();
-    if (lc === "separated" || lc === "joined") {
-      return { kind: "visibility", payload: { mode: lc } };
-    }
+    if (lc === "separated") return { kind: "visibility", payload: { mode: "separated" } };
+    if (lc === "full" || lc === "joined") return { kind: "visibility", payload: { mode: "joined" } };
     return {
       kind: "error",
-      message: `visibility: unknown mode '${arg}'. Use //visibility separated or //visibility joined.`,
+      message: `visibility: unknown mode '${arg}'. Use //visibility separated or //visibility full.`,
     };
   }
   if (verb === "lines" || verb === "cols") {

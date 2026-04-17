@@ -202,7 +202,10 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         .setVisibilityPreset(conversation.id, cmd.payload.mode, personaIds);
       await useMessagesStore
         .getState()
-        .appendNotice(conversation.id, `visibility: switched to ${cmd.payload.mode}.`);
+        .appendNotice(
+          conversation.id,
+          `visibility: switched to ${cmd.payload.mode === "joined" ? "full" : cmd.payload.mode}.`,
+        );
       return;
     }
     if (cmd.kind === "displayMode") {

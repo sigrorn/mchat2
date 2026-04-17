@@ -24,8 +24,15 @@ describe("parseCommand //visibility", () => {
     });
   });
 
+  it("//visibility full → maps to joined", () => {
+    expect(parseCommand("//visibility full")).toEqual({
+      kind: "visibility",
+      payload: { mode: "joined" },
+    });
+  });
+
   it("rejects unknown modes", () => {
-    const r = parseCommand("//visibility full");
+    const r = parseCommand("//visibility blah");
     expect(r.kind).toBe("error");
   });
 
