@@ -40,6 +40,12 @@ export function useSend(conversation: Conversation) {
         usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
 
       const resolved = resolveTargets({ text, personas, selection });
+      if (resolved.unknown.length > 0) {
+        return {
+          ok: false as const,
+          reason: `unknown target${resolved.unknown.length === 1 ? "" : "s"}: ${resolved.unknown.map((u) => `@${u}`).join(", ")}`,
+        };
+      }
       if (resolved.targets.length === 0) return { ok: false as const, reason: "no targets" };
 
       if (resolved.mode !== "implicit") {
