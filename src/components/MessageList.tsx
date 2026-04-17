@@ -19,6 +19,8 @@ import { formatUserHeader } from "@/lib/conversations/userHeader";
 import { renderMessageBody } from "@/lib/rendering/messageBody";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { classify } from "@/lib/rendering/codeBlocks";
+import { DiagramBlock } from "./DiagramBlock";
 import { useSend } from "@/hooks/useSend";
 import { useUiStore } from "@/stores/uiStore";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
@@ -341,7 +343,26 @@ function renderBubbleBody(message: Message, excluded: boolean): JSX.Element {
     // HTML export where a React tree isn't available.
     return (
       <div className={`markdown-body text-sm leading-relaxed ${tone}`}>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            code({ className, children, ...rest }) {
+              const lang = className?.replace("language-", "") ?? "";
+              const kind = classify(lang);
+              if (kind !== "code") {
+                const src = String(children).replace(/\n$/, "");
+                return <DiagramBlock kind={kind} source={src} language={lang} />;
+              }
+              return (
+                <code className={className} {...rest}>
+                  {children}
+                </code>
+              );
+            },
+          }}
+        >
+          {message.content}
+        </ReactMarkdown>
       </div>
     );
   }
