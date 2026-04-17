@@ -245,6 +245,49 @@ function EditReplayEditor({
   );
 }
 
+// #63: render #N patterns in notice text as clickable scroll-links.
+function NoticeContent({ content }: { content: string }): JSX.Element {
+  const messages = useMessagesStore((s) => s.byConversation) as Record<string, Message[]>;
+  const parts = content.split(/(#\d+)/g);
+  if (parts.length === 1) return <>{content}</>;
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = /^#(\d+)$/.exec(part);
+        if (!m) return <span key={i}>{part}</span>;
+        const userNum = Number(m[1]);
+        return (
+          <button
+            key={i}
+            className="not-italic font-semibold text-amber-800 underline hover:text-amber-600"
+            title={`Scroll to message #${userNum}`}
+            onClick={() => {
+              // Find the message with this user number across all loaded convs.
+              for (const msgs of Object.values(messages)) {
+                const userNumbers = userNumberByIndex(msgs);
+                for (const [idx, num] of userNumbers) {
+                  if (num === userNum) {
+                    const msg = msgs.find((x) => x.index === idx);
+                    if (msg) {
+                      const el = document.querySelector<HTMLElement>(
+                        `[data-message-id="${msg.id}"]`,
+                      );
+                      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+                    }
+                    return;
+                  }
+                }
+              }
+            }}
+          >
+            {part}
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
 function renderBubbleBody(message: Message, excluded: boolean): JSX.Element {
   const body = renderMessageBody(message);
   const tone = excluded ? "text-neutral-600" : "text-neutral-900";
@@ -286,7 +329,7 @@ function MessageBubble({
         data-message-id={message.id}
         className="mb-3 whitespace-pre-wrap rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm italic text-amber-900 shadow-sm"
       >
-        {message.content}
+        <NoticeContent content={message.content} />
       </div>
     );
   }
