@@ -13,6 +13,7 @@ import { findMatches } from "@/lib/ui/findMatches";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 import { PersonaPanel } from "./PersonaPanel";
+import { MatrixPanel } from "./MatrixPanel";
 import { FindBar } from "./FindBar";
 import type { Message } from "@/lib/types";
 
@@ -63,6 +64,7 @@ export function ChatView(): JSX.Element {
           conversationId={conversation.id}
           activeMatchMessageId={activeMatch?.messageId ?? null}
         />
+        <MatrixPanel conversation={conversation} />
         <Composer conversation={conversation} />
       </div>
       <PersonaPanel conversation={conversation} />

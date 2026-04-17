@@ -17,6 +17,7 @@ export type ParsedCommand =
   | { kind: "edit"; payload: { userNumber: number | null } }
   | { kind: "pop" }
   | { kind: "retry" }
+  | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -51,6 +52,16 @@ export function parseCommand(raw: string): ParsedCommand {
       return { kind: "error", message: "retry: this command takes no arguments." };
     }
     return { kind: "retry" };
+  }
+  if (verb === "visibility") {
+    const lc = arg.toLowerCase();
+    if (lc === "separated" || lc === "joined") {
+      return { kind: "visibility", payload: { mode: lc } };
+    }
+    return {
+      kind: "error",
+      message: `visibility: unknown mode '${arg}'. Use //visibility separated or //visibility joined.`,
+    };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {

@@ -20,6 +20,12 @@ interface State {
   rename: (id: string, title: string) => Promise<void>;
   setLimit: (id: string, limitMarkIndex: number | null) => Promise<void>;
   setDisplayMode: (id: string, mode: "lines" | "cols") => Promise<void>;
+  setVisibilityMatrix: (id: string, matrix: Record<string, string[]>) => Promise<void>;
+  setVisibilityPreset: (
+    id: string,
+    mode: "separated" | "joined",
+    personaIds: string[],
+  ) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -49,6 +55,32 @@ export const useConversationsStore = create<State>((set, get) => ({
     const current = get().conversations.find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, displayMode: mode };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
+    });
+  },
+  async setVisibilityMatrix(id, matrix) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = { ...current, visibilityMatrix: matrix };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
+    });
+  },
+  async setVisibilityPreset(id, mode, personaIds) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const matrix: Record<string, string[]> =
+      mode === "separated"
+        ? Object.fromEntries(personaIds.map((pid) => [pid, []]))
+        : {};
+    const next: Conversation = {
+      ...current,
+      visibilityMode: mode,
+      visibilityMatrix: matrix,
+    };
     await repo.updateConversation(next);
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),

@@ -138,6 +138,19 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore.getState().appendNotice(conversation.id, body);
       return;
     }
+    if (cmd.kind === "visibility") {
+      // #52: //visibility separated|joined applies the preset matrix
+      // to every current persona and updates visibilityMode.
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const personaIds = personas.map((p) => p.id);
+      await useConversationsStore
+        .getState()
+        .setVisibilityPreset(conversation.id, cmd.payload.mode, personaIds);
+      await useMessagesStore
+        .getState()
+        .appendNotice(conversation.id, `visibility: switched to ${cmd.payload.mode}.`);
+      return;
+    }
     if (cmd.kind === "displayMode") {
       await useConversationsStore.getState().setDisplayMode(conversation.id, cmd.payload.mode);
       await useMessagesStore

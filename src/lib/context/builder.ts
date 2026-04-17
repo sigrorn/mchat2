@@ -85,16 +85,21 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
       continue;
     }
 
-    if (m.role === "assistant" && conversation.visibilityMode === "separated") {
-      if (m.audience.length > 0) {
-        // Audience set present (issue #4): visibility is by audience
-        // membership, not by authorship. Any co-addressee sees any
-        // reply from within the same send group.
-        if (!m.audience.includes(personaKey)) continue;
-      } else if (messageKey(m) !== personaKey) {
-        // Legacy row (pre-v3 or single-target send): author-only
-        // filter. Preserves the old behavior for existing data.
-        continue;
+    // #52: visibility matrix overrides the conversation-wide toggle for
+    // observers present in the map. Observer missing from matrix → fall
+    // through to the conversation-level separated/joined default.
+    if (m.role === "assistant") {
+      const matrixRow = conversation.visibilityMatrix[personaKey];
+      if (matrixRow !== undefined) {
+        // Matrix entry exists: observer sees self + listed sources.
+        const sourceKey = messageKey(m);
+        if (sourceKey !== personaKey && !matrixRow.includes(sourceKey)) continue;
+      } else if (conversation.visibilityMode === "separated") {
+        if (m.audience.length > 0) {
+          if (!m.audience.includes(personaKey)) continue;
+        } else if (messageKey(m) !== personaKey) {
+          continue;
+        }
       }
     }
 
