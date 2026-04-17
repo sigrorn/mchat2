@@ -88,7 +88,7 @@ export const MIGRATIONS: string[][] = [
   // and convert existing values. SQLite requires a table rebuild to
   // remove a FK constraint.
   [
-    `PRAGMA foreign_keys = OFF`,
+    `DROP TABLE IF EXISTS personas_new`,
     `CREATE TABLE personas_new (
       id                          TEXT PRIMARY KEY,
       conversation_id             TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -120,14 +120,16 @@ export const MIGRATIONS: string[][] = [
        ON personas(conversation_id, name_slug)
        WHERE deleted_at IS NULL`,
     `CREATE INDEX idx_personas_conv ON personas(conversation_id)`,
-    `PRAGMA foreign_keys = ON`,
   ],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version
 // instead of a table to keep the schema self-describing.
 export async function runMigrations(): Promise<number> {
-  await sql.execute("PRAGMA foreign_keys = ON");
+  // FK checks are OFF during migrations so table rebuilds (e.g. v8's
+  // persona FK removal) can DROP+RENAME without cascading. Turned ON
+  // after all migrations complete for normal app runtime.
+  await sql.execute("PRAGMA foreign_keys = OFF");
   const rows = await sql.select<{ user_version: number }>("PRAGMA user_version");
   const current = rows[0]?.user_version ?? 0;
   let applied = 0;
@@ -137,9 +139,9 @@ export async function runMigrations(): Promise<number> {
     for (const stmt of stmts) {
       await sql.execute(stmt);
     }
-    // PRAGMA user_version can't be parameterized.
     await sql.execute(`PRAGMA user_version = ${i + 1}`);
     applied++;
   }
+  await sql.execute("PRAGMA foreign_keys = ON");
   return applied;
 }
