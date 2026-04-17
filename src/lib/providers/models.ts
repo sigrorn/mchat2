@@ -22,6 +22,36 @@ interface GeminiModelsResponse {
   models?: { name: string }[];
 }
 
+const BLOCKLIST_PREFIXES = [
+  "dall-e",
+  "whisper",
+  "tts",
+  "text-embedding",
+  "babbage",
+  "davinci",
+];
+
+const EMBED_KEYWORDS = ["embed", "embedding"];
+
+export function isChatModel(provider: ProviderId, id: string): boolean {
+  const lc = id.toLowerCase();
+  switch (provider) {
+    case "claude":
+      return true;
+    case "openai":
+    case "apertus":
+      return !BLOCKLIST_PREFIXES.some((p) => lc.startsWith(p));
+    case "gemini":
+      return !EMBED_KEYWORDS.some((k) => lc.includes(k));
+    case "mistral":
+      return !EMBED_KEYWORDS.some((k) => lc.includes(k));
+    case "perplexity":
+      return true;
+    case "mock":
+      return true;
+  }
+}
+
 const cache = new Map<string, { at: number; ids: string[] }>();
 const TTL_MS = 10 * 60_000;
 
@@ -40,7 +70,8 @@ export async function listModels(
   if (!apiKey) return fallback;
 
   try {
-    const ids = await fetchProviderModels(provider, apiKey, extra);
+    const raw = await fetchProviderModels(provider, apiKey, extra);
+    const ids = raw.filter((id) => isChatModel(provider, id));
     if (ids.length === 0) return fallback;
     const sorted = [...new Set(ids)].sort();
     cache.set(cacheKey, { at: Date.now(), ids: sorted });
