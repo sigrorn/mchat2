@@ -181,6 +181,17 @@ export function useSend(conversation: Conversation) {
               }
             },
           });
+          // #55: emit a notice when context was truncated so the user
+          // knows which model caused it and how much was cut.
+          if (outcome.contextDropped > 0) {
+            const name = persona?.name ?? target.displayName;
+            void useMessagesStore
+              .getState()
+              .appendNotice(
+                conversation.id,
+                `context trimmed for ${name} (${modelForTarget(target, personas)}): dropped ${outcome.contextDropped} oldest message${outcome.contextDropped === 1 ? "" : "s"} to fit the ${PROVIDER_REGISTRY[target.provider].maxContextTokens}-token limit.`,
+              );
+          }
           return outcome.kind;
         } finally {
           useSendStore.getState().finishStream(conversation.id, streamId);

@@ -9,6 +9,7 @@
 
 import type { Conversation, Message, Persona, PersonaTarget, ProviderId } from "../types";
 import type { ChatMessage } from "../providers/adapter";
+import { truncateToFit } from "./truncate";
 
 export interface BuildContextInput {
   conversation: Conversation;
@@ -20,11 +21,16 @@ export interface BuildContextInput {
   // Optional app-wide system prompt prepended above the persona /
   // conversation tier (#23). Whitespace-only is treated as absent.
   globalSystemPrompt?: string | null;
+  // Provider's token limit (#55). When set, oldest non-pinned messages
+  // are dropped to fit. Infinity or omitted = no truncation.
+  maxContextTokens?: number;
 }
 
 export interface BuildContextResult {
   systemPrompt: string | null;
   messages: ChatMessage[];
+  // #55: number of messages dropped by context truncation (0 if none).
+  dropped: number;
 }
 
 // The eight rules, applied in this order:
@@ -107,7 +113,40 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     out.push({ role: m.role, content: m.content });
   }
 
-  return { systemPrompt, messages: out };
+  // #55: automatic context truncation. Track which output indices
+  // came from pinned source messages so the truncator preserves them.
+  const maxTokens = input.maxContextTokens;
+  if (maxTokens && maxTokens !== Infinity) {
+    const pinnedContentIndices = new Set<number>();
+    let oi = 0;
+    for (const m of messages) {
+      if (m.role === "system" || m.role === "notice") continue;
+      if (m.role === "assistant" && m.errorMessage !== null) continue;
+      if (limitMark !== null && m.index < limitMark && !m.pinned) continue;
+      if (m.index < cutoff && !m.pinned) continue;
+      if (m.pinned && m.pinTarget !== null && m.pinTarget !== personaKey) continue;
+      if (m.role === "user" && m.addressedTo.length > 0 && !m.addressedTo.includes(personaKey))
+        continue;
+      if (m.role === "assistant") {
+        const matrixRow = conversation.visibilityMatrix[personaKey];
+        if (matrixRow !== undefined) {
+          const sourceKey = messageKey(m);
+          if (sourceKey !== personaKey && !matrixRow.includes(sourceKey)) continue;
+        } else if (conversation.visibilityMode === "separated") {
+          if (m.audience.length > 0) {
+            if (!m.audience.includes(personaKey)) continue;
+          } else if (messageKey(m) !== personaKey) continue;
+        }
+      }
+      if (!m.content) continue;
+      if (m.pinned) pinnedContentIndices.add(oi);
+      oi++;
+    }
+    const r = truncateToFit(systemPrompt, out, maxTokens, pinnedContentIndices);
+    return { systemPrompt, messages: r.messages, dropped: r.dropped };
+  }
+
+  return { systemPrompt, messages: out, dropped: 0 };
 }
 
 // Persona key convention used across the app: personaId, or provider id

@@ -19,7 +19,7 @@ import type {
 } from "../types";
 import { buildContext } from "../context/builder";
 import type { ProviderAdapter } from "../providers/adapter";
-import { PROVIDER_REGISTRY } from "../providers/registry";
+import { PROVIDER_REGISTRY, type ProviderMeta } from "../providers/registry";
 import * as messagesRepo from "../persistence/messages";
 import { withRetry, DEFAULT_RETRY, type RetryPolicy } from "./retryManager";
 import { buildOutboundRows, buildInboundRows } from "../tracing/traceWriter";
@@ -71,16 +71,20 @@ export interface StreamRunOutcome {
   inputTokens: number;
   outputTokens: number;
   estimated: boolean;
+  // #55: how many messages buildContext dropped to fit the token limit.
+  contextDropped: number;
 }
 
 export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome> {
   const { conversation, target, personas, history, adapter, signal, onEvent } = input;
-  const { systemPrompt, messages } = buildContext({
+  const providerMeta: ProviderMeta = PROVIDER_REGISTRY[target.provider];
+  const { systemPrompt, messages, dropped } = buildContext({
     conversation,
     target,
     messages: history,
     personas,
     globalSystemPrompt: input.globalSystemPrompt ?? null,
+    maxContextTokens: providerMeta.maxContextTokens,
   });
 
   // Persist the empty shell up-front so the UI can render its bubble
@@ -221,6 +225,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     inputTokens,
     outputTokens,
     estimated,
+    contextDropped: dropped,
   };
 }
 

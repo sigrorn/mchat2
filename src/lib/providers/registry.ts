@@ -30,6 +30,9 @@ export interface ProviderMeta {
   keychainKey: string;
   // Whether the adapter requires an API key. The mock provider does not.
   requiresKey: boolean;
+  // Maximum context tokens the provider's default model accepts (#55).
+  // buildContext truncates history to stay under this. Infinity = no limit.
+  maxContextTokens: number;
 }
 
 export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
@@ -42,6 +45,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     color: "#d97706",
     keychainKey: "anthropic_api_key",
     requiresKey: true,
+    maxContextTokens: 200000,
   },
   openai: {
     id: "openai",
@@ -52,6 +56,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     color: "#10a37f",
     keychainKey: "openai_api_key",
     requiresKey: true,
+    maxContextTokens: 128000,
   },
   gemini: {
     id: "gemini",
@@ -62,6 +67,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     color: "#4285f4",
     keychainKey: "google_api_key",
     requiresKey: true,
+    maxContextTokens: 1048576,
   },
   perplexity: {
     id: "perplexity",
@@ -71,6 +77,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     color: "#1fb8cd",
     keychainKey: "perplexity_api_key",
     requiresKey: true,
+    maxContextTokens: 127072,
   },
   mistral: {
     id: "mistral",
@@ -81,6 +88,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     color: "#ff7000",
     keychainKey: "mistral_api_key",
     requiresKey: true,
+    maxContextTokens: 128000,
   },
   apertus: {
     id: "apertus",
@@ -91,6 +99,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     color: "#8b5cf6",
     keychainKey: "apertus_api_key",
     requiresKey: true,
+    maxContextTokens: 16384,
   },
   mock: {
     id: "mock",
@@ -100,6 +109,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     color: "#6b7280",
     keychainKey: "mock_api_key",
     requiresKey: false,
+    maxContextTokens: Infinity,
   },
 };
 
