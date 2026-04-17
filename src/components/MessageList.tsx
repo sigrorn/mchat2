@@ -21,6 +21,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { classify } from "@/lib/rendering/codeBlocks";
 import { DiagramBlock } from "./DiagramBlock";
+import { formatCopyText } from "@/lib/rendering/copyWithPrefixes";
 import { useSend } from "@/hooks/useSend";
 import { useUiStore } from "@/stores/uiStore";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
@@ -155,10 +156,32 @@ export function MessageList({
     }
   }, [activeMatchMessageId]);
 
+  const onCopy = (e: React.ClipboardEvent): void => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const selectedIds = new Set<string>();
+    const bubbles = container.querySelectorAll<HTMLElement>("[data-message-id]");
+    for (const el of bubbles) {
+      if (sel.containsNode(el, true)) {
+        const id = el.dataset.messageId;
+        if (id) selectedIds.add(id);
+      }
+    }
+    if (selectedIds.size === 0) return;
+    const selected = messages.filter((m) => selectedIds.has(m.id));
+    if (selected.length <= 1) return;
+    e.preventDefault();
+    const text = formatCopyText(selected, personas);
+    e.clipboardData.setData("text/plain", text);
+  };
+
   return (
     <div
       ref={containerRef}
       onScroll={onScroll}
+      onCopy={onCopy}
       className="flex-1 overflow-auto bg-neutral-100 px-4 py-3"
       style={{ fontSize: `${fontScale * 100}%` }}
     >
