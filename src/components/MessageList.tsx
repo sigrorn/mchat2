@@ -21,6 +21,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useSend } from "@/hooks/useSend";
 import { useUiStore } from "@/stores/uiStore";
+import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
+import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -100,9 +102,6 @@ export function MessageList({
   // maps back to an index via userNumbers.
   const effectiveLimitIndex = (() => {
     if (!conversation?.limitSizeTokens) return null;
-    // Import inline to avoid a circular dep at module level.
-    const { truncateToFit, estimateTokens } = require("@/lib/context/truncate") as typeof import("@/lib/context/truncate");
-    const { PROVIDER_REGISTRY } = require("@/lib/providers/registry") as typeof import("@/lib/providers/registry");
     const tightest = Math.min(
       conversation.limitSizeTokens,
       ...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens),
