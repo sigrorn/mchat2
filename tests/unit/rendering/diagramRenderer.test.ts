@@ -28,7 +28,7 @@ describe("extractCodeBlocks with diagrams", () => {
   });
 
   it("extracts dot block from markdown", () => {
-    const md = '```dot\ndigraph { a -> b }\n```';
+    const md = "```dot\ndigraph { a -> b }\n```";
     const blocks = extractCodeBlocks(md);
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.kind).toBe("graphviz");

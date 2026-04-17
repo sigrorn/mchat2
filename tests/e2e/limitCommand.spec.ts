@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 test("//limit validates input, shows notice on error, restores text", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await expect(composer).toBeVisible();
 
   // Get one user message on the record.
@@ -27,7 +27,7 @@ test("//limit validates input, shows notice on error, restores text", async ({ p
 test("//limit without argument shows help", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await composer.fill("//limit");
   await composer.press("Enter");
   await expect(page.getByText(/specify the user message number/i)).toBeVisible();

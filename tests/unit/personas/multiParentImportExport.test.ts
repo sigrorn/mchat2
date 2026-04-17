@@ -98,9 +98,7 @@ describe("resolveImport multi-parent (#66)", () => {
 
   it("filters out unknown names from multi-parent runsAfter", () => {
     const existing: Persona[] = [persona({ id: "p_a", name: "Alice" })];
-    const r = resolveImport(existing, [
-      imp({ name: "Bob", runsAfter: ["Alice", "Ghost"] }),
-    ]);
+    const r = resolveImport(existing, [imp({ name: "Bob", runsAfter: ["Alice", "Ghost"] })]);
     expect(r.toCreate[0]?.runsAfter).toEqual(["Alice"]);
   });
 });

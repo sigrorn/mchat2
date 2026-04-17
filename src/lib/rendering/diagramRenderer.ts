@@ -11,10 +11,7 @@ import type { BlockKind } from "./codeBlocks";
 
 const svgCache = new Map<string, string>();
 
-export async function renderDiagramBlock(
-  kind: BlockKind,
-  source: string,
-): Promise<string | null> {
+export async function renderDiagramBlock(kind: BlockKind, source: string): Promise<string | null> {
   if (kind === "code") return null;
 
   const cacheKey = `${kind}:${source}`;

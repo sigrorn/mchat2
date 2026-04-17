@@ -185,7 +185,9 @@ export function MessageList({
             message: m,
             personas,
             userNumber: userNumbers.get(m.index) ?? null,
-            excluded: conversation ? isExcludedByLimit(m, conversation, effectiveLimitIndex) : false,
+            excluded: conversation
+              ? isExcludedByLimit(m, conversation, effectiveLimitIndex)
+              : false,
             onRetry: () => void retry(m),
             ...(m.role === "user" ? { onEdit: () => setEditingId(m.id) } : {}),
           };

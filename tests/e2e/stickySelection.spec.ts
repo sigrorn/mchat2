@@ -6,7 +6,7 @@ test("implicit follow-up after @-addressed send still goes through", async ({ pa
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
 
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await expect(composer).toBeVisible();
 
   // First send: explicit @mock.
@@ -14,9 +14,9 @@ test("implicit follow-up after @-addressed send still goes through", async ({ pa
   await composer.press("Enter");
   // Use a locator scoped to the chat pane to avoid matching the Debug
   // button's "set working directory first" text (#60).
-  await expect(
-    page.locator(".bg-neutral-100").getByText("first", { exact: false }),
-  ).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".bg-neutral-100").getByText("first", { exact: false })).toBeVisible({
+    timeout: 10_000,
+  });
   // Assistant reply is the bubble whose entire text is exactly 'hi'.
   await expect(page.getByText("hi", { exact: true })).toBeVisible();
 

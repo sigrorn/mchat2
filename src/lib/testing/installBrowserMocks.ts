@@ -39,7 +39,12 @@ function memSql() {
         userVersion = Number(/user_version\s*=\s*(\d+)/i.exec(q)?.[1] ?? 0);
         return { rowsAffected: 0, lastInsertId: null };
       }
-      if (/^PRAGMA /i.test(q) || /^CREATE /i.test(q)) {
+      if (
+        /^PRAGMA /i.test(q) ||
+        /^CREATE /i.test(q) ||
+        /^DROP /i.test(q) ||
+        /^ALTER TABLE/i.test(q)
+      ) {
         return { rowsAffected: 0, lastInsertId: null };
       }
 
@@ -150,6 +155,9 @@ const CONV_COLS = [
   "limit_mark_index",
   "display_mode",
   "visibility_mode",
+  "visibility_matrix",
+  "limit_size_tokens",
+  "selected_personas",
 ];
 const CONV_UPDATE_COLS = [
   "title",
@@ -158,6 +166,9 @@ const CONV_UPDATE_COLS = [
   "limit_mark_index",
   "display_mode",
   "visibility_mode",
+  "visibility_matrix",
+  "limit_size_tokens",
+  "selected_personas",
   "id",
 ];
 const PERSONA_COLS = [

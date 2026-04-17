@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 test("follows the tail when pinned to bottom, leaves scroll alone otherwise", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await expect(composer).toBeVisible();
 
   // Many-token mock message — produces a tall bubble that forces the

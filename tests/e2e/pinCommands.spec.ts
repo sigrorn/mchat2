@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 test("//pin sends + pins, //pins lists, //unpin removes the pin", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await expect(composer).toBeVisible();
 
   // //pin sends and produces a user row that carries the pin marker.
@@ -31,7 +31,7 @@ test("//pin sends + pins, //pins lists, //unpin removes the pin", async ({ page 
 test("//pin without targets is rejected", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await composer.fill("//pin");
   await composer.press("Enter");
   await expect(page.getByText(/specify the target persona/i)).toBeVisible();

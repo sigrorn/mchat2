@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 test("//limit N marks earlier rows as excluded via data-excluded='true'", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await expect(composer).toBeVisible();
 
   for (const word of ["alpha", "beta", "gamma"]) {

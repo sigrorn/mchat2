@@ -38,10 +38,7 @@ export function DiagramBlock({ kind, source, language }: Props): JSX.Element {
   return (
     <div className="my-2">
       {svg && !showSource ? (
-        <div
-          className="overflow-x-auto"
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+        <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: svg }} />
       ) : error ? (
         <pre className="rounded bg-red-50 p-2 text-xs text-red-700">{error}</pre>
       ) : !svg ? (

@@ -48,14 +48,7 @@ interface MistralModelsResponse {
   data?: MistralModel[];
 }
 
-const BLOCKLIST_PREFIXES = [
-  "dall-e",
-  "whisper",
-  "tts",
-  "text-embedding",
-  "babbage",
-  "davinci",
-];
+const BLOCKLIST_PREFIXES = ["dall-e", "whisper", "tts", "text-embedding", "babbage", "davinci"];
 
 const EMBED_KEYWORDS = ["embed", "embedding"];
 

@@ -7,7 +7,7 @@ test("Export to HTML appears in the conversation context menu and writes a file"
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
   // Send a message so the export has content.
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await composer.fill("@mock hello [[MOCK: tokens=hi]]");
   await composer.press("Enter");
   await expect(page.getByText(/hello/)).toBeVisible({ timeout: 10_000 });

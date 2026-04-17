@@ -15,7 +15,7 @@ test("create conversation and send a mocked message", async ({ page }) => {
   await expect(newBtn).toBeVisible();
   await newBtn.click();
 
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await expect(composer).toBeVisible();
 
   // Mock directive (see providers/mock.ts) so we control the stream

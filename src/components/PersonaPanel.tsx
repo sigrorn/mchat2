@@ -286,9 +286,7 @@ function PersonaRow({
                       checked={runsAfter.includes(p.id)}
                       onChange={(e) =>
                         setRunsAfter((prev) =>
-                          e.target.checked
-                            ? [...prev, p.id]
-                            : prev.filter((id) => id !== p.id),
+                          e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id),
                         )
                       }
                     />

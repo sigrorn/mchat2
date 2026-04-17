@@ -196,9 +196,7 @@ describe("multi-parent runsAfter (#66)", () => {
       name: "A",
       currentMessageIndex: 0,
     });
-    await expect(
-      updatePersona({ id: a.id, runsAfter: ["p_nonexistent"] }),
-    ).rejects.toMatchObject({
+    await expect(updatePersona({ id: a.id, runsAfter: ["p_nonexistent"] })).rejects.toMatchObject({
       code: "unknown_parent",
     });
   });

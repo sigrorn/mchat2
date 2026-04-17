@@ -34,8 +34,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const { send, retry } = useSend(conversation);
   const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
   const fontScale = useUiStore((s) => s.chatFontScale);
-  const cPersonas =
-    usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
+  const cPersonas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
   const cSelection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
   const placeholder = buildPlaceholder(cPersonas, cSelection);
@@ -114,9 +113,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const kTokens = cmd.payload.kTokens;
       if (kTokens === 0) {
         await useConversationsStore.getState().setLimitSize(conversation.id, null);
-        await useMessagesStore
-          .getState()
-          .appendNotice(conversation.id, "limitsize: cleared.");
+        await useMessagesStore.getState().appendNotice(conversation.id, "limitsize: cleared.");
         return;
       }
       if (kTokens !== null) {

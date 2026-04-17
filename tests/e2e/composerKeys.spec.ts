@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 test("Enter submits, Shift+Enter inserts newline", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
-  const composer = page.getByPlaceholder(/Type a message/);
+  const composer = page.getByRole("textbox");
   await expect(composer).toBeVisible();
 
   // Shift+Enter inserts a newline, stays in the composer.
