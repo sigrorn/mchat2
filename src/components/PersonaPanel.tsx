@@ -290,7 +290,7 @@ function PersonaRow({
                         )
                       }
                     />
-                    <span>{p.name}</span>
+                    <span className="text-neutral-800">{p.name}</span>
                   </label>
                 ))}
               {allPersonas.filter((p) => p.id !== persona.id).length === 0 && (
