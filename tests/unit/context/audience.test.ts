@@ -79,7 +79,7 @@ describe("context builder — audience-based visibility", () => {
     // #73: user message reordered to end when 2+ assistants follow.
     expect(r.messages.map((m) => m.content)).toEqual([
       "claudio says hi",
-      "gepetto says hi",
+      "p_gepetto: gepetto says hi",
       "hello",
     ]);
   });
@@ -143,7 +143,7 @@ describe("context builder — audience-based visibility", () => {
       messages,
       personas,
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["a speaks", "b speaks"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["a speaks", "p_b: b speaks"]);
   });
 
   it("audience restriction applies regardless of matrix (#75)", () => {

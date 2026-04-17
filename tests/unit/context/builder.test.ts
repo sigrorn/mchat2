@@ -267,8 +267,8 @@ describe("buildContext", () => {
     const roles = r.messages.map((m) => m.role);
     expect(roles[roles.length - 1]).toBe("user");
     expect(r.messages.map((m) => m.content)).toEqual([
-      "sibling A reply",
-      "sibling B reply",
+      "Bob: sibling A reply",
+      "Carol: sibling B reply",
       "question",
     ]);
   });

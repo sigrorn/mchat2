@@ -114,7 +114,14 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     }
 
     if (!m.content) continue;
-    out.push({ role: m.role, content: m.content });
+    // #87: prefix other personas' assistant messages with their name
+    // so the receiving LLM knows who said what.
+    let content = m.content;
+    if (m.role === "assistant" && m.personaId && m.personaId !== target.personaId) {
+      const name = personas.find((p) => p.id === m.personaId)?.name;
+      if (name) content = `${name}: ${content}`;
+    }
+    out.push({ role: m.role, content });
   }
 
   // #73: DAG children in joined visibility may see sibling assistant

@@ -78,7 +78,7 @@ describe("buildContext with visibilityMatrix (#75)", () => {
       personas,
     });
     // #73: user message reordered to end.
-    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "from C", "hi"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "B: from B", "C: from C", "hi"]);
   });
 
   it("separated preset: each persona has [] → sees only self", () => {
@@ -102,7 +102,7 @@ describe("buildContext with visibilityMatrix (#75)", () => {
       personas,
     });
     // #73: user message reordered to end when 2+ assistants follow.
-    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "hi"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "B: from B", "hi"]);
   });
 
   it("asymmetric: alice sees bob but bob doesn't see alice", () => {
@@ -115,7 +115,7 @@ describe("buildContext with visibilityMatrix (#75)", () => {
       messages,
       personas,
     });
-    expect(r1.messages.map((m) => m.content)).toEqual(["from A", "from B", "hi"]);
+    expect(r1.messages.map((m) => m.content)).toEqual(["from A", "B: from B", "hi"]);
 
     const r2 = buildContext({
       conversation: {
@@ -140,7 +140,7 @@ describe("buildContext with visibilityMatrix (#75)", () => {
       personas,
     });
     // p_a not in matrix → sees everyone.
-    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "from C", "hi"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "B: from B", "C: from C", "hi"]);
   });
 
   it("visibilityMode is ignored — matrix is sole source of truth (#75)", () => {
@@ -155,6 +155,6 @@ describe("buildContext with visibilityMatrix (#75)", () => {
       personas,
     });
     // Empty matrix = full, regardless of visibilityMode.
-    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "from C", "hi"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "B: from B", "C: from C", "hi"]);
   });
 });
