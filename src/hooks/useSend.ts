@@ -173,7 +173,21 @@ export function useSend(conversation: Conversation) {
       const selection = usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
 
-      const resolved = resolveTargets({ text: newContent, personas, selection });
+      // #92: if the edited text has no explicit @targets, restore the
+      // original message's targeting instead of using the current selection.
+      const original = history.find((m) => m.id === messageId);
+      const originalAddressedTo = original?.addressedTo ?? [];
+      let resolved = resolveTargets({ text: newContent, personas, selection });
+      if (resolved.mode === "implicit" && original) {
+        if (originalAddressedTo.length === 0) {
+          resolved = resolveTargets({ text: `@all ${newContent}`, personas, selection });
+        } else {
+          const prefix = originalAddressedTo
+            .map((id) => `@${personas.find((p) => p.id === id)?.nameSlug ?? id}`)
+            .join(" ");
+          resolved = resolveTargets({ text: `${prefix} ${newContent}`, personas, selection });
+        }
+      }
       if (resolved.targets.length === 0) {
         return { ok: false as const, reason: "no targets" };
       }
