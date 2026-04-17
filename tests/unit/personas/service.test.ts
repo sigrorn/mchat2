@@ -42,7 +42,7 @@ function makeMemSql() {
           colorOverride: color_override as string | null,
           createdAtMessageIndex: Number(created_at_message_index),
           sortOrder: Number(sort_order),
-          runsAfter: runs_after as string | null,
+          runsAfter: parseRA(runs_after),
           deletedAt: deleted_at as number | null,
           apertusProductId: (apertus_product_id as string | null) ?? null,
         });
@@ -69,7 +69,7 @@ function makeMemSql() {
           r.modelOverride = model_override as string | null;
           r.colorOverride = color_override as string | null;
           r.sortOrder = Number(sort_order);
-          r.runsAfter = runs_after as string | null;
+          r.runsAfter = parseRA(runs_after);
           r.deletedAt = deleted_at as number | null;
           r.apertusProductId = (apertus_product_id as string | null) ?? null;
         }
@@ -103,6 +103,15 @@ function makeMemSql() {
   return rows;
 }
 
+function parseRA(v: unknown): string[] {
+  if (v === null || v === undefined) return [];
+  try {
+    const parsed = JSON.parse(String(v));
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  return [];
+}
+
 function toRow(p: Persona) {
   return {
     id: p.id,
@@ -115,7 +124,7 @@ function toRow(p: Persona) {
     color_override: p.colorOverride,
     created_at_message_index: p.createdAtMessageIndex,
     sort_order: p.sortOrder,
-    runs_after: p.runsAfter,
+    runs_after: JSON.stringify(p.runsAfter),
     deleted_at: p.deletedAt,
     apertus_product_id: p.apertusProductId,
   };
@@ -177,9 +186,9 @@ describe("updatePersona", () => {
       provider: "mock",
       name: "B",
       currentMessageIndex: 0,
-      runsAfter: a.id,
+      runsAfter: [a.id],
     });
-    await expect(updatePersona({ id: a.id, runsAfter: b.id })).rejects.toMatchObject({
+    await expect(updatePersona({ id: a.id, runsAfter: [b.id] })).rejects.toMatchObject({
       code: "cycle",
     });
   });
@@ -191,7 +200,7 @@ describe("updatePersona", () => {
       name: "A",
       currentMessageIndex: 0,
     });
-    await expect(updatePersona({ id: a.id, runsAfter: a.id })).rejects.toMatchObject({
+    await expect(updatePersona({ id: a.id, runsAfter: [a.id] })).rejects.toMatchObject({
       code: "cycle",
     });
   });

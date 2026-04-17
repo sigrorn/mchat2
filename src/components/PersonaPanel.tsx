@@ -135,7 +135,7 @@ function PersonaRow({
     provider?: ProviderId;
     systemPromptOverride?: string | null;
     modelOverride?: string | null;
-    runsAfter?: string | null;
+    runsAfter?: string[];
     apertusProductId?: string | null;
   }) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -146,7 +146,7 @@ function PersonaRow({
   const [provider, setProvider] = useState<ProviderId>(persona.provider);
   const [prompt, setPrompt] = useState(persona.systemPromptOverride ?? "");
   const [model, setModel] = useState(persona.modelOverride ?? "");
-  const [runsAfter, setRunsAfter] = useState(persona.runsAfter ?? "");
+  const [runsAfter, setRunsAfter] = useState<string[]>(persona.runsAfter);
   const [error, setError] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
@@ -157,7 +157,7 @@ function PersonaRow({
         provider,
         systemPromptOverride: prompt ? prompt : null,
         modelOverride: model ? model : null,
-        runsAfter: runsAfter ? runsAfter : null,
+        runsAfter,
       });
       setEditing(false);
     } catch (e) {
@@ -221,7 +221,9 @@ function PersonaRow({
           <div className="text-xs text-neutral-600">
             {persona.provider}
             {persona.modelOverride ? ` · ${persona.modelOverride}` : ""}
-            {persona.runsAfter ? ` · after ${labelFor(persona.runsAfter, allPersonas)}` : ""}
+            {persona.runsAfter.length > 0
+              ? ` · after ${persona.runsAfter.map((id) => labelFor(id, allPersonas)).join(", ")}`
+              : ""}
           </div>
         </div>
         <button
@@ -271,20 +273,29 @@ function PersonaRow({
             </datalist>
           </Field>
           <Field label="Runs after">
-            <select
-              value={runsAfter}
-              onChange={(e) => setRunsAfter(e.target.value)}
-              className="w-full rounded border border-neutral-300 px-2 py-1"
-            >
-              <option value="">(none — root)</option>
+            <div className="flex flex-wrap gap-2">
               {allPersonas
                 .filter((p) => p.id !== persona.id)
                 .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+                  <label key={p.id} className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={runsAfter.includes(p.id)}
+                      onChange={(e) =>
+                        setRunsAfter((prev) =>
+                          e.target.checked
+                            ? [...prev, p.id]
+                            : prev.filter((id) => id !== p.id),
+                        )
+                      }
+                    />
+                    <span>{p.name}</span>
+                  </label>
                 ))}
-            </select>
+              {allPersonas.filter((p) => p.id !== persona.id).length === 0 && (
+                <span className="text-neutral-400">(no other personas)</span>
+              )}
+            </div>
           </Field>
           <Field label="System prompt">
             <textarea

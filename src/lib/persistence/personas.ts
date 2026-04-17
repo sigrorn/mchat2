@@ -36,10 +36,21 @@ function rowToPersona(r: Row): Persona {
     colorOverride: r.color_override,
     createdAtMessageIndex: r.created_at_message_index,
     sortOrder: r.sort_order,
-    runsAfter: r.runs_after,
+    runsAfter: parseRunsAfter(r.runs_after),
     deletedAt: r.deleted_at,
     apertusProductId: r.apertus_product_id ?? null,
   };
+}
+
+function parseRunsAfter(raw: string | null): string[] {
+  if (raw === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === "string");
+  } catch {
+    // Pre-migration single id string.
+  }
+  return raw ? [raw] : [];
 }
 
 export async function listPersonas(
@@ -80,7 +91,7 @@ export async function createPersona(
       p.colorOverride,
       p.createdAtMessageIndex,
       p.sortOrder,
-      p.runsAfter,
+      JSON.stringify(p.runsAfter),
       p.deletedAt,
       p.apertusProductId,
     ],
@@ -104,7 +115,7 @@ export async function updatePersona(p: Persona): Promise<void> {
       p.modelOverride,
       p.colorOverride,
       p.sortOrder,
-      p.runsAfter,
+      JSON.stringify(p.runsAfter),
       p.deletedAt,
       p.apertusProductId,
       p.id,

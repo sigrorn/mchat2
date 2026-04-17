@@ -1,7 +1,7 @@
 // #66 — Multi-parent runsAfter validation in persona service.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
-import { createPersona, updatePersona, PersonaValidationError } from "@/lib/personas/service";
+import { createPersona, updatePersona } from "@/lib/personas/service";
 import type { Persona } from "@/lib/types";
 
 function makeMemSql() {

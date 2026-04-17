@@ -31,7 +31,7 @@ export function planSend(input: PlanSendInput): SendPlan | null {
   if (!honorsDag) return { kind: "parallel", targets };
   const plan = buildDag(targets, input.personas, input.runId);
   if (plan.nodes.size === 0) return null;
-  const anyEdges = [...plan.nodes.values()].some((n) => n.parent !== null);
+  const anyEdges = [...plan.nodes.values()].some((n) => n.parents.length > 0);
   if (!anyEdges) return { kind: "parallel", targets };
   return { kind: "dag", plan };
 }
@@ -45,30 +45,31 @@ function buildDag(targets: PersonaTarget[], personas: Persona[], runId: number):
   const nodes = new Map<string, DagNode>();
 
   for (const t of targets) {
-    let parent: string | null = null;
+    const parents: string[] = [];
     if (t.personaId) {
       const p = personaById.get(t.personaId);
-      if (p?.runsAfter) {
-        const parentKey = p.runsAfter;
-        if (selectedKeys.has(parentKey)) parent = parentKey;
+      if (p) {
+        for (const parentId of p.runsAfter) {
+          if (selectedKeys.has(parentId)) parents.push(parentId);
+        }
       }
     }
     nodes.set(t.key, {
       key: t.key,
       target: t,
-      parent,
+      parents,
       children: [],
       status: "pending",
     });
   }
 
   for (const n of nodes.values()) {
-    if (n.parent) {
-      const p = nodes.get(n.parent);
+    for (const pk of n.parents) {
+      const p = nodes.get(pk);
       if (p) p.children.push(n.key);
     }
   }
 
-  const roots = [...nodes.values()].filter((n) => n.parent === null).map((n) => n.key);
+  const roots = [...nodes.values()].filter((n) => n.parents.length === 0).map((n) => n.key);
   return { runId, nodes, roots };
 }

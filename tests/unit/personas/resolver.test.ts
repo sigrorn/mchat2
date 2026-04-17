@@ -14,7 +14,7 @@ function persona(id: string, slug: string, provider: Persona["provider"] = "mock
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: null,
+    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
   };

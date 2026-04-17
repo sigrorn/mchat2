@@ -38,7 +38,7 @@ export interface CreatePersonaInput {
   systemPromptOverride?: string | null;
   modelOverride?: string | null;
   colorOverride?: string | null;
-  runsAfter?: PersonaId | null;
+  runsAfter?: PersonaId[];
   currentMessageIndex: number;
   sortOrder?: number;
   apertusProductId?: string | null;
@@ -58,12 +58,14 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
       `'${name}' is already used in this conversation`,
     );
   }
-  if (input.runsAfter) {
-    if (!existing.some((p) => p.id === input.runsAfter)) {
-      throw new PersonaValidationError(
-        "unknown_parent",
-        "runsAfter references a non-existent persona",
-      );
+  if (input.runsAfter && input.runsAfter.length > 0) {
+    for (const parentId of input.runsAfter) {
+      if (!existing.some((p) => p.id === parentId)) {
+        throw new PersonaValidationError(
+          "unknown_parent",
+          "runsAfter references a non-existent persona",
+        );
+      }
     }
   }
   // Apertus product id used to be per-persona (#15) but is now a global
@@ -79,7 +81,7 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     colorOverride: input.colorOverride ?? null,
     createdAtMessageIndex: input.currentMessageIndex,
     sortOrder: input.sortOrder ?? existing.length,
-    runsAfter: input.runsAfter ?? null,
+    runsAfter: input.runsAfter ?? [],
     deletedAt: null,
     apertusProductId: input.apertusProductId?.trim() || null,
   });
@@ -95,7 +97,7 @@ export interface UpdatePersonaInput {
   systemPromptOverride?: string | null;
   modelOverride?: string | null;
   colorOverride?: string | null;
-  runsAfter?: PersonaId | null;
+  runsAfter?: PersonaId[];
   sortOrder?: number;
   apertusProductId?: string | null;
 }
@@ -121,13 +123,15 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     }
   }
 
-  if (input.runsAfter !== undefined && input.runsAfter !== null) {
-    if (input.runsAfter === current.id) {
-      throw new PersonaValidationError("cycle", "A persona cannot depend on itself");
-    }
+  if (input.runsAfter !== undefined && input.runsAfter.length > 0) {
     const siblings = await repo.listPersonas(current.conversationId);
-    if (!siblings.some((p) => p.id === input.runsAfter)) {
-      throw new PersonaValidationError("unknown_parent", "Unknown parent persona");
+    for (const parentId of input.runsAfter) {
+      if (parentId === current.id) {
+        throw new PersonaValidationError("cycle", "A persona cannot depend on itself");
+      }
+      if (!siblings.some((p) => p.id === parentId)) {
+        throw new PersonaValidationError("unknown_parent", "Unknown parent persona");
+      }
     }
     if (wouldCreateCycle(current.id, input.runsAfter, siblings)) {
       throw new PersonaValidationError("cycle", "runsAfter would create a cycle");
@@ -160,21 +164,27 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
   return next;
 }
 
-// Walk parent chain; if we hit `candidate` starting from `proposedParent`,
-// setting current's parent to proposedParent would close a loop.
+// DFS from each proposed parent upward through the multi-parent graph.
+// If we reach `candidate`, adding these edges would close a cycle.
 function wouldCreateCycle(
   candidate: PersonaId,
-  proposedParent: PersonaId,
+  proposedParents: PersonaId[],
   all: Persona[],
 ): boolean {
   const byId = new Map(all.map((p) => [p.id, p] as const));
-  let cursor: PersonaId | null = proposedParent;
-  const seen = new Set<PersonaId>();
-  while (cursor !== null) {
+  const visited = new Set<PersonaId>();
+  const stack = [...proposedParents];
+  while (stack.length > 0) {
+    const cursor = stack.pop()!;
     if (cursor === candidate) return true;
-    if (seen.has(cursor)) return true;
-    seen.add(cursor);
-    cursor = byId.get(cursor)?.runsAfter ?? null;
+    if (visited.has(cursor)) continue;
+    visited.add(cursor);
+    const p = byId.get(cursor);
+    if (p) {
+      for (const pid of p.runsAfter) {
+        stack.push(pid);
+      }
+    }
   }
   return false;
 }

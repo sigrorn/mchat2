@@ -58,15 +58,15 @@ export async function executeDag(input: ExecuteDagInput): Promise<DagPlan> {
   };
 
   const parentsDone = (n: DagNode): boolean => {
-    if (n.parent === null) return true;
-    const p = plan.nodes.get(n.parent);
-    return p?.status === "completed";
+    if (n.parents.length === 0) return true;
+    return n.parents.every((pk) => plan.nodes.get(pk)?.status === "completed");
   };
 
   const parentFailedOrSkipped = (n: DagNode): boolean => {
-    if (n.parent === null) return false;
-    const p = plan.nodes.get(n.parent);
-    return p ? p.status === "failed" || p.status === "skipped" : false;
+    return n.parents.some((pk) => {
+      const p = plan.nodes.get(pk);
+      return p ? p.status === "failed" || p.status === "skipped" : false;
+    });
   };
 
   const dispatch = (): void => {

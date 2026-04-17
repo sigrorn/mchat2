@@ -83,6 +83,11 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE conversations ADD COLUMN limit_size_tokens INTEGER`],
   // 7 — Persisted persona selection (#65).
   [`ALTER TABLE conversations ADD COLUMN selected_personas TEXT NOT NULL DEFAULT '[]'`],
+  // 8 — Multi-parent runsAfter (#66): convert single-id to JSON array.
+  [
+    `UPDATE personas SET runs_after = '["' || runs_after || '"]' WHERE runs_after IS NOT NULL AND runs_after != ''`,
+    `UPDATE personas SET runs_after = '[]' WHERE runs_after IS NULL OR runs_after = ''`,
+  ],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version

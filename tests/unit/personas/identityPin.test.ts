@@ -20,7 +20,7 @@ function persona(over: Partial<Persona> = {}): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: null,
+    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     ...over,

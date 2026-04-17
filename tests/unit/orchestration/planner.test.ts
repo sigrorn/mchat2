@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { planSend } from "@/lib/orchestration/sendPlanner";
 import type { Persona, PersonaTarget } from "@/lib/types";
 
-function persona(id: string, runsAfter: string | null = null): Persona {
+function persona(id: string, runsAfter: string[] = []): Persona {
   return {
     id,
     conversationId: "c_1",
@@ -39,7 +39,7 @@ describe("planSend", () => {
     const plan = planSend({
       mode: "targeted",
       targets: [target("a"), target("b")],
-      personas: [persona("a"), persona("b", "a")],
+      personas: [persona("a"), persona("b", ["a"])],
       runId: 1,
     });
     expect(plan?.kind).toBe("parallel");
@@ -49,12 +49,12 @@ describe("planSend", () => {
     const plan = planSend({
       mode: "all",
       targets: [target("a"), target("b")],
-      personas: [persona("a"), persona("b", "a")],
+      personas: [persona("a"), persona("b", ["a"])],
       runId: 1,
     });
     expect(plan?.kind).toBe("dag");
     if (plan?.kind === "dag") {
-      expect(plan.plan.nodes.get("b")?.parent).toBe("a");
+      expect(plan.plan.nodes.get("b")?.parents).toEqual(["a"]);
       expect(plan.plan.roots).toEqual(["a"]);
     }
   });
@@ -73,7 +73,7 @@ describe("planSend", () => {
     const plan = planSend({
       mode: "all",
       targets: [target("b")],
-      personas: [persona("a"), persona("b", "a")],
+      personas: [persona("a"), persona("b", ["a"])],
       runId: 1,
     });
     expect(plan?.kind).toBe("single");

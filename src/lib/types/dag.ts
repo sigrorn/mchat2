@@ -17,8 +17,8 @@ export interface DagNode {
   // Persona key = personaId ?? provider.
   key: string;
   target: PersonaTarget;
-  // Parent key within the induced subgraph, or null for a root.
-  parent: string | null;
+  // Parent keys within the induced subgraph. Empty = root.
+  parents: string[];
   // Direct children within the induced subgraph.
   children: string[];
   status: DagNodeStatus;
@@ -30,7 +30,7 @@ export interface DagPlan {
   // current run_id.
   runId: number;
   nodes: Map<string, DagNode>;
-  // Convenience: keys of all root nodes (parent === null).
+  // Convenience: keys of all root nodes (parents.length === 0).
   roots: string[];
 }
 

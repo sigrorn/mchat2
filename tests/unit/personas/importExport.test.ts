@@ -20,7 +20,7 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     colorOverride: over.colorOverride ?? null,
     createdAtMessageIndex: over.createdAtMessageIndex ?? 0,
     sortOrder: over.sortOrder ?? 0,
-    runsAfter: over.runsAfter ?? null,
+    runsAfter: over.runsAfter ?? [],
     deletedAt: over.deletedAt ?? null,
     apertusProductId: over.apertusProductId ?? null,
   };
@@ -30,15 +30,15 @@ describe("serializePersonas", () => {
   it("emits version 1 envelope and resolves runsAfter to a name", () => {
     const ps: Persona[] = [
       persona({ id: "p_a", name: "Alice", systemPromptOverride: "be brief" }),
-      persona({ id: "p_b", name: "Bob", runsAfter: "p_a" }),
+      persona({ id: "p_b", name: "Bob", runsAfter: ["p_a"] }),
     ];
     const json = serializePersonas(ps);
     const parsed = JSON.parse(json) as { version: number; personas: unknown[] };
     expect(parsed.version).toBe(1);
     expect(parsed.personas).toHaveLength(2);
-    const second = parsed.personas[1] as { name: string; runsAfter: string | null };
+    const second = parsed.personas[1] as { name: string; runsAfter: string[] };
     expect(second.name).toBe("Bob");
-    expect(second.runsAfter).toBe("Alice");
+    expect(second.runsAfter).toEqual(["Alice"]);
   });
 
   it("skips tombstoned personas (deletedAt set)", () => {
@@ -90,7 +90,7 @@ function imp(over: Partial<ExportedPersona> & { name: string }): ExportedPersona
     modelOverride: over.modelOverride ?? null,
     colorOverride: over.colorOverride ?? null,
     apertusProductId: over.apertusProductId ?? null,
-    runsAfter: over.runsAfter ?? null,
+    runsAfter: over.runsAfter ?? [],
   };
 }
 
@@ -105,15 +105,15 @@ describe("resolveImport", () => {
 
   it("resolves runsAfter by name against the post-import set", () => {
     const r = resolveImport(existing, [
-      imp({ name: "Bob", runsAfter: "Alice" }),
-      imp({ name: "Carol", runsAfter: "Bob" }),
+      imp({ name: "Bob", runsAfter: ["Alice"] }),
+      imp({ name: "Carol", runsAfter: ["Bob"] }),
     ]);
     const carol = r.toCreate.find((p) => p.name === "Carol");
-    expect(carol?.runsAfter).toBe("Bob");
+    expect(carol?.runsAfter).toEqual(["Bob"]);
   });
 
   it("nulls runsAfter when the referenced name is not present", () => {
-    const r = resolveImport(existing, [imp({ name: "Bob", runsAfter: "Ghost" })]);
-    expect(r.toCreate[0]?.runsAfter).toBeNull();
+    const r = resolveImport(existing, [imp({ name: "Bob", runsAfter: ["Ghost"] })]);
+    expect(r.toCreate[0]?.runsAfter).toEqual([]);
   });
 });

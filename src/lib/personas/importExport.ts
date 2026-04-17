@@ -21,7 +21,7 @@ export interface ExportedPersona {
   modelOverride: string | null;
   colorOverride: string | null;
   apertusProductId: string | null;
-  runsAfter: string | null; // name of another persona in this file
+  runsAfter: string[]; // names of parent personas in this file
 }
 
 export interface ExportEnvelope {
@@ -41,7 +41,9 @@ export function serializePersonas(personas: readonly Persona[]): string {
       modelOverride: p.modelOverride,
       colorOverride: p.colorOverride,
       apertusProductId: p.apertusProductId,
-      runsAfter: p.runsAfter ? (nameById.get(p.runsAfter) ?? null) : null,
+      runsAfter: p.runsAfter
+        .map((id) => nameById.get(id))
+        .filter((n): n is string => n !== undefined),
     })),
   };
   return JSON.stringify(out, null, 2);
@@ -80,7 +82,7 @@ export function parsePersonasImport(raw: string): ParseResult {
       modelOverride: nullableString(entry["modelOverride"]),
       colorOverride: nullableString(entry["colorOverride"]),
       apertusProductId: nullableString(entry["apertusProductId"]),
-      runsAfter: nullableString(entry["runsAfter"]),
+      runsAfter: parseRunsAfterField(entry["runsAfter"]),
     });
   }
   return { ok: true, personas: out };
@@ -98,7 +100,7 @@ export interface ResolvedImport {
     modelOverride: string | null;
     colorOverride: string | null;
     apertusProductId: string | null;
-    runsAfter: string | null; // resolved id, or null
+    runsAfter: string[]; // resolved names
   }>;
   skipped: string[];
 }
@@ -138,7 +140,7 @@ export function resolveImport(
       modelOverride: p.modelOverride,
       colorOverride: p.colorOverride,
       apertusProductId: p.apertusProductId,
-      runsAfter: p.runsAfter && known.has(p.runsAfter.toLowerCase()) ? p.runsAfter : null,
+      runsAfter: p.runsAfter.filter((n) => known.has(n.toLowerCase())),
     })),
     skipped,
   };
@@ -146,6 +148,12 @@ export function resolveImport(
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function parseRunsAfterField(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && x !== "");
+  if (typeof v === "string" && v !== "") return [v];
+  return [];
 }
 
 function nullableString(v: unknown): string | null {

@@ -12,7 +12,7 @@ function plan(edges: Array<[string, string | null]>): DagPlan {
     nodes.set(k, {
       key: k,
       target: target(k),
-      parent,
+      parents: parent ? [parent] : [],
       children: [],
       status: "pending",
     });

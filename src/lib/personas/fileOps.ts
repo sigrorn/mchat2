@@ -80,12 +80,14 @@ export async function importPersonasFromFile(
     post.filter((p) => p.deletedAt === null).map((p) => [p.nameSlug, p.id] as const),
   );
   for (const entry of resolved.toCreate) {
-    if (!entry.runsAfter) continue;
-    const targetId = idBySlug.get(slugify(entry.runsAfter));
-    if (!targetId) continue;
-    const persona = post.find((p) => p.nameSlug === slugify(entry.name));
-    if (!persona) continue;
-    await updatePersona({ id: persona.id, runsAfter: targetId });
+    if (entry.runsAfter.length === 0) continue;
+    const parentIds = entry.runsAfter
+      .map((name) => idBySlug.get(slugify(name)))
+      .filter((id): id is string => id !== undefined);
+    if (parentIds.length === 0) continue;
+    const p = post.find((x) => x.nameSlug === slugify(entry.name));
+    if (!p) continue;
+    await updatePersona({ id: p.id, runsAfter: parentIds });
   }
   // #36: every imported persona needs the same identity pin that
   // CreateForm sets up — without it the LLM defaults to its provider

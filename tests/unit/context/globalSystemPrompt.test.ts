@@ -28,7 +28,7 @@ const persona: Persona = {
   colorOverride: null,
   createdAtMessageIndex: 0,
   sortOrder: 0,
-  runsAfter: null,
+  runsAfter: [],
   deletedAt: null,
   apertusProductId: null,
 };

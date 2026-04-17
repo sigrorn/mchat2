@@ -28,10 +28,9 @@ export interface Persona {
   // context builder rules).
   createdAtMessageIndex: number;
   sortOrder: number;
-  // DAG edge: parent persona id, or null for a root.
-  // Tree/forest only (single parent). Multi-parent support is a future
-  // ALTER TABLE if ever needed.
-  runsAfter: PersonaId | null;
+  // DAG edges: parent persona ids. Empty array = root. Multiple entries
+  // = AND-join (child waits for ALL listed parents to complete).
+  runsAfter: PersonaId[];
   // Tombstone (ms epoch). Null = active.
   deletedAt: number | null;
   // Provider-specific config. Currently only Apertus uses this — its
