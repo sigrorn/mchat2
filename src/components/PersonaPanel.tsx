@@ -13,7 +13,7 @@ import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import { PRICING } from "@/lib/pricing/table";
 import { computePersonaCosts, formatPersonaCost } from "@/lib/pricing/personaCosts";
 import type { CostResult } from "@/lib/pricing/estimator";
-import { listModels } from "@/lib/providers/models";
+import { listModelInfos, formatTokenLimit, type ModelInfo } from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
 import {
   createPersona,
@@ -165,8 +165,8 @@ function PersonaRow({
     }
   };
 
-  const [modelOptions, setModelOptions] = useState<string[]>(() =>
-    Object.keys(PRICING[provider] ?? {}),
+  const [modelOptions, setModelOptions] = useState<ModelInfo[]>(() =>
+    Object.keys(PRICING[provider] ?? {}).map((id) => ({ id })),
   );
   const modelListId = `models-${persona.id}`;
 
@@ -178,8 +178,8 @@ function PersonaRow({
         ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
         : null;
       const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
-      const ids = await listModels(provider, key, { apertusProductId: pid });
-      if (!cancelled) setModelOptions(ids);
+      const infos = await listModelInfos(provider, key, { apertusProductId: pid });
+      if (!cancelled) setModelOptions(infos);
     })();
     return () => {
       cancelled = true;
@@ -268,7 +268,10 @@ function PersonaRow({
             />
             <datalist id={modelListId}>
               {modelOptions.map((m) => (
-                <option key={m} value={m} />
+                <option key={m.id} value={m.id}>
+                  {m.id}
+                  {m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : ""}
+                </option>
               ))}
             </datalist>
           </Field>

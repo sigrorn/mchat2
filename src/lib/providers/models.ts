@@ -12,14 +12,40 @@ import type { ProviderId } from "../types";
 import { PRICING } from "../pricing/table";
 import { request, HttpError } from "../tauri/http";
 
+export interface ModelInfo {
+  id: string;
+  maxTokens?: number;
+}
+
+export function formatTokenLimit(tokens: number | undefined): string {
+  if (tokens === undefined) return "";
+  return `${Math.round(tokens / 1000)}k`;
+}
+
+interface OpenAICompatModel {
+  id: string;
+  context_window?: number;
+}
 interface OpenAICompatModelsResponse {
-  data?: { id: string }[];
+  data?: OpenAICompatModel[];
 }
 interface AnthropicModelsResponse {
   data?: { id: string }[];
 }
+interface GeminiModel {
+  name: string;
+  inputTokenLimit?: number;
+}
 interface GeminiModelsResponse {
-  models?: { name: string }[];
+  models?: GeminiModel[];
+}
+interface MistralModel {
+  id: string;
+  max_context_length?: number;
+  capabilities?: { completion_chat?: boolean };
+}
+interface MistralModelsResponse {
+  data?: MistralModel[];
 }
 
 const BLOCKLIST_PREFIXES = [
@@ -52,7 +78,7 @@ export function isChatModel(provider: ProviderId, id: string): boolean {
   }
 }
 
-const cache = new Map<string, { at: number; ids: string[] }>();
+const infoCache = new Map<string, { at: number; infos: ModelInfo[] }>();
 const TTL_MS = 10 * 60_000;
 
 export async function listModels(
@@ -60,41 +86,55 @@ export async function listModels(
   apiKey: string | null,
   extra?: { apertusProductId?: string | null },
 ): Promise<string[]> {
-  // Cache key: provider + productId for Apertus, since different
-  // products list different models.
-  const cacheKey = provider === "apertus" ? `apertus:${extra?.apertusProductId ?? ""}` : provider;
-  const cached = cache.get(cacheKey);
-  if (cached && Date.now() - cached.at < TTL_MS) return cached.ids;
+  const infos = await listModelInfos(provider, apiKey, extra);
+  return infos.map((m) => m.id);
+}
 
-  const fallback = Object.keys(PRICING[provider] ?? {});
+export async function listModelInfos(
+  provider: ProviderId,
+  apiKey: string | null,
+  extra?: { apertusProductId?: string | null },
+): Promise<ModelInfo[]> {
+  const cacheKey = provider === "apertus" ? `apertus:${extra?.apertusProductId ?? ""}` : provider;
+  const cached = infoCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < TTL_MS) return cached.infos;
+
+  const fallback: ModelInfo[] = Object.keys(PRICING[provider] ?? {}).map((id) => ({ id }));
   if (!apiKey) return fallback;
 
   try {
-    const raw = await fetchProviderModels(provider, apiKey, extra);
-    const ids = raw.filter((id) => isChatModel(provider, id));
-    if (ids.length === 0) return fallback;
-    const sorted = [...new Set(ids)].sort();
-    cache.set(cacheKey, { at: Date.now(), ids: sorted });
+    const raw = await fetchProviderModelInfos(provider, apiKey, extra);
+    const filtered = raw.filter((m) => isChatModel(provider, m.id));
+    if (filtered.length === 0) return fallback;
+    const sorted = dedup(filtered).sort((a, b) => a.id.localeCompare(b.id));
+    infoCache.set(cacheKey, { at: Date.now(), infos: sorted });
     return sorted;
   } catch {
     return fallback;
   }
 }
 
-async function fetchProviderModels(
+function dedup(infos: ModelInfo[]): ModelInfo[] {
+  const seen = new Set<string>();
+  return infos.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+}
+
+async function fetchProviderModelInfos(
   provider: ProviderId,
   apiKey: string,
   extra?: { apertusProductId?: string | null },
-): Promise<string[]> {
+): Promise<ModelInfo[]> {
   switch (provider) {
     case "openai":
       return openAICompatList("https://api.openai.com/v1/models", apiKey);
     case "perplexity":
-      // Perplexity has no public /models endpoint; fall through to
-      // fallback via empty return.
       return [];
     case "mistral":
-      return openAICompatList("https://api.mistral.ai/v1/models", apiKey);
+      return mistralList(apiKey);
     case "apertus": {
       const pid = extra?.apertusProductId?.trim();
       if (!pid) return [];
@@ -112,7 +152,7 @@ async function fetchProviderModels(
   }
 }
 
-async function openAICompatList(url: string, apiKey: string): Promise<string[]> {
+async function openAICompatList(url: string, apiKey: string): Promise<ModelInfo[]> {
   const res = await request({
     url,
     method: "GET",
@@ -120,10 +160,15 @@ async function openAICompatList(url: string, apiKey: string): Promise<string[]> 
   });
   if (res.status >= 400) throw new HttpError(res.status, res.body);
   const parsed = JSON.parse(res.body) as OpenAICompatModelsResponse;
-  return parsed.data?.map((d) => d.id) ?? [];
+  return (
+    parsed.data?.map((d) => ({
+      id: d.id,
+      ...(d.context_window ? { maxTokens: d.context_window } : {}),
+    })) ?? []
+  );
 }
 
-async function anthropicList(apiKey: string): Promise<string[]> {
+async function anthropicList(apiKey: string): Promise<ModelInfo[]> {
   const res = await request({
     url: "https://api.anthropic.com/v1/models",
     method: "GET",
@@ -135,20 +180,36 @@ async function anthropicList(apiKey: string): Promise<string[]> {
   });
   if (res.status >= 400) throw new HttpError(res.status, res.body);
   const parsed = JSON.parse(res.body) as AnthropicModelsResponse;
-  return parsed.data?.map((d) => d.id) ?? [];
+  return parsed.data?.map((d) => ({ id: d.id })) ?? [];
 }
 
-async function geminiList(apiKey: string): Promise<string[]> {
+async function mistralList(apiKey: string): Promise<ModelInfo[]> {
+  const res = await request({
+    url: "https://api.mistral.ai/v1/models",
+    method: "GET",
+    headers: { authorization: `Bearer ${apiKey}` },
+  });
+  if (res.status >= 400) throw new HttpError(res.status, res.body);
+  const parsed = JSON.parse(res.body) as MistralModelsResponse;
+  return (
+    parsed.data?.map((d) => ({
+      id: d.id,
+      ...(d.max_context_length ? { maxTokens: d.max_context_length } : {}),
+    })) ?? []
+  );
+}
+
+async function geminiList(apiKey: string): Promise<ModelInfo[]> {
   const res = await request({
     url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
     method: "GET",
   });
   if (res.status >= 400) throw new HttpError(res.status, res.body);
   const parsed = JSON.parse(res.body) as GeminiModelsResponse;
-  // Strip the 'models/' prefix that Gemini returns.
   return (
-    parsed.models
-      ?.map((m) => m.name.replace(/^models\//, ""))
-      .filter((n) => !n.includes("embedding")) ?? []
+    parsed.models?.map((m) => ({
+      id: m.name.replace(/^models\//, ""),
+      ...(m.inputTokenLimit ? { maxTokens: m.inputTokenLimit } : {}),
+    })) ?? []
   );
 }

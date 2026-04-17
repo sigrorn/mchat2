@@ -17,7 +17,8 @@ export {
 } from "./openaiCompat";
 export { apertusAdapter } from "./apertus";
 export { ADAPTERS, adapterFor } from "./registryOfAdapters";
-export { listModels } from "./models";
+export { listModels, listModelInfos, formatTokenLimit } from "./models";
+export type { ModelInfo } from "./models";
 export {
   PREFIX_TO_PROVIDER,
   PROVIDER_COLORS,
