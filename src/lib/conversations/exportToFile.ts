@@ -8,6 +8,7 @@
 // ------------------------------------------------------------------
 
 import { exportToHtml } from "../rendering/htmlExport";
+import { exportToMarkdown } from "../rendering/markdownExport";
 import { fs } from "../tauri/filesystem";
 import { keychain } from "../tauri/keychain";
 import { slugify } from "../personas/slug";
@@ -39,6 +40,29 @@ export async function exportConversationToHtml(input: ExportInput): Promise<Expo
   });
   if (!chosen) return { ok: false, reason: "cancelled" };
   await fs.writeText(chosen, html);
+  return { ok: true, path: chosen };
+}
+
+export async function exportConversationToMarkdown(
+  input: ExportInput,
+): Promise<ExportResult> {
+  const knownSecrets = await collectKnownSecrets();
+  const md = exportToMarkdown({
+    conversation: input.conversation,
+    messages: [...input.messages],
+    personas: [...input.personas],
+    knownSecrets,
+  });
+  const defaultPath = defaultExportFilename(
+    input.conversation.title,
+    input.generatedAt,
+  ).replace(/\.html$/, ".md");
+  const chosen = await fs.saveDialog({
+    defaultPath,
+    filters: [{ name: "Markdown", extensions: ["md"] }],
+  });
+  if (!chosen) return { ok: false, reason: "cancelled" };
+  await fs.writeText(chosen, md);
   return { ok: true, path: chosen };
 }
 

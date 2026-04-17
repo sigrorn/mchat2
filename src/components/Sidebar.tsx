@@ -10,7 +10,10 @@ import { SettingsDialog } from "./SettingsDialog";
 import { SettingsGeneralDialog } from "./SettingsGeneralDialog";
 import { useUiStore } from "@/stores/uiStore";
 import { ContextMenu } from "./ContextMenu";
-import { exportConversationToHtml } from "@/lib/conversations/exportToFile";
+import {
+  exportConversationToHtml,
+  exportConversationToMarkdown,
+} from "@/lib/conversations/exportToFile";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
 import { useMessagesStore } from "@/stores/messagesStore";
@@ -46,26 +49,28 @@ export function Sidebar(): JSX.Element {
     });
   };
 
-  const exportConversation = async (id: string): Promise<void> => {
+  const getExportData = async (id: string) => {
     const conv = conversations.find((c) => c.id === id);
-    if (!conv) return;
-    // Pull historical personas (includeDeleted=true) so assistant rows
-    // authored by since-removed personas still render with the right
-    // names in the export.
+    if (!conv) return null;
     const [messages, personas] = await Promise.all([
       messagesRepo.listMessages(id),
       personasRepo.listPersonas(id, true),
     ]);
-    const r = await exportConversationToHtml({
-      conversation: conv,
-      messages,
-      personas,
-      generatedAt: new Date().toISOString(),
-    });
-    if (r.ok) {
-      await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
-    }
-    // Cancellation is silent — the user dismissed the dialog on purpose.
+    return { conversation: conv, messages, personas, generatedAt: new Date().toISOString() };
+  };
+
+  const exportHtml = async (id: string): Promise<void> => {
+    const data = await getExportData(id);
+    if (!data) return;
+    const r = await exportConversationToHtml(data);
+    if (r.ok) await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
+  };
+
+  const exportMarkdown = async (id: string): Promise<void> => {
+    const data = await getExportData(id);
+    if (!data) return;
+    const r = await exportConversationToMarkdown(data);
+    if (r.ok) await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
   };
 
   return (
@@ -142,7 +147,13 @@ export function Sidebar(): JSX.Element {
             {
               label: "Export to HTML",
               onSelect: () => {
-                void exportConversation(menu.id);
+                void exportHtml(menu.id);
+              },
+            },
+            {
+              label: "Export to Markdown",
+              onSelect: () => {
+                void exportMarkdown(menu.id);
               },
             },
             {
