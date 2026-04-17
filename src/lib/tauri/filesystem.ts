@@ -23,6 +23,7 @@ export interface SaveDialogOptions {
 }
 
 export interface OpenDialogOptions {
+  defaultPath?: string;
   filters?: { name: string; extensions: string[] }[];
 }
 
@@ -62,6 +63,7 @@ const defaultImpl: FsImpl = {
   async openDialog(opts) {
     const d = await import("@tauri-apps/plugin-dialog");
     const o: Parameters<typeof d.open>[0] = { multiple: false, directory: false };
+    if (opts.defaultPath !== undefined) o.defaultPath = opts.defaultPath;
     if (opts.filters !== undefined) o.filters = opts.filters;
     const r = await d.open(o);
     return typeof r === "string" ? r : null;

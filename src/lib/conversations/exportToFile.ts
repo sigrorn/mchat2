@@ -12,7 +12,13 @@ import { exportToMarkdown } from "../rendering/markdownExport";
 import { fs } from "../tauri/filesystem";
 import { keychain } from "../tauri/keychain";
 import { slugify } from "../personas/slug";
+import { useUiStore } from "../../stores/uiStore";
 import type { Conversation, Message, Persona } from "../types";
+
+function prefixWorkingDir(filename: string): string {
+  const dir = useUiStore.getState().workingDir;
+  return dir ? `${dir}/${filename}` : filename;
+}
 
 export interface ExportInput {
   conversation: Conversation;
@@ -33,7 +39,9 @@ export async function exportConversationToHtml(input: ExportInput): Promise<Expo
     knownSecrets,
     generatedAt: input.generatedAt,
   });
-  const defaultPath = defaultExportFilename(input.conversation.title, input.generatedAt);
+  const defaultPath = prefixWorkingDir(
+    defaultExportFilename(input.conversation.title, input.generatedAt),
+  );
   const chosen = await fs.saveDialog({
     defaultPath,
     filters: [{ name: "HTML", extensions: ["html"] }],
@@ -51,9 +59,8 @@ export async function exportConversationToMarkdown(input: ExportInput): Promise<
     personas: [...input.personas],
     knownSecrets,
   });
-  const defaultPath = defaultExportFilename(input.conversation.title, input.generatedAt).replace(
-    /\.html$/,
-    ".md",
+  const defaultPath = prefixWorkingDir(
+    defaultExportFilename(input.conversation.title, input.generatedAt).replace(/\.html$/, ".md"),
   );
   const chosen = await fs.saveDialog({
     defaultPath,

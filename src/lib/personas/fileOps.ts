@@ -13,7 +13,13 @@ import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
 import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
+import { useUiStore } from "../../stores/uiStore";
 import type { Persona } from "../types";
+
+function prefixWorkingDir(filename: string): string {
+  const dir = useUiStore.getState().workingDir;
+  return dir ? `${dir}/${filename}` : filename;
+}
 
 export type ExportOutcome = { ok: true; path: string } | { ok: false; reason: "cancelled" };
 
@@ -22,7 +28,7 @@ export async function exportPersonasToFile(
   personas: readonly Persona[],
 ): Promise<ExportOutcome> {
   const json = serializePersonas(personas);
-  const defaultPath = defaultExportFilename(conversationTitle);
+  const defaultPath = prefixWorkingDir(defaultExportFilename(conversationTitle));
   const chosen = await fs.saveDialog({
     defaultPath,
     filters: [{ name: "JSON", extensions: ["json"] }],
@@ -41,7 +47,9 @@ export async function importPersonasFromFile(
   conversationId: string,
   currentMessageIndex: number,
 ): Promise<ImportOutcome> {
+  const dir = useUiStore.getState().workingDir;
   const chosen = await fs.openDialog({
+    ...(dir ? { defaultPath: dir } : {}),
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!chosen) return { ok: false, reason: "cancelled" };
