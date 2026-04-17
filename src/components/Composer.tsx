@@ -192,6 +192,25 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore.getState().appendNotice(conversation.id, body);
       return;
     }
+    if (cmd.kind === "help") {
+      const { formatHelp } = await import("@/lib/commands/help");
+      await useMessagesStore.getState().appendNotice(conversation.id, formatHelp());
+      return;
+    }
+    if (cmd.kind === "personas") {
+      const { formatPersonasInfo } = await import("@/lib/commands/personasInfo");
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const messages = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      await useMessagesStore.getState().appendNotice(conversation.id, formatPersonasInfo(personas, messages));
+      return;
+    }
+    if (cmd.kind === "stats") {
+      const { formatStats } = await import("@/lib/commands/stats");
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const messages = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      await useMessagesStore.getState().appendNotice(conversation.id, formatStats(conversation, messages, personas));
+      return;
+    }
     if (cmd.kind === "order") {
       const { formatExecutionOrder } = await import("@/lib/commands/executionOrder");
       const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
@@ -304,6 +323,21 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         return;
       }
       useMessagesStore.getState().setEditing(conversation.id, target.id);
+      return;
+    }
+    if (cmd.kind === "unpinAll") {
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const pinned = history.filter((m) => m.pinned);
+      if (pinned.length === 0) {
+        await useMessagesStore.getState().appendNotice(conversation.id, "unpin: no pins to remove.");
+        return;
+      }
+      for (const m of pinned) {
+        await useMessagesStore.getState().setPinned(conversation.id, m.id, false);
+      }
+      await useMessagesStore
+        .getState()
+        .appendNotice(conversation.id, `unpinned ${pinned.length} message${pinned.length === 1 ? "" : "s"}.`);
       return;
     }
     if (cmd.kind === "unpin") {

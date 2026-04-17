@@ -1,0 +1,56 @@
+// ------------------------------------------------------------------
+// Component: Help text
+// Responsibility: Return the full //help output listing all commands.
+// Collaborators: components/Composer.tsx.
+// ------------------------------------------------------------------
+
+export function formatHelp(): string {
+  return `Available commands (all prefixed with //):
+
+Messaging
+  @name message        Send to a specific persona
+  @all message         Send to all personas
+  @others message      Send to non-selected personas
+  (no prefix)          Send to currently selected personas
+
+Context & limits
+  //limit N            Hide messages before user message #N
+  //limit 0            Hide all current messages
+  //limit NONE         Clear the limit
+  //limitsize          Auto-set token budget to tightest provider
+  //limitsize N        Set token budget to N thousand tokens
+
+Pins
+  //pin @name text     Pin a message for a persona
+  //pin @all text      Pin a message for all personas
+  //pins               List all pinned messages
+  //pins name          List pins for a specific persona
+  //unpin N            Unpin user message #N
+  //unpin ALL          Remove all pins
+
+Editing
+  //edit               Edit the last user message
+  //edit N             Edit user message #N
+  //edit -N            Edit the Nth-from-last user message
+  //pop                Remove the last user message and its responses
+  //retry              Retry the last failed response
+
+Display
+  //lines              Line-by-line display (default)
+  //cols               Side-by-side column display
+  //visibility         Show current visibility settings
+  //visibility full    All personas see all responses
+  //visibility separated  Each persona sees only its own responses
+
+Info
+  //order              Show DAG execution order
+  //personas           List active personas with details
+  //stats              Show conversation token statistics
+  //help               Show this help text
+
+Keyboard shortcuts
+  Ctrl+F               Find in chat
+  Ctrl+/-/0            Zoom in/out/reset
+  Enter                Send message
+  Shift+Enter          New line`;
+}

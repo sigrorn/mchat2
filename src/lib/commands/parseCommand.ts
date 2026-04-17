@@ -14,6 +14,7 @@ export type ParsedCommand =
   | { kind: "pin"; payload: { rest: string } }
   | { kind: "pins"; payload: { persona: string | null } }
   | { kind: "unpin"; payload: { userNumber: number } }
+  | { kind: "unpinAll" }
   | { kind: "edit"; payload: { userNumber: number | null } }
   | { kind: "pop" }
   | { kind: "retry" }
@@ -21,6 +22,9 @@ export type ParsedCommand =
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
   | { kind: "visibilityStatus" }
   | { kind: "order" }
+  | { kind: "help" }
+  | { kind: "personas" }
+  | { kind: "stats" }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -76,6 +80,17 @@ export function parseCommand(raw: string): ParsedCommand {
       message: `visibility: unknown mode '${arg}'. Use //visibility, //visibility separated, or //visibility full.`,
     };
   }
+  if (verb === "help") {
+    return { kind: "help" };
+  }
+  if (verb === "personas") {
+    if (arg !== "") return { kind: "error", message: "personas: this command takes no arguments." };
+    return { kind: "personas" };
+  }
+  if (verb === "stats") {
+    if (arg !== "") return { kind: "error", message: "stats: this command takes no arguments." };
+    return { kind: "stats" };
+  }
   if (verb === "order") {
     if (arg !== "") {
       return { kind: "error", message: "order: this command takes no arguments." };
@@ -115,9 +130,10 @@ function parseUnpin(arg: string): ParsedCommand {
   if (arg === "") {
     return {
       kind: "error",
-      message: "unpin: specify the user message number to unpin (e.g. //unpin 3).",
+      message: "unpin: specify the user message number to unpin (e.g. //unpin 3 or //unpin ALL).",
     };
   }
+  if (arg.toLowerCase() === "all") return { kind: "unpinAll" };
   if (!/^-?\d+$/.test(arg)) {
     return {
       kind: "error",
