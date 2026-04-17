@@ -5,13 +5,13 @@
 // ------------------------------------------------------------------
 
 export function formatHelp(): string {
-  return `Available commands (all prefixed with //):
-
-Messaging
+  return `Message targeting
   @name message        Send to a specific persona
   @all message         Send to all personas
   @others message      Send to non-selected personas
   (no prefix)          Send to currently selected personas
+
+Available commands (prefixed with //):
 
 Context & limits
   //limit N            Hide messages before user message #N
