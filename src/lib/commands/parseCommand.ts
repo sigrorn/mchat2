@@ -16,7 +16,7 @@ export type ParsedCommand =
   | { kind: "unpin"; payload: { userNumber: number } }
   | { kind: "unpinAll" }
   | { kind: "edit"; payload: { userNumber: number | null } }
-  | { kind: "pop" }
+  | { kind: "pop"; payload: { userNumber: number | null } }
   | { kind: "retry" }
   | { kind: "limitsize"; payload: { kTokens: number | null } }
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
@@ -49,10 +49,11 @@ export function parseCommand(raw: string): ParsedCommand {
   if (verb === "unpin") return parseUnpin(arg);
   if (verb === "edit") return parseEdit(arg);
   if (verb === "pop") {
-    if (arg !== "") {
-      return { kind: "error", message: "pop: this command takes no arguments." };
+    if (arg === "") return { kind: "pop", payload: { userNumber: null } };
+    if (!/^\d+$/.test(arg)) {
+      return { kind: "error", message: `pop: '${arg}' is not a valid message number.` };
     }
-    return { kind: "pop" };
+    return { kind: "pop", payload: { userNumber: Number(arg) } };
   }
   if (verb === "retry") {
     if (arg !== "") {

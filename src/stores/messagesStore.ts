@@ -15,6 +15,9 @@ interface State {
   // UI-only: which user-row is currently in edit/replay mode (#44 + #47).
   // Per-conversation so switching chats doesn't reopen a stale editor.
   editingByConversation: Record<string, string | null>;
+  replayQueue: Record<string, string[]>;
+  setReplayQueue: (conversationId: string, queue: string[]) => void;
+  popReplayQueue: (conversationId: string) => string | null;
   load: (conversationId: string) => Promise<void>;
   append: (m: Message) => void;
   patchContent: (conversationId: string, messageId: string, content: string) => void;
@@ -38,6 +41,17 @@ interface State {
 export const useMessagesStore = create<State>((set, get) => ({
   byConversation: {},
   editingByConversation: {},
+  replayQueue: {},
+  setReplayQueue(conversationId, queue) {
+    set({ replayQueue: { ...get().replayQueue, [conversationId]: queue } });
+  },
+  popReplayQueue(conversationId) {
+    const queue = get().replayQueue[conversationId] ?? [];
+    if (queue.length === 0) return null;
+    const [next, ...rest] = queue;
+    set({ replayQueue: { ...get().replayQueue, [conversationId]: rest } });
+    return next ?? null;
+  },
   setEditing(conversationId, messageId) {
     set({
       editingByConversation: {

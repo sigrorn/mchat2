@@ -40,14 +40,24 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const placeholder = buildPlaceholder(cPersonas, cSelection);
 
   const onSend = async (): Promise<void> => {
-    if (!text.trim() || busy) return;
+    const hasQueue = (useMessagesStore.getState().replayQueue[conversation.id]?.length ?? 0) > 0;
+    if (!text.trim() && !hasQueue) return;
+    if (busy) return;
+    // #91: empty submit during replay queue = skip this message.
+    if (!text.trim() && hasQueue) {
+      const next = useMessagesStore.getState().popReplayQueue(conversation.id);
+      if (next !== null) {
+        setText(next);
+      } else {
+        setText("");
+      }
+      return;
+    }
     setBusy(true);
     setHint(null);
     const t = text;
     setText("");
     try {
-      // Intercept in-app commands BEFORE the send pipeline. Commands
-      // never reach an LLM and never become user-role rows.
       const cmd = parseCommand(t);
       if (cmd.kind !== "noop") {
         await runCommand(t, cmd);
@@ -61,6 +71,9 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
             ? "No persona selected. Use @name (or @all) to address one, then it stays sticky for follow-ups."
             : `Could not send: ${result.reason}`,
         );
+      } else {
+        const next = useMessagesStore.getState().popReplayQueue(conversation.id);
+        if (next !== null) setText(next);
       }
     } finally {
       setBusy(false);
@@ -277,19 +290,46 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       return;
     }
     if (cmd.kind === "pop") {
-      // #48: drop the last user turn + every following row, restore
-      // the user message's text to the Composer so the user can edit
-      // and re-send manually. Destructive on purpose — //edit is the
-      // non-destructive variant (hides, regenerates automatically).
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      if (cmd.payload.userNumber !== null) {
+        // #91: //pop N — rewind to user message N and sequential replay.
+        const startIdx = indexByUserNumber(history, cmd.payload.userNumber);
+        if (startIdx === null) {
+          await useMessagesStore
+            .getState()
+            .appendNotice(conversation.id, `pop: message ${cmd.payload.userNumber} does not exist.`);
+          setText(raw);
+          return;
+        }
+        const userMsgs = history
+          .filter((m) => m.role === "user" && !m.pinned && m.index >= startIdx)
+          .sort((a, b) => a.index - b.index);
+        if (userMsgs.length === 0) {
+          await useMessagesStore.getState().appendNotice(conversation.id, "pop: nothing to pop.");
+          setText(raw);
+          return;
+        }
+        const queue = userMsgs.map((m) => m.content);
+        await messagesRepo.deleteMessagesAfter(conversation.id, startIdx - 1);
+        await useMessagesStore.getState().load(conversation.id);
+        const first = queue[0] ?? "";
+        useMessagesStore.getState().setReplayQueue(conversation.id, queue.slice(1));
+        setText(first);
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `rewound to message ${cmd.payload.userNumber}. ${queue.length} user message${queue.length === 1 ? "" : "s"} to replay. Submit empty to skip.`,
+          );
+        return;
+      }
+      // //pop (no arg) — drop the last user turn.
       const plan = planPop(history);
       if (!plan.ok) {
         await useMessagesStore.getState().appendNotice(conversation.id, "pop: nothing to pop.");
         setText(raw);
         return;
       }
-      // Truncate at lastUserIndex - 1 (deleteMessagesAfter keeps the
-      // index strictly > arg, so -1 includes the user row itself).
       await messagesRepo.deleteMessagesAfter(conversation.id, plan.lastUserIndex - 1);
       await useMessagesStore.getState().load(conversation.id);
       setText(plan.restoredText);
