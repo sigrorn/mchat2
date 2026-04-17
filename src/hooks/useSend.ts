@@ -22,7 +22,9 @@ import { executeDag } from "@/lib/orchestration/dagExecutor";
 import { runStream, modelForTarget } from "@/lib/orchestration/streamRunner";
 import { buildRetryTarget } from "@/lib/orchestration/retryTarget";
 import { planReplay } from "@/lib/conversations/replay";
+import { generateTitle } from "@/lib/conversations/autoTitle";
 import * as messagesRepo from "@/lib/persistence/messages";
+import { useConversationsStore } from "@/stores/conversationsStore";
 import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
@@ -198,6 +200,43 @@ export function useSend(conversation: Conversation) {
       }
       // Refresh messages from DB so assistant row content matches DB.
       await useMessagesStore.getState().load(conversation.id);
+
+      // #54: auto-title — after the first completed exchange in a
+      // default-named conversation, fire a hidden background request
+      // to generate a short title. Detached (void) so it never blocks.
+      if (conversation.title === "New conversation") {
+        const freshHistory =
+          useMessagesStore.getState().byConversation[conversation.id] ?? [];
+        const firstUser = freshHistory.find((m) => m.role === "user" && !m.pinned);
+        const firstAssistant = freshHistory.find(
+          (m) => m.role === "assistant" && !m.errorMessage && m.content,
+        );
+        if (firstUser && firstAssistant) {
+          const titleTarget = allTargets[0];
+          if (titleTarget) {
+            void (async () => {
+              try {
+                const ak = PROVIDER_REGISTRY[titleTarget.provider].requiresKey
+                  ? await keychain.get(PROVIDER_REGISTRY[titleTarget.provider].keychainKey)
+                  : null;
+                const title = await generateTitle(
+                  adapterFor(titleTarget.provider),
+                  ak,
+                  modelForTarget(titleTarget, personas),
+                  firstUser.content,
+                  firstAssistant.content,
+                );
+                if (title) {
+                  await useConversationsStore.getState().rename(conversation.id, title);
+                }
+              } catch {
+                // Silent discard — title generation failure is not user-facing.
+              }
+            })();
+          }
+        }
+      }
+
       return { ok: true as const };
     },
     [conversation],
