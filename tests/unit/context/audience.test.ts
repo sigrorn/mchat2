@@ -14,6 +14,7 @@ const CONV: Conversation = {
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
+  limitSizeTokens: null,
 };
 
 function persona(id: string): Persona {

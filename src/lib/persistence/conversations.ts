@@ -18,6 +18,7 @@ interface Row {
   display_mode: string;
   visibility_mode: string;
   visibility_matrix?: string;
+  limit_size_tokens?: number | null;
 }
 
 function rowToConversation(r: Row): Conversation {
@@ -31,6 +32,7 @@ function rowToConversation(r: Row): Conversation {
     displayMode: r.display_mode === "cols" ? "cols" : "lines",
     visibilityMode: r.visibility_mode === "joined" ? "joined" : "separated",
     visibilityMatrix: parseMatrix(r.visibility_matrix ?? "{}"),
+    limitSizeTokens: r.limit_size_tokens ?? null,
   };
 }
 
@@ -55,8 +57,9 @@ export async function createConversation(
   await sql.execute(
     `INSERT INTO conversations
        (id, title, system_prompt, created_at, last_provider,
-        limit_mark_index, display_mode, visibility_mode, visibility_matrix)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        limit_mark_index, display_mode, visibility_mode, visibility_matrix,
+        limit_size_tokens)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       conv.id,
       conv.title,
@@ -67,6 +70,7 @@ export async function createConversation(
       conv.displayMode,
       conv.visibilityMode,
       JSON.stringify(conv.visibilityMatrix),
+      conv.limitSizeTokens,
     ],
   );
   return conv;
@@ -77,7 +81,7 @@ export async function updateConversation(conv: Conversation): Promise<void> {
     `UPDATE conversations SET
        title = ?, system_prompt = ?, last_provider = ?,
        limit_mark_index = ?, display_mode = ?, visibility_mode = ?,
-       visibility_matrix = ?
+       visibility_matrix = ?, limit_size_tokens = ?
      WHERE id = ?`,
     [
       conv.title,
@@ -87,6 +91,7 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       conv.displayMode,
       conv.visibilityMode,
       JSON.stringify(conv.visibilityMatrix),
+      conv.limitSizeTokens,
       conv.id,
     ],
   );

@@ -13,6 +13,7 @@ const CONV: Conversation = {
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
+  limitSizeTokens: null,
 };
 
 describe("exportToHtml", () => {

@@ -16,6 +16,7 @@ const CONV: Conversation = {
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
+  limitSizeTokens: null,
 };
 
 let writes: { path: string; content: string }[];

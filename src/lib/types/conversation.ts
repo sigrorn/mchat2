@@ -33,4 +33,8 @@ export interface Conversation {
   //   Non-empty   → observer sees only listed sources + self.
   // Stored as a JSON string in the DB; deserialized on load.
   visibilityMatrix: Record<string, string[]>;
+  // Sliding token-budget limit (#64). When set, buildContext truncates
+  // to min(limitSizeTokens, provider.maxContextTokens). null = no
+  // override (use provider defaults only).
+  limitSizeTokens: number | null;
 }

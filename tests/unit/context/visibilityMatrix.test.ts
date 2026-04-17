@@ -36,6 +36,7 @@ const BASE: Conversation = {
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
+  limitSizeTokens: null,
 };
 
 describe("buildContext with visibilityMatrix", () => {

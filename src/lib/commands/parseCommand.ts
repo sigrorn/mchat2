@@ -17,6 +17,7 @@ export type ParsedCommand =
   | { kind: "edit"; payload: { userNumber: number | null } }
   | { kind: "pop" }
   | { kind: "retry" }
+  | { kind: "limitsize"; payload: { kTokens: number | null } }
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
@@ -52,6 +53,16 @@ export function parseCommand(raw: string): ParsedCommand {
       return { kind: "error", message: "retry: this command takes no arguments." };
     }
     return { kind: "retry" };
+  }
+  if (verb === "limitsize") {
+    if (arg === "") return { kind: "limitsize", payload: { kTokens: null } };
+    if (!/^\d+$/.test(arg)) {
+      return {
+        kind: "error",
+        message: `limitsize: '${arg}' is not a valid number. Use //limitsize or //limitsize N (k-tokens).`,
+      };
+    }
+    return { kind: "limitsize", payload: { kTokens: Number(arg) } };
   }
   if (verb === "visibility") {
     const lc = arg.toLowerCase();

@@ -14,6 +14,7 @@ const baseConv: Conversation = {
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
+  limitSizeTokens: null,
 };
 
 describe("isExcludedByLimit", () => {

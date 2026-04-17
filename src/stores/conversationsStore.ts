@@ -26,6 +26,7 @@ interface State {
     mode: "separated" | "joined",
     personaIds: string[],
   ) => Promise<void>;
+  setLimitSize: (id: string, limitSizeTokens: number | null) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -79,6 +80,15 @@ export const useConversationsStore = create<State>((set, get) => ({
       visibilityMode: mode,
       visibilityMatrix: matrix,
     };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
+    });
+  },
+  async setLimitSize(id, limitSizeTokens) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = { ...current, limitSizeTokens };
     await repo.updateConversation(next);
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),

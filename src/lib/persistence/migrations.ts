@@ -79,6 +79,8 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE personas ADD COLUMN apertus_product_id TEXT`],
   // 5 — Per-persona visibility matrix on conversations (#52).
   [`ALTER TABLE conversations ADD COLUMN visibility_matrix TEXT NOT NULL DEFAULT '{}'`],
+  // 6 — Sliding token-budget limit on conversations (#64).
+  [`ALTER TABLE conversations ADD COLUMN limit_size_tokens INTEGER`],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version

@@ -78,8 +78,9 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
       const target = cmd.payload.userNumber;
       if (target === null) {
-        // //limit NONE — clear the limit.
+        // //limit NONE — clear both fixed limit and limitsize.
         await useConversationsStore.getState().setLimit(conversation.id, null);
+        await useConversationsStore.getState().setLimitSize(conversation.id, null);
         return;
       }
       if (target === 0) {
@@ -103,7 +104,57 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         setText(raw);
         return;
       }
+      // //limit N clears limitsize (#64 interaction rule).
       await useConversationsStore.getState().setLimit(conversation.id, idx);
+      await useConversationsStore.getState().setLimitSize(conversation.id, null);
+      return;
+    }
+    if (cmd.kind === "limitsize") {
+      // #64: sliding token budget.
+      const kTokens = cmd.payload.kTokens;
+      if (kTokens === 0) {
+        await useConversationsStore.getState().setLimitSize(conversation.id, null);
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, "limitsize: cleared.");
+        return;
+      }
+      if (kTokens !== null) {
+        await useConversationsStore.getState().setLimitSize(conversation.id, kTokens * 1000);
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `limitsize: set to ${kTokens}k tokens. Context will be trimmed per provider.`,
+          );
+        return;
+      }
+      // kTokens === null → auto-fit to tightest provider.
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      if (personas.length === 0) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, "limitsize: no personas — nothing to fit.");
+        setText(raw);
+        return;
+      }
+      const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
+      const tightest = Math.min(
+        ...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens),
+      );
+      if (!Number.isFinite(tightest)) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, "limitsize: all providers have unlimited context.");
+        return;
+      }
+      await useConversationsStore.getState().setLimitSize(conversation.id, tightest);
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          conversation.id,
+          `limitsize: auto-set to ${Math.round(tightest / 1000)}k tokens (tightest provider).`,
+        );
       return;
     }
     if (cmd.kind === "pin") {

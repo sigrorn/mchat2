@@ -83,6 +83,7 @@ export function MessageList({
       displayMode: "lines",
       visibilityMode: "separated",
       visibilityMatrix: {},
+      limitSizeTokens: null,
     },
   );
   // #47: editing state lives in messagesStore so the Composer's
@@ -91,6 +92,48 @@ export function MessageList({
   const setEditingId = (id: string | null): void => {
     useMessagesStore.getState().setEditing(conversationId, id);
   };
+
+  // #64: compute the effective sliding-window limit index so shading
+  // reflects limitSizeTokens. Reuse the same truncateToFit that
+  // buildContext uses at send time — run it with the tightest budget
+  // across active personas. The result's firstSurvivingUserNumber
+  // maps back to an index via userNumbers.
+  const effectiveLimitIndex = (() => {
+    if (!conversation?.limitSizeTokens) return null;
+    // Import inline to avoid a circular dep at module level.
+    const { truncateToFit, estimateTokens } = require("@/lib/context/truncate") as typeof import("@/lib/context/truncate");
+    const { PROVIDER_REGISTRY } = require("@/lib/providers/registry") as typeof import("@/lib/providers/registry");
+    const tightest = Math.min(
+      conversation.limitSizeTokens,
+      ...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens),
+    );
+    if (!Number.isFinite(tightest)) return null;
+    // Build a rough ChatMessage[] from the visible messages.
+    const chatMsgs = messages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => m.content)
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    const infos = messages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => m.content)
+      .map((m) => ({
+        pinned: m.pinned,
+        userNumber: m.role === "user" ? (userNumbers.get(m.index) ?? null) : null,
+      }));
+    const systemEst = conversation.systemPrompt ? estimateTokens(conversation.systemPrompt) * 4 : 0;
+    const r = truncateToFit(
+      conversation.systemPrompt ? "x".repeat(systemEst) : null,
+      chatMsgs,
+      tightest,
+      infos,
+    );
+    if (r.dropped === 0 || r.firstSurvivingUserNumber === null) return null;
+    // Map the user number back to an index.
+    for (const [idx, num] of userNumbers) {
+      if (num === r.firstSurvivingUserNumber) return idx;
+    }
+    return null;
+  })();
 
   // #50: chat-pane font scale (Ctrl+/-/0). Applied as inline fontSize
   // so all descendant text (bubble headers, markdown body, notices)
@@ -140,7 +183,7 @@ export function MessageList({
             message: m,
             personas,
             userNumber: userNumbers.get(m.index) ?? null,
-            excluded: conversation ? isExcludedByLimit(m, conversation) : false,
+            excluded: conversation ? isExcludedByLimit(m, conversation, effectiveLimitIndex) : false,
             onRetry: () => void retry(m),
             ...(m.role === "user" ? { onEdit: () => setEditingId(m.id) } : {}),
           };

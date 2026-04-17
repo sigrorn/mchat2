@@ -9,9 +9,22 @@
 
 import type { Conversation, Message } from "../types";
 
-export function isExcludedByLimit(message: Message, conversation: Conversation): boolean {
-  if (conversation.limitMarkIndex === null) return false;
+// effectiveLimitIndex is optionally computed by the caller from the
+// limitSizeTokens sliding window (#64). When provided, it takes the
+// tighter of limitMarkIndex and the sliding-window cutoff.
+export function isExcludedByLimit(
+  message: Message,
+  conversation: Conversation,
+  effectiveLimitIndex?: number | null,
+): boolean {
+  const fixedMark = conversation.limitMarkIndex;
+  const slidingMark = effectiveLimitIndex ?? null;
+  const mark =
+    fixedMark !== null && slidingMark !== null
+      ? Math.max(fixedMark, slidingMark)
+      : (fixedMark ?? slidingMark);
+  if (mark === null) return false;
   if (message.role === "notice") return false;
   if (message.pinned) return false;
-  return message.index < conversation.limitMarkIndex;
+  return message.index < mark;
 }

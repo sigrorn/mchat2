@@ -121,7 +121,10 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   // #55: automatic context truncation. Build SourceInfo[] so the
   // turn-aware truncator knows which output rows are pinned and
   // carries user-message numbers for the notice text.
-  const maxTokens = input.maxContextTokens;
+  // #64: limitSizeTokens narrows the budget further.
+  const providerMax = input.maxContextTokens ?? Infinity;
+  const convLimit = conversation.limitSizeTokens ?? Infinity;
+  const maxTokens = Math.min(providerMax, convLimit);
   if (maxTokens && maxTokens !== Infinity) {
     const userNumbers = userNumberByIndex(messages);
     const sourceInfos: SourceInfo[] = [];

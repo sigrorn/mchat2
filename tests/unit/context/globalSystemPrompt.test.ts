@@ -13,6 +13,7 @@ const conv: Conversation = {
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
+  limitSizeTokens: null,
 };
 
 const persona: Persona = {

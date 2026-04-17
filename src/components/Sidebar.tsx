@@ -46,6 +46,7 @@ export function Sidebar(): JSX.Element {
       displayMode: "lines",
       visibilityMode: "separated",
       visibilityMatrix: {},
+      limitSizeTokens: null,
     });
   };
 
