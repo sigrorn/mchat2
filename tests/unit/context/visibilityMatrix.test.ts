@@ -87,7 +87,7 @@ describe("buildContext with visibilityMatrix", () => {
       messages,
       personas,
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["hi", "from A", "from B"]);
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "hi"]);
   });
 
   it("empty array in matrix → fully isolated (same as separated with no override)", () => {
@@ -112,7 +112,8 @@ describe("buildContext with visibilityMatrix", () => {
       personas,
     });
     // Joined would normally show all three; matrix restricts to self + p_b.
-    expect(r.messages.map((m) => m.content)).toEqual(["hi", "from A", "from B"]);
+    // #73: user message reordered to end when 2+ assistants follow.
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "hi"]);
   });
 
   it("observer not in matrix with joined → full visibility", () => {
@@ -127,6 +128,7 @@ describe("buildContext with visibilityMatrix", () => {
       personas,
     });
     // p_a not in matrix → joined default → sees everyone.
-    expect(r.messages.map((m) => m.content)).toEqual(["hi", "from A", "from B", "from C"]);
+    // #73: user message reordered to end when 3 assistants follow.
+    expect(r.messages.map((m) => m.content)).toEqual(["from A", "from B", "from C", "hi"]);
   });
 });

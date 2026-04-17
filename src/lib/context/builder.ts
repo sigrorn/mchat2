@@ -118,6 +118,28 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     out.push({ role: m.role, content: m.content });
   }
 
+  // #73: DAG children in joined visibility may see sibling assistant
+  // responses (from parents that completed earlier in this turn) after
+  // the triggering user message. Providers like Mistral require the
+  // last message to be 'user'. Detect this pattern (2+ trailing
+  // assistants after the last user) and move the user message to the
+  // end. A single trailing assistant is normal alternation and left
+  // alone.
+  if (out.length >= 3 && out[out.length - 1]!.role === "assistant") {
+    let lastUserIdx = -1;
+    for (let i = out.length - 1; i >= 0; i--) {
+      if (out[i]!.role === "user") {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    const trailingAssistants = out.length - 1 - lastUserIdx;
+    if (lastUserIdx >= 0 && trailingAssistants >= 2) {
+      const [userMsg] = out.splice(lastUserIdx, 1);
+      out.push(userMsg!);
+    }
+  }
+
   // #55: automatic context truncation. Build SourceInfo[] so the
   // turn-aware truncator knows which output rows are pinned and
   // carries user-message numbers for the notice text.

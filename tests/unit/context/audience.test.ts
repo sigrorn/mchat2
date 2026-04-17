@@ -76,10 +76,11 @@ describe("context builder — audience-based visibility", () => {
       messages,
       personas,
     });
+    // #73: user message reordered to end when 2+ assistants follow.
     expect(r.messages.map((m) => m.content)).toEqual([
-      "hello",
       "claudio says hi",
       "gepetto says hi",
+      "hello",
     ]);
   });
 
