@@ -34,10 +34,8 @@ export interface SendOptions {
 export function useSend(conversation: Conversation) {
   const send = useCallback(
     async (text: string, opts: SendOptions = {}) => {
-      const personas: Persona[] =
-        usePersonasStore.getState().byConversation[conversation.id] ?? [];
-      const selection =
-        usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
+      const personas: Persona[] = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const selection = usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
 
       const resolved = resolveTargets({ text, personas, selection });
       if (resolved.unknown.length > 0) {
@@ -106,8 +104,7 @@ export function useSend(conversation: Conversation) {
 
       // #54: auto-title
       if (conversation.title === "New conversation") {
-        const freshHistory =
-          useMessagesStore.getState().byConversation[conversation.id] ?? [];
+        const freshHistory = useMessagesStore.getState().byConversation[conversation.id] ?? [];
         const firstUser = freshHistory.find((m) => m.role === "user" && !m.pinned);
         const firstAssistant = freshHistory.find(
           (m) => m.role === "assistant" && !m.errorMessage && m.content,
@@ -145,8 +142,7 @@ export function useSend(conversation: Conversation) {
 
   const retry = useCallback(
     async (failed: Message) => {
-      const personas: Persona[] =
-        usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const personas: Persona[] = usePersonasStore.getState().byConversation[conversation.id] ?? [];
       const target = buildRetryTarget(failed, personas);
       if (!target) return { ok: false as const, reason: "no retry target" };
 
@@ -169,10 +165,8 @@ export function useSend(conversation: Conversation) {
 
   const replay = useCallback(
     async (messageId: string, newContent: string) => {
-      const personas: Persona[] =
-        usePersonasStore.getState().byConversation[conversation.id] ?? [];
-      const selection =
-        usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
+      const personas: Persona[] = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const selection = usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
 
       const resolved = resolveTargets({ text: newContent, personas, selection });
@@ -180,8 +174,7 @@ export function useSend(conversation: Conversation) {
         return { ok: false as const, reason: "no targets" };
       }
 
-      const addressedTo =
-        resolved.mode === "targeted" ? resolved.targets.map((t) => t.key) : [];
+      const addressedTo = resolved.mode === "targeted" ? resolved.targets.map((t) => t.key) : [];
       const plan = planReplay(history, messageId, resolved.strippedText, addressedTo);
       if (!plan.ok) return { ok: false as const, reason: plan.reason };
 

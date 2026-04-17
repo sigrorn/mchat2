@@ -12,7 +12,11 @@ test("implicit follow-up after @-addressed send still goes through", async ({ pa
   // First send: explicit @mock.
   await composer.fill("@mock first [[MOCK: tokens=hi]]");
   await composer.press("Enter");
-  await expect(page.getByText("first", { exact: false })).toBeVisible({ timeout: 10_000 });
+  // Use a locator scoped to the chat pane to avoid matching the Debug
+  // button's "set working directory first" text (#60).
+  await expect(
+    page.locator(".bg-neutral-100").getByText("first", { exact: false }),
+  ).toBeVisible({ timeout: 10_000 });
   // Assistant reply is the bubble whose entire text is exactly 'hi'.
   await expect(page.getByText("hi", { exact: true })).toBeVisible();
 

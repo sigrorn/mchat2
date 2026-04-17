@@ -29,9 +29,7 @@ export interface RunOneTargetInput {
   bufferTokens: boolean;
 }
 
-export async function runOneTarget(
-  input: RunOneTargetInput,
-): Promise<StreamRunOutcome> {
+export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunOutcome> {
   const { conversation, target, personas, runId, bufferTokens } = input;
   const streamId = `${runId}:${target.key}:${Date.now()}`;
   const controller = new AbortController();
@@ -98,13 +96,16 @@ export async function runOneTarget(
           useSendStore.getState().setTargetStatus(conversation.id, target.key, "retrying");
         }
         if (e.type === "token" && placeholderId) {
-          useMessagesStore.getState().patchContent(
-            conversation.id,
-            placeholderId,
-            (useMessagesStore.getState().byConversation[conversation.id]?.find(
-              (m) => m.id === placeholderId,
-            )?.content ?? "") + e.text,
-          );
+          useMessagesStore
+            .getState()
+            .patchContent(
+              conversation.id,
+              placeholderId,
+              (useMessagesStore
+                .getState()
+                .byConversation[conversation.id]?.find((m) => m.id === placeholderId)?.content ??
+                "") + e.text,
+            );
         }
       },
     });

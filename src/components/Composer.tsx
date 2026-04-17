@@ -168,9 +168,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
       const failed = findFailedRowsInLastGroup(history);
       if (failed.length === 0) {
-        await useMessagesStore
-          .getState()
-          .appendNotice(conversation.id, "retry: nothing to retry.");
+        await useMessagesStore.getState().appendNotice(conversation.id, "retry: nothing to retry.");
         setText(raw);
         return;
       }
@@ -195,9 +193,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
       const plan = planPop(history);
       if (!plan.ok) {
-        await useMessagesStore
-          .getState()
-          .appendNotice(conversation.id, "pop: nothing to pop.");
+        await useMessagesStore.getState().appendNotice(conversation.id, "pop: nothing to pop.");
         setText(raw);
         return;
       }

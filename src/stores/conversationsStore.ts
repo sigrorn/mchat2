@@ -73,9 +73,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     const current = get().conversations.find((c) => c.id === id);
     if (!current) return;
     const matrix: Record<string, string[]> =
-      mode === "separated"
-        ? Object.fromEntries(personaIds.map((pid) => [pid, []]))
-        : {};
+      mode === "separated" ? Object.fromEntries(personaIds.map((pid) => [pid, []])) : {};
     const next: Conversation = {
       ...current,
       visibilityMode: mode,

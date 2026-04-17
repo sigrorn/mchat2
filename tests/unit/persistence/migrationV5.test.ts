@@ -11,8 +11,7 @@ beforeEach(() => {
       return { rowsAffected: 1, lastInsertId: null };
     },
     async select<T>(q: string): Promise<T[]> {
-      if (q.startsWith("PRAGMA user_version"))
-        return [{ user_version: 4 }] as unknown as T[];
+      if (q.startsWith("PRAGMA user_version")) return [{ user_version: 4 }] as unknown as T[];
       return [];
     },
     async close() {},

@@ -21,11 +21,7 @@ function a(id: string, index: number, error?: string) {
 
 describe("findFailedRowsInLastGroup", () => {
   it("returns every failed assistant after the last user message", () => {
-    const messages = [
-      u("u1", 0),
-      a("a1", 1, "boom"),
-      a("a2", 2, "kaboom"),
-    ];
+    const messages = [u("u1", 0), a("a1", 1, "boom"), a("a2", 2, "kaboom")];
     const rows = findFailedRowsInLastGroup(messages);
     expect(rows.map((m) => m.id)).toEqual(["a1", "a2"]);
   });

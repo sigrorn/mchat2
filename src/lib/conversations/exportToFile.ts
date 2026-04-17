@@ -43,9 +43,7 @@ export async function exportConversationToHtml(input: ExportInput): Promise<Expo
   return { ok: true, path: chosen };
 }
 
-export async function exportConversationToMarkdown(
-  input: ExportInput,
-): Promise<ExportResult> {
+export async function exportConversationToMarkdown(input: ExportInput): Promise<ExportResult> {
   const knownSecrets = await collectKnownSecrets();
   const md = exportToMarkdown({
     conversation: input.conversation,
@@ -53,10 +51,10 @@ export async function exportConversationToMarkdown(
     personas: [...input.personas],
     knownSecrets,
   });
-  const defaultPath = defaultExportFilename(
-    input.conversation.title,
-    input.generatedAt,
-  ).replace(/\.html$/, ".md");
+  const defaultPath = defaultExportFilename(input.conversation.title, input.generatedAt).replace(
+    /\.html$/,
+    ".md",
+  );
   const chosen = await fs.saveDialog({
     defaultPath,
     filters: [{ name: "Markdown", extensions: ["md"] }],

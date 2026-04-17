@@ -74,4 +74,4 @@ tests/
 - **Keys never enter reactive state.** Read from keychain at call time, passed
   to `http.ts`, discarded.
 
-See inline module docs and `CLAUDE.md` for the full design rules.
+See inline module docs for the full design rules.

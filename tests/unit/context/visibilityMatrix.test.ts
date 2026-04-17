@@ -125,11 +125,6 @@ describe("buildContext with visibilityMatrix", () => {
       personas,
     });
     // p_a not in matrix → joined default → sees everyone.
-    expect(r.messages.map((m) => m.content)).toEqual([
-      "hi",
-      "from A",
-      "from B",
-      "from C",
-    ]);
+    expect(r.messages.map((m) => m.content)).toEqual(["hi", "from A", "from B", "from C"]);
   });
 });

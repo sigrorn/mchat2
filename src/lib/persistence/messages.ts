@@ -224,10 +224,7 @@ export async function applyMessageMutation(mutation: {
 // Truncate the tail of a conversation — used by edit/replay (#44) to
 // drop every row after the edited user message so the regenerated
 // replies take their place.
-export async function deleteMessagesAfter(
-  conversationId: string,
-  index: number,
-): Promise<void> {
+export async function deleteMessagesAfter(conversationId: string, index: number): Promise<void> {
   await sql.execute("DELETE FROM messages WHERE conversation_id = ? AND idx > ?", [
     conversationId,
     index,

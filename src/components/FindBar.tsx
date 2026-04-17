@@ -37,7 +37,8 @@ export function FindBar({ matchCount }: { matchCount: number }): JSX.Element | n
     }
   };
 
-  const label = matchCount === 0 ? (find.query ? "0 matches" : "") : `${find.activeIndex + 1} of ${matchCount}`;
+  const label =
+    matchCount === 0 ? (find.query ? "0 matches" : "") : `${find.activeIndex + 1} of ${matchCount}`;
 
   return (
     <div className="flex items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-xs">
@@ -58,7 +59,9 @@ export function FindBar({ matchCount }: { matchCount: number }): JSX.Element | n
         Aa
       </button>
       <button
-        onClick={() => matchCount > 0 && setActive((find.activeIndex - 1 + matchCount) % matchCount)}
+        onClick={() =>
+          matchCount > 0 && setActive((find.activeIndex - 1 + matchCount) % matchCount)
+        }
         disabled={matchCount === 0}
         className="rounded border border-neutral-300 px-1.5 py-0.5 text-neutral-500 hover:bg-neutral-100 disabled:opacity-40"
         title="Previous match (Shift+Enter)"

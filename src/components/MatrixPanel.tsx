@@ -29,9 +29,7 @@ export function MatrixPanel({ conversation }: { conversation: Conversation }): J
 
   const toggle = (observer: string, source: string): void => {
     const row = matrix[observer] ?? personas.filter((p) => p.id !== observer).map((p) => p.id);
-    const next = row.includes(source)
-      ? row.filter((id) => id !== source)
-      : [...row, source];
+    const next = row.includes(source) ? row.filter((id) => id !== source) : [...row, source];
     const updated = { ...matrix, [observer]: next };
     void useConversationsStore.getState().setVisibilityMatrix(conversation.id, updated);
   };
