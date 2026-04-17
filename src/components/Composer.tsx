@@ -272,7 +272,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   };
 
   return (
-    <div className="border-t border-neutral-200 p-3">
+    <div className="flex-1 p-3">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

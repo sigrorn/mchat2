@@ -39,7 +39,7 @@ export function MatrixPanel({ conversation }: { conversation: Conversation }): J
   const short = (name: string): string => name.slice(0, 3).toLowerCase();
 
   return (
-    <div className="border-t border-neutral-200 px-3 py-2">
+    <div className="border-l border-neutral-200 px-3 py-2">
       <div className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">
         Visibility (row sees column)
       </div>

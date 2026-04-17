@@ -64,8 +64,10 @@ export function ChatView(): JSX.Element {
           conversationId={conversation.id}
           activeMatchMessageId={activeMatch?.messageId ?? null}
         />
-        <MatrixPanel conversation={conversation} />
-        <Composer conversation={conversation} />
+        <div className="flex border-t border-neutral-200">
+          <Composer conversation={conversation} />
+          <MatrixPanel conversation={conversation} />
+        </div>
       </div>
       <PersonaPanel conversation={conversation} />
     </div>
