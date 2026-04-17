@@ -227,4 +227,49 @@ describe("buildContext", () => {
     });
     expect(r.messages.map((m) => m.content)).toEqual(["a", "b"]);
   });
+
+  it("DAG child: last message is user even when sibling responses follow (#73)", () => {
+    const messages = [
+      makeMessage({
+        conversationId: "c_1",
+        role: "user",
+        content: "question",
+        index: 10,
+        addressedTo: [],
+      }),
+      makeMessage({
+        conversationId: "c_1",
+        role: "assistant",
+        content: "sibling A reply",
+        provider: "mock",
+        personaId: "p_bob",
+        index: 11,
+      }),
+      makeMessage({
+        conversationId: "c_1",
+        role: "assistant",
+        content: "sibling B reply",
+        provider: "mock",
+        personaId: "p_carol",
+        index: 12,
+      }),
+    ];
+    const r = buildContext({
+      conversation: { ...CONV, visibilityMode: "joined" },
+      target: target("p_alice", "p_alice"),
+      messages,
+      personas: [
+        persona(),
+        persona({ id: "p_bob", name: "Bob" }),
+        persona({ id: "p_carol", name: "Carol" }),
+      ],
+    });
+    const roles = r.messages.map((m) => m.role);
+    expect(roles[roles.length - 1]).toBe("user");
+    expect(r.messages.map((m) => m.content)).toEqual([
+      "sibling A reply",
+      "sibling B reply",
+      "question",
+    ]);
+  });
 });
