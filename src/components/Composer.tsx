@@ -135,23 +135,20 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         setText(raw);
         return;
       }
-      const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
-      const tightest = Math.min(
-        ...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens),
-      );
-      if (!Number.isFinite(tightest)) {
+      const { tightestBudgetNotice } = await import("@/lib/commands/limitsizeNotice");
+      const notice = tightestBudgetNotice(personas);
+      if (!notice) {
         await useMessagesStore
           .getState()
           .appendNotice(conversation.id, "limitsize: all providers have unlimited context.");
         return;
       }
+      const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
+      const tightest = Math.min(
+        ...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens),
+      );
       await useConversationsStore.getState().setLimitSize(conversation.id, tightest);
-      await useMessagesStore
-        .getState()
-        .appendNotice(
-          conversation.id,
-          `limitsize: auto-set to ${Math.round(tightest / 1000)}k tokens (tightest provider).`,
-        );
+      await useMessagesStore.getState().appendNotice(conversation.id, notice);
       return;
     }
     if (cmd.kind === "pin") {
