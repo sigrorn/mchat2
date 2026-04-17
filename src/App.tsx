@@ -5,7 +5,7 @@
 // Collaborators: persistence/migrations.ts, stores/conversationsStore.
 // ------------------------------------------------------------------
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { runMigrations } from "@/lib/persistence/migrations";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -14,31 +14,33 @@ import { lifecycle } from "@/lib/tauri/lifecycle";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 
+// Module-level dedup: React 18 strict mode double-invokes effects,
+// but migrations must not run concurrently. A shared promise ensures
+// the boot sequence runs exactly once regardless of how many mounts fire.
+let bootCache: Promise<void> | null = null;
+function bootOnce(): Promise<void> {
+  if (!bootCache) {
+    bootCache = (async () => {
+      if (!lifecycle.isTauri()) return;
+      await runMigrations();
+      await useConversationsStore.getState().load();
+      await useUiStore.getState().loadFontScale();
+      await useUiStore.getState().loadWorkingDir();
+    })();
+  }
+  return bootCache;
+}
+
 export function App(): JSX.Element {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadConversations = useConversationsStore((s) => s.load);
   const loadFontScale = useUiStore((s) => s.loadFontScale);
 
-  // Guard against React 18 strict-mode double-invocation — migrations
-  // are not idempotent when run concurrently against the same DB.
-  const booted = useRef(false);
   useEffect(() => {
-    if (booted.current) return;
-    booted.current = true;
-    (async () => {
-      try {
-        if (lifecycle.isTauri()) {
-          await runMigrations();
-          await loadConversations();
-          await loadFontScale();
-          await useUiStore.getState().loadWorkingDir();
-        }
-        setReady(true);
-      } catch (e) {
-        setError((e as Error).message);
-      }
-    })().catch((e) => setError(String(e)));
+    bootOnce()
+      .then(() => setReady(true))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [loadConversations, loadFontScale]);
 
   // #50: Ctrl+/-/0 zoom for chat + composer. Intercept at the window
