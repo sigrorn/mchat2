@@ -39,8 +39,8 @@ export function MatrixPanel({ conversation }: { conversation: Conversation }): J
   const short = (name: string): string => name.slice(0, 3).toLowerCase();
 
   return (
-    <div className="border-l border-neutral-200 px-3 py-2">
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">
+    <div className="border-l border-neutral-200 bg-neutral-50 px-3 py-2">
+      <div className="mb-1 text-[10px] uppercase tracking-wide text-neutral-700">
         Visibility (row sees column)
       </div>
       <table className="text-[10px]">
@@ -48,7 +48,7 @@ export function MatrixPanel({ conversation }: { conversation: Conversation }): J
           <tr>
             <th />
             {personas.map((p) => (
-              <th key={p.id} className="px-1 text-center font-normal text-neutral-600">
+              <th key={p.id} className="px-1 text-center font-normal text-neutral-800">
                 {short(p.name)}
               </th>
             ))}
@@ -57,7 +57,7 @@ export function MatrixPanel({ conversation }: { conversation: Conversation }): J
         <tbody>
           {personas.map((observer) => (
             <tr key={observer.id}>
-              <td className="pr-1 text-right text-neutral-600">{short(observer.name)}</td>
+              <td className="pr-1 text-right text-neutral-800">{short(observer.name)}</td>
               {personas.map((source) => (
                 <td key={source.id} className="px-1 text-center">
                   <input
