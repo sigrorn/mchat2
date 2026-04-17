@@ -192,6 +192,14 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore.getState().appendNotice(conversation.id, body);
       return;
     }
+    if (cmd.kind === "order") {
+      const { formatExecutionOrder } = await import("@/lib/commands/executionOrder");
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      await useMessagesStore
+        .getState()
+        .appendNotice(conversation.id, formatExecutionOrder(personas));
+      return;
+    }
     if (cmd.kind === "visibilityStatus") {
       const { formatVisibilityStatus } = await import("@/lib/commands/visibilityStatus");
       const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];

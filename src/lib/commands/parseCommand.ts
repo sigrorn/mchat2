@@ -20,6 +20,7 @@ export type ParsedCommand =
   | { kind: "limitsize"; payload: { kTokens: number | null } }
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
   | { kind: "visibilityStatus" }
+  | { kind: "order" }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -74,6 +75,12 @@ export function parseCommand(raw: string): ParsedCommand {
       kind: "error",
       message: `visibility: unknown mode '${arg}'. Use //visibility, //visibility separated, or //visibility full.`,
     };
+  }
+  if (verb === "order") {
+    if (arg !== "") {
+      return { kind: "error", message: "order: this command takes no arguments." };
+    }
+    return { kind: "order" };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {
