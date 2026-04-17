@@ -96,7 +96,11 @@ export function useSend(conversation: Conversation) {
       } else {
         await executeDag({
           plan: plan.plan,
-          runNode: (n: DagNode) => runOne(n.target).then((o) => o.kind),
+          runNode: async (n: DagNode) => {
+            const outcome = await runOne(n.target);
+            await useMessagesStore.getState().load(conversation.id);
+            return outcome.kind;
+          },
         });
       }
 
@@ -226,7 +230,11 @@ export function useSend(conversation: Conversation) {
       } else {
         await executeDag({
           plan: runPlan.plan,
-          runNode: (n: DagNode) => runOne(n.target).then((o) => o.kind),
+          runNode: async (n: DagNode) => {
+            const outcome = await runOne(n.target);
+            await useMessagesStore.getState().load(conversation.id);
+            return outcome.kind;
+          },
         });
       }
       await useMessagesStore.getState().load(conversation.id);

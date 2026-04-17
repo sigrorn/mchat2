@@ -64,7 +64,7 @@ export interface StreamRunInput {
   // #58: called with the placeholder message id right after it's
   // persisted, BEFORE any token events fire. This lets the caller
   // patch by specific id instead of "the last assistant row".
-  onPlaceholderCreated?: (messageId: string) => void;
+  onPlaceholderCreated?: (messageId: string, placeholder: Message) => void;
 }
 
 export interface StreamRunOutcome {
@@ -121,7 +121,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     audience,
   });
 
-  input.onPlaceholderCreated?.(placeholder.id);
+  input.onPlaceholderCreated?.(placeholder.id, placeholder);
 
   let accumulated = "";
   let inputTokens = 0;

@@ -88,8 +88,9 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
       extraConfig,
       bufferTokens,
       signal: controller.signal,
-      onPlaceholderCreated: (id) => {
+      onPlaceholderCreated: (id, placeholder) => {
         placeholderId = id;
+        useMessagesStore.getState().append(placeholder);
       },
       onEvent: (e: StreamEvent) => {
         if (e.type === "retrying") {
