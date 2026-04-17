@@ -73,12 +73,15 @@ export interface StreamRunOutcome {
   estimated: boolean;
   // #55: how many messages buildContext dropped to fit the token limit.
   contextDropped: number;
+  // The [N] user-message number of the first surviving non-pinned
+  // message after truncation — for the notice text.
+  contextFirstSurviving: number | null;
 }
 
 export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome> {
   const { conversation, target, personas, history, adapter, signal, onEvent } = input;
   const providerMeta: ProviderMeta = PROVIDER_REGISTRY[target.provider];
-  const { systemPrompt, messages, dropped } = buildContext({
+  const { systemPrompt, messages, dropped, firstSurvivingUserNumber } = buildContext({
     conversation,
     target,
     messages: history,
@@ -226,6 +229,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     outputTokens,
     estimated,
     contextDropped: dropped,
+    contextFirstSurviving: firstSurvivingUserNumber,
   };
 }
 

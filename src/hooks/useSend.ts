@@ -185,11 +185,14 @@ export function useSend(conversation: Conversation) {
           // knows which model caused it and how much was cut.
           if (outcome.contextDropped > 0) {
             const name = persona?.name ?? target.displayName;
+            const before = outcome.contextFirstSurviving
+              ? `dropped messages before #${outcome.contextFirstSurviving}`
+              : `dropped ${outcome.contextDropped} oldest message${outcome.contextDropped === 1 ? "" : "s"}`;
             void useMessagesStore
               .getState()
               .appendNotice(
                 conversation.id,
-                `context trimmed for ${name} (${modelForTarget(target, personas)}): dropped ${outcome.contextDropped} oldest message${outcome.contextDropped === 1 ? "" : "s"} to fit the ${PROVIDER_REGISTRY[target.provider].maxContextTokens}-token limit.`,
+                `context trimmed for ${name} (${modelForTarget(target, personas)}): ${before} to fit the ${PROVIDER_REGISTRY[target.provider].maxContextTokens}-token limit.`,
               );
           }
           return outcome.kind;
