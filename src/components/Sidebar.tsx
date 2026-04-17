@@ -9,6 +9,7 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { SettingsDialog } from "./SettingsDialog";
 import { SettingsGeneralDialog } from "./SettingsGeneralDialog";
 import { useUiStore } from "@/stores/uiStore";
+import { keychain } from "@/lib/tauri/keychain";
 import { ContextMenu } from "./ContextMenu";
 import {
   exportConversationToHtml,
@@ -49,9 +50,12 @@ export function Sidebar(): JSX.Element {
       limitSizeTokens: null,
       selectedPersonas: [],
     });
-    await useMessagesStore
-      .getState()
-      .appendNotice(conv.id, "Add some personas to get started. Use //help for a list of available commands.");
+    const keys = await keychain.list();
+    const hasKeys = keys.length > 0;
+    const msg = hasKeys
+      ? "Add some personas to get started. Use //help for a list of available commands."
+      : "Add at least one LLM API key in Settings, then add some personas to get started. Use //help for a list of available commands.";
+    await useMessagesStore.getState().appendNotice(conv.id, msg);
   };
 
   const getExportData = async (id: string) => {
