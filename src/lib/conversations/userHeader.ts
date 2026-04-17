@@ -12,8 +12,13 @@ export function formatUserHeader(
   userNumber: number | null,
   addressedTo: readonly string[],
   personas: readonly Persona[],
+  pinTarget?: string | null,
 ): string {
   const prefix = userNumber !== null ? `[${userNumber}] user` : "user";
+  if (pinTarget) {
+    const p = personas.find((x) => x.id === pinTarget);
+    return `${prefix} \u2192 @${p ? p.name : pinTarget}`;
+  }
   if (addressedTo.length === 0) return `${prefix} \u2192 @all`;
   const names = addressedTo.map((id) => {
     const p = personas.find((x) => x.id === id);

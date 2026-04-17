@@ -436,7 +436,7 @@ function MessageBubble({
   } else if (message.role === "user") {
     // [N] prefix is display-only — never written to message.content,
     // never sent to the LLM, never in exports.
-    headerParts.push(formatUserHeader(userNumber, message.addressedTo, personas));
+    headerParts.push(formatUserHeader(userNumber, message.addressedTo, personas, message.pinTarget));
   } else {
     headerParts.push(message.role);
   }
