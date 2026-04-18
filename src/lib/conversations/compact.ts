@@ -20,6 +20,7 @@ export async function generateCompactionSummary(
   apiKey: string | null,
   model: string,
   contextMessages: ChatMessage[],
+  extraConfig?: Record<string, unknown>,
 ): Promise<string> {
   const streamId = `compact:${Date.now()}`;
   let accumulated = "";
@@ -32,6 +33,7 @@ export async function generateCompactionSummary(
       ...contextMessages,
       { role: "user", content: "Now summarize this conversation concisely." },
     ],
+    ...(extraConfig ? { extraConfig } : {}),
   })) {
     if (e.type === "token") accumulated += e.text;
     if (e.type === "error") throw new Error(e.message ?? "compaction failed");

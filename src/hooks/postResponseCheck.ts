@@ -14,6 +14,7 @@ import { resolveAutocompactTokens, pendingWarnings } from "@/lib/commands/autoco
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { usePersonasStore } from "@/stores/personasStore";
+import { useSendStore } from "@/stores/sendStore";
 
 /**
  * Estimate the current max context token count across all personas.
@@ -101,6 +102,7 @@ export async function postResponseCheck(conversationId: string): Promise<void> {
 
 /**
  * Run the actual compaction (same logic as //compact in Composer).
+ * Compactions run in parallel across all personas (ignoring runsAfter).
  */
 async function runAutocompact(
   conversationId: string,
@@ -113,6 +115,7 @@ async function runAutocompact(
   const { adapterFor } = await import("@/lib/providers/registryOfAdapters");
   const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
   const { modelForTarget } = await import("@/lib/orchestration/streamRunner");
+  const { resolveExtraConfig } = await import("@/lib/providers/extraConfig");
   const { keychain } = await import("@/lib/tauri/keychain");
   const { getSetting } = await import("@/lib/persistence/settings");
   const { GLOBAL_SYSTEM_PROMPT_KEY } = await import("@/lib/settings/keys");
@@ -127,41 +130,58 @@ async function runAutocompact(
   const history = useMessagesStore.getState().byConversation[conversationId] ?? [];
   const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
 
-  const summaries: Array<{ persona: (typeof personas)[number]; summary: string }> = [];
-  for (const p of personas) {
-    const target = {
-      provider: p.provider,
-      personaId: p.id,
-      key: p.id,
-      displayName: p.name,
-    };
-    const ctx = buildContext({
-      conversation,
-      target,
-      messages: [...history],
-      personas: [...personas],
-      globalSystemPrompt: globalPrompt,
-    });
-    if (ctx.messages.length === 0) continue;
-    try {
-      const ak = PROVIDER_REGISTRY[p.provider].requiresKey
-        ? await keychain.get(PROVIDER_REGISTRY[p.provider].keychainKey)
-        : null;
-      const model = modelForTarget(target, [...personas]);
-      const summary = await generateCompactionSummary(
-        adapterFor(p.provider),
-        ak,
-        model,
-        ctx.messages,
-      );
-      if (summary) summaries.push({ persona: p, summary });
-    } catch (e) {
+  type CompactResult =
+    | { ok: true; persona: (typeof personas)[number]; summary: string }
+    | { ok: false; persona: (typeof personas)[number]; error: string };
+
+  const results = await Promise.all(
+    personas.map(async (p): Promise<CompactResult | null> => {
+      const target = {
+        provider: p.provider,
+        personaId: p.id,
+        key: p.id,
+        displayName: p.name,
+      };
+      const ctx = buildContext({
+        conversation,
+        target,
+        messages: [...history],
+        personas: [...personas],
+        globalSystemPrompt: globalPrompt,
+      });
+      if (ctx.messages.length === 0) return null;
+      useSendStore.getState().setTargetStatus(conversationId, p.id, "streaming");
+      try {
+        const ak = PROVIDER_REGISTRY[p.provider].requiresKey
+          ? await keychain.get(PROVIDER_REGISTRY[p.provider].keychainKey)
+          : null;
+        const model = modelForTarget(target, [...personas]);
+        const extra = await resolveExtraConfig(p.provider, p);
+        const summary = await generateCompactionSummary(
+          adapterFor(p.provider),
+          ak,
+          model,
+          ctx.messages,
+          extra,
+        );
+        return summary ? { ok: true, persona: p, summary } : null;
+      } catch (e) {
+        useSendStore.getState().setTargetStatus(conversationId, p.id, "retrying");
+        return { ok: false, persona: p, error: (e as Error).message };
+      } finally {
+        useSendStore.getState().clearTargetStatus(conversationId, p.id);
+      }
+    }),
+  );
+
+  const summaries = results.filter(
+    (r): r is Extract<CompactResult, { ok: true }> => r !== null && r.ok,
+  );
+  for (const r of results) {
+    if (r && !r.ok) {
       await useMessagesStore
         .getState()
-        .appendNotice(
-          conversationId,
-          `autocompact: failed for ${p.name}: ${(e as Error).message}`,
-        );
+        .appendNotice(conversationId, `autocompact: failed for ${r.persona.name}: ${r.error}`);
     }
   }
 

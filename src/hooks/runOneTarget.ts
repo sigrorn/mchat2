@@ -13,9 +13,10 @@ import type { Conversation, Persona, PersonaTarget, StreamEvent } from "@/lib/ty
 import { runStream, modelForTarget, type StreamRunOutcome } from "@/lib/orchestration/streamRunner";
 import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { resolveExtraConfig } from "@/lib/providers/extraConfig";
 import { keychain } from "@/lib/tauri/keychain";
 import { getSetting } from "@/lib/persistence/settings";
-import { GLOBAL_SYSTEM_PROMPT_KEY, APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
 import { useUiStore } from "@/stores/uiStore";
 import { useMessagesStore } from "@/stores/messagesStore";
@@ -46,12 +47,7 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
     : null;
   const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
   const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
-  const extraConfig: Record<string, unknown> = {};
-  if (target.provider === "apertus") {
-    const globalProductId = await getSetting(APERTUS_PRODUCT_ID_KEY);
-    const productId = globalProductId?.trim() || persona?.apertusProductId || null;
-    if (productId) extraConfig.productId = productId;
-  }
+  const extraConfig = (await resolveExtraConfig(target.provider, persona)) ?? {};
   const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
   const { debugSession, workingDir } = useUiStore.getState();
   const slug = persona?.nameSlug ?? target.key;

@@ -511,6 +511,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const { adapterFor } = await import("@/lib/providers/registryOfAdapters");
       const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
       const { modelForTarget } = await import("@/lib/orchestration/streamRunner");
+      const { resolveExtraConfig } = await import("@/lib/providers/extraConfig");
       const { keychain } = await import("@/lib/tauri/keychain");
       const { getSetting } = await import("@/lib/persistence/settings");
       const { GLOBAL_SYSTEM_PROMPT_KEY } = await import("@/lib/settings/keys");
@@ -525,41 +526,59 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
           `compacting: generating summaries for ${personas.length} persona${personas.length === 1 ? "" : "s"}…`,
         );
 
-      const summaries: Array<{ persona: typeof personas[number]; summary: string }> = [];
-      for (const p of personas) {
-        const target = {
-          provider: p.provider,
-          personaId: p.id,
-          key: p.id,
-          displayName: p.name,
-        };
-        const ctx = buildContext({
-          conversation,
-          target,
-          messages: history,
-          personas,
-          globalSystemPrompt: globalPrompt,
-        });
-        if (ctx.messages.length === 0) continue;
-        try {
-          const ak = PROVIDER_REGISTRY[p.provider].requiresKey
-            ? await keychain.get(PROVIDER_REGISTRY[p.provider].keychainKey)
-            : null;
-          const model = modelForTarget(target, personas);
-          const summary = await generateCompactionSummary(
-            adapterFor(p.provider),
-            ak,
-            model,
-            ctx.messages,
-          );
-          if (summary) summaries.push({ persona: p, summary });
-        } catch (e) {
+      // Run all persona compactions in parallel (ignoring runsAfter DAG).
+      type CompactResult =
+        | { ok: true; persona: typeof personas[number]; summary: string }
+        | { ok: false; persona: typeof personas[number]; error: string };
+
+      const results = await Promise.all(
+        personas.map(async (p): Promise<CompactResult | null> => {
+          const target = {
+            provider: p.provider,
+            personaId: p.id,
+            key: p.id,
+            displayName: p.name,
+          };
+          const ctx = buildContext({
+            conversation,
+            target,
+            messages: history,
+            personas,
+            globalSystemPrompt: globalPrompt,
+          });
+          if (ctx.messages.length === 0) return null;
+          useSendStore.getState().setTargetStatus(conversation.id, p.id, "streaming");
+          try {
+            const ak = PROVIDER_REGISTRY[p.provider].requiresKey
+              ? await keychain.get(PROVIDER_REGISTRY[p.provider].keychainKey)
+              : null;
+            const model = modelForTarget(target, personas);
+            const extra = await resolveExtraConfig(p.provider, p);
+            const summary = await generateCompactionSummary(
+              adapterFor(p.provider),
+              ak,
+              model,
+              ctx.messages,
+              extra,
+            );
+            return summary ? { ok: true, persona: p, summary } : null;
+          } catch (e) {
+            useSendStore.getState().setTargetStatus(conversation.id, p.id, "retrying");
+            return { ok: false, persona: p, error: (e as Error).message };
+          } finally {
+            useSendStore.getState().clearTargetStatus(conversation.id, p.id);
+          }
+        }),
+      );
+
+      const summaries = results.filter(
+        (r): r is Extract<CompactResult, { ok: true }> => r !== null && r.ok,
+      );
+      for (const r of results) {
+        if (r && !r.ok) {
           await useMessagesStore
             .getState()
-            .appendNotice(
-              conversation.id,
-              `compact: failed for ${p.name}: ${(e as Error).message}`,
-            );
+            .appendNotice(conversation.id, `compact: failed for ${r.persona.name}: ${r.error}`);
         }
       }
 
