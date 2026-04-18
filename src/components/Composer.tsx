@@ -11,6 +11,7 @@ import { useSendStore, type ActiveStream } from "@/stores/sendStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { parseCommand } from "@/lib/commands/parseCommand";
+import { parseTargetModifiers } from "@/lib/commands/targetModifier";
 import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMessageNumber";
 import { resolveEditTarget } from "@/lib/conversations/resolveEditTarget";
 import { planPop } from "@/lib/conversations/popPlan";
@@ -63,6 +64,10 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         await runCommand(t, cmd);
         return;
       }
+      // #96: +/- target modifier shortcuts.
+      const modResult = await tryTargetModifiers(t, conversation.id);
+      if (modResult) return;
+
       const result = await send(t);
       if (!result.ok) {
         setText(t);
@@ -417,6 +422,90 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         .appendNotice(conversation.id, `unpinned message ${cmd.payload.userNumber}.`);
       return;
     }
+    if (cmd.kind === "selectAll") {
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const all = personas.map((p) => p.id);
+      usePersonasStore.getState().setSelection(conversation.id, all);
+      const names = personas.map((p) => p.name).join(", ");
+      await useMessagesStore
+        .getState()
+        .appendNotice(conversation.id, `selected: ${names || "(none)"}.`);
+      return;
+    }
+    if (cmd.kind === "select") {
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const ids: string[] = [];
+      const unknown: string[] = [];
+      for (const name of cmd.payload.names) {
+        const match = personas.find((p) => p.nameSlug === name);
+        if (match) {
+          if (!ids.includes(match.id)) ids.push(match.id);
+        } else {
+          unknown.push(name);
+        }
+      }
+      if (unknown.length > 0) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `select: unknown persona${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")}.`,
+          );
+        setText(raw);
+        return;
+      }
+      usePersonasStore.getState().setSelection(conversation.id, ids);
+      const names = ids.map((id) => personas.find((p) => p.id === id)?.name ?? id).join(", ");
+      await useMessagesStore.getState().appendNotice(conversation.id, `selected: ${names}.`);
+      return;
+    }
+    if (cmd.kind === "vacuum") {
+      const { sql } = await import("@/lib/tauri/sql");
+      await sql.execute("VACUUM");
+      await useMessagesStore.getState().appendNotice(conversation.id, "database vacuumed.");
+      return;
+    }
+  };
+
+  // #96: +/- target modifiers — add/remove personas from selection.
+  const tryTargetModifiers = async (
+    input: string,
+    conversationId: string,
+  ): Promise<boolean> => {
+    const parsed = parseTargetModifiers(input);
+    if (!parsed.ok) return false;
+    const personas = usePersonasStore.getState().byConversation[conversationId] ?? [];
+    const current = usePersonasStore.getState().selectionByConversation[conversationId] ?? [];
+    let selection = [...current];
+    const errors: string[] = [];
+    for (const op of parsed.ops) {
+      const match = personas.find((p) => p.nameSlug === op.name);
+      if (!match) {
+        errors.push(`unknown persona: ${op.name}`);
+        continue;
+      }
+      if (op.action === "add") {
+        if (!selection.includes(match.id)) selection.push(match.id);
+      } else {
+        const without = selection.filter((id) => id !== match.id);
+        if (without.length === 0) {
+          errors.push("cannot remove the last target");
+          continue;
+        }
+        selection = without;
+      }
+    }
+    if (errors.length > 0) {
+      setHint(errors.join("; "));
+      setText(input);
+      return true;
+    }
+    usePersonasStore.getState().setSelection(conversationId, selection);
+    const names = selection
+      .map((id) => personas.find((p) => p.id === id)?.name ?? id)
+      .join(", ");
+    await useMessagesStore.getState().appendNotice(conversationId, `selected: ${names}.`);
+    return true;
   };
 
   const onCancel = (): void => {

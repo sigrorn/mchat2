@@ -26,6 +26,9 @@ export type ParsedCommand =
   | { kind: "help" }
   | { kind: "personas" }
   | { kind: "stats" }
+  | { kind: "select"; payload: { names: string[] } }
+  | { kind: "selectAll" }
+  | { kind: "vacuum" }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -99,6 +102,23 @@ export function parseCommand(raw: string): ParsedCommand {
       return { kind: "error", message: "order: this command takes no arguments." };
     }
     return { kind: "order" };
+  }
+  if (verb === "select") {
+    if (arg === "") {
+      return { kind: "error", message: "select: specify persona names (comma-separated) or ALL." };
+    }
+    if (arg.toLowerCase() === "all") return { kind: "selectAll" };
+    const names = [...new Set(
+      arg.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s !== ""),
+    )];
+    if (names.length === 0) {
+      return { kind: "error", message: "select: no valid names provided." };
+    }
+    return { kind: "select", payload: { names } };
+  }
+  if (verb === "vacuum") {
+    if (arg !== "") return { kind: "error", message: "vacuum: this command takes no arguments." };
+    return { kind: "vacuum" };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {

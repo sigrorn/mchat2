@@ -10,6 +10,8 @@ export function formatHelp(): string {
   @all message         Send to all personas
   @others message      Send to non-selected personas
   (no prefix)          Send to currently selected personas
+  +name                Add persona to current selection
+  -name                Remove persona from current selection
 
 Available commands (prefixed with //):
 
@@ -43,11 +45,18 @@ Display
   //visibility separated  Each persona sees only its own responses
   //visibility default Reset to persona visibility defaults
 
+Selection
+  //select name, ...   Set selection to listed personas
+  //select ALL         Select all personas
+
 Info
   //order              Show DAG execution order
   //personas           List active personas with details
   //stats              Show conversation token statistics
   //help               Show this help text
+
+Maintenance
+  //vacuum             Compact the SQLite database
 
 Keyboard shortcuts
   Ctrl+F               Find in chat
