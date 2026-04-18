@@ -38,6 +38,7 @@ export interface CreatePersonaInput {
   systemPromptOverride?: string | null;
   modelOverride?: string | null;
   colorOverride?: string | null;
+  visibilityDefaults?: Record<string, "y" | "n">;
   runsAfter?: PersonaId[];
   currentMessageIndex: number;
   sortOrder?: number;
@@ -71,7 +72,8 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
   // Apertus product id used to be per-persona (#15) but is now a global
   // setting (#25) since it's an Infomaniak account-level value. The
   // send-time gate lives in useSend / the Apertus adapter.
-  return repo.createPersona({
+  const visDefaults = input.visibilityDefaults ?? {};
+  const created = await repo.createPersona({
     conversationId: input.conversationId,
     provider: input.provider,
     name,
@@ -84,7 +86,14 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     runsAfter: input.runsAfter ?? [],
     deletedAt: null,
     apertusProductId: input.apertusProductId?.trim() || null,
+    visibilityDefaults: visDefaults,
   });
+
+  // #94: cross-edit — mirror the new persona's "sees" into siblings'
+  // visibility defaults as their corresponding "seen by" entries.
+  await applyCrossEdits(slug, visDefaults, existing);
+
+  return created;
 }
 
 export interface UpdatePersonaInput {
@@ -97,6 +106,7 @@ export interface UpdatePersonaInput {
   systemPromptOverride?: string | null;
   modelOverride?: string | null;
   colorOverride?: string | null;
+  visibilityDefaults?: Record<string, "y" | "n">;
   runsAfter?: PersonaId[];
   sortOrder?: number;
   apertusProductId?: string | null;
@@ -145,6 +155,11 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
 
   const provider = input.provider ?? current.provider;
 
+  const visDefaults =
+    input.visibilityDefaults !== undefined
+      ? input.visibilityDefaults
+      : current.visibilityDefaults;
+
   const next: Persona = {
     ...current,
     name,
@@ -156,11 +171,24 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
         : current.systemPromptOverride,
     modelOverride: input.modelOverride !== undefined ? input.modelOverride : current.modelOverride,
     colorOverride: input.colorOverride !== undefined ? input.colorOverride : current.colorOverride,
+    visibilityDefaults: visDefaults,
     runsAfter: input.runsAfter !== undefined ? input.runsAfter : current.runsAfter,
     sortOrder: input.sortOrder ?? current.sortOrder,
     apertusProductId,
   };
   await repo.updatePersona(next);
+
+  // #94: cross-edit siblings when visibility defaults changed.
+  const siblings = await repo.listPersonas(current.conversationId);
+  const others = siblings.filter((p) => p.id !== current.id);
+  if (input.visibilityDefaults !== undefined) {
+    await applyCrossEdits(slug, visDefaults, others);
+  }
+  // #94: if renamed, update slug keys in all siblings' defaults.
+  if (slug !== current.nameSlug) {
+    await renameSlugInSiblings(current.nameSlug, slug, others);
+  }
+
   return next;
 }
 
@@ -199,5 +227,112 @@ export async function deletePersona(id: PersonaId): Promise<void> {
   for (const mut of mutations) {
     await messagesRepo.applyMessageMutation(mut);
   }
+  // #94: remove this persona's slug from all siblings' visibility defaults.
+  const siblings = await repo.listPersonas(p.conversationId);
+  const others = siblings.filter((s) => s.id !== id);
+  await removeSlugFromSiblings(p.nameSlug, others);
   await repo.tombstonePersona(id);
+}
+
+// --- #94: cross-editing helpers -------------------------------------------
+
+// When persona A sets sees[B] = 'n', we update B's defaults so that
+// B.sees[A_slug] mirrors A's intent: if A says "I see B = n", we set
+// B's entry for A to the SAME value — "B sees A = n" would be wrong;
+// "sees" is directional. What we mirror is the reciprocal relationship:
+//   A.sees[B] = v  →  nothing on B (B's "seen by A" is derived)
+// But the user's seenBy edits ARE stored as sees on the other persona.
+// The UI sends the full resolved visibilityDefaults, so applyCrossEdits
+// just ensures the reciprocal "seenBy" view stays consistent:
+//   A.sees[B_slug] = v  →  B must have B.sees[A_slug] only if the UI
+//   explicitly set it; otherwise leave it.
+//
+// In practice the UI resolves both directions into a single `sees` map
+// before calling update. Cross-editing here handles the case where the
+// persona being edited references a sibling — the sibling needs its own
+// `sees` entry for the edited persona's slug set to the reciprocal value.
+async function applyCrossEdits(
+  editedSlug: string,
+  editedSees: Record<string, "y" | "n">,
+  siblings: Persona[],
+): Promise<void> {
+  const bySlug = new Map(siblings.map((p) => [p.nameSlug, p] as const));
+  for (const [targetSlug, value] of Object.entries(editedSees)) {
+    const sibling = bySlug.get(targetSlug);
+    if (!sibling) continue;
+    const current = sibling.visibilityDefaults[editedSlug];
+    if (current === value) continue;
+    const updated: Persona = {
+      ...sibling,
+      visibilityDefaults: { ...sibling.visibilityDefaults, [editedSlug]: value },
+    };
+    await repo.updatePersona(updated);
+  }
+  // If a previously-set key was removed (set back to default), remove
+  // the reciprocal entry from the sibling too.
+  for (const sibling of siblings) {
+    if (editedSees[sibling.nameSlug] === undefined && sibling.visibilityDefaults[editedSlug] !== undefined) {
+      const { [editedSlug]: _, ...rest } = sibling.visibilityDefaults;
+      const updated: Persona = { ...sibling, visibilityDefaults: rest };
+      await repo.updatePersona(updated);
+    }
+  }
+}
+
+async function renameSlugInSiblings(
+  oldSlug: string,
+  newSlug: string,
+  siblings: Persona[],
+): Promise<void> {
+  for (const sibling of siblings) {
+    const value = sibling.visibilityDefaults[oldSlug];
+    if (value === undefined) continue;
+    const { [oldSlug]: _, ...rest } = sibling.visibilityDefaults;
+    const updated: Persona = {
+      ...sibling,
+      visibilityDefaults: { ...rest, [newSlug]: value },
+    };
+    await repo.updatePersona(updated);
+  }
+}
+
+async function removeSlugFromSiblings(
+  slug: string,
+  siblings: Persona[],
+): Promise<void> {
+  for (const sibling of siblings) {
+    if (sibling.visibilityDefaults[slug] === undefined) continue;
+    const { [slug]: _, ...rest } = sibling.visibilityDefaults;
+    const updated: Persona = { ...sibling, visibilityDefaults: rest };
+    await repo.updatePersona(updated);
+  }
+}
+
+// #94: build a conversation visibility matrix from persona defaults.
+// Used by //visibility default and when seeding on persona add.
+export function buildMatrixFromDefaults(
+  personas: readonly Persona[],
+): Record<string, string[]> {
+  const matrix: Record<string, string[]> = {};
+
+  for (const persona of personas) {
+    const entries = Object.entries(persona.visibilityDefaults);
+    if (entries.length === 0) continue;
+
+    const hasAnyNo = entries.some(([, v]) => v === "n");
+    if (!hasAnyNo) continue;
+
+    // Build the row: include all personas except self that are NOT 'n'.
+    const row: string[] = [];
+    for (const other of personas) {
+      if (other.id === persona.id) continue;
+      const rule = persona.visibilityDefaults[other.nameSlug];
+      if (rule !== "n") {
+        row.push(other.id);
+      }
+    }
+    matrix[persona.id] = row;
+  }
+
+  return matrix;
 }

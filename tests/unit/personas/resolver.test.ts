@@ -17,6 +17,7 @@ function persona(id: string, slug: string, provider: Persona["provider"] = "mock
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
+    visibilityDefaults: {},
   };
 }
 

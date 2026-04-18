@@ -33,6 +33,7 @@ function persona(id: string): Persona {
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
+    visibilityDefaults: {},
   };
 }
 

@@ -443,6 +443,9 @@ function CreateForm({
     if (r.skipped.length > 0) {
       lines.push(`skipped (name in use): ${r.skipped.join(", ")}.`);
     }
+    if (r.visibilityWarnings.length > 0) {
+      lines.push(`visibility: ${r.visibilityWarnings.join("; ")}.`);
+    }
     await useMessagesStore.getState().appendNotice(conversationId, lines.join(" "));
   };
 

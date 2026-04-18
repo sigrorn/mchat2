@@ -45,6 +45,7 @@ function makeMemSql() {
           runsAfter: parseRA(runs_after),
           deletedAt: deleted_at as number | null,
           apertusProductId: (apertus_product_id as string | null) ?? null,
+    visibilityDefaults: {},
         });
       } else if (q.startsWith("UPDATE personas SET\n       provider")) {
         const [

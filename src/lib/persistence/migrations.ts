@@ -121,6 +121,8 @@ export const MIGRATIONS: string[][] = [
        WHERE deleted_at IS NULL`,
     `CREATE INDEX idx_personas_conv ON personas(conversation_id)`,
   ],
+  // 9 — Per-persona visibility defaults (#94).
+  [`ALTER TABLE personas ADD COLUMN visibility_defaults TEXT NOT NULL DEFAULT '{}'`],
 ];
 
 // Runs pending migrations against the open DB. Uses SQLite user_version

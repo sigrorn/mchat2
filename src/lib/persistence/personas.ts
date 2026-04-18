@@ -22,6 +22,7 @@ interface Row {
   runs_after: string | null;
   deleted_at: number | null;
   apertus_product_id?: string | null;
+  visibility_defaults?: string | null;
 }
 
 function rowToPersona(r: Row): Persona {
@@ -39,6 +40,7 @@ function rowToPersona(r: Row): Persona {
     runsAfter: parseRunsAfter(r.runs_after),
     deletedAt: r.deleted_at,
     apertusProductId: r.apertus_product_id ?? null,
+    visibilityDefaults: parseVisibilityDefaults(r.visibility_defaults),
   };
 }
 
@@ -51,6 +53,23 @@ function parseRunsAfter(raw: string | null): string[] {
     // Pre-migration single id string.
   }
   return raw ? [raw] : [];
+}
+
+function parseVisibilityDefaults(raw: string | null | undefined): Record<string, "y" | "n"> {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const out: Record<string, "y" | "n"> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v === "y" || v === "n") out[k] = v;
+      }
+      return out;
+    }
+  } catch {
+    // ignore
+  }
+  return {};
 }
 
 export async function listPersonas(
@@ -78,8 +97,8 @@ export async function createPersona(
        (id, conversation_id, provider, name, name_slug,
         system_prompt_override, model_override, color_override,
         created_at_message_index, sort_order, runs_after, deleted_at,
-        apertus_product_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        apertus_product_id, visibility_defaults)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       p.id,
       p.conversationId,
@@ -94,6 +113,7 @@ export async function createPersona(
       JSON.stringify(p.runsAfter),
       p.deletedAt,
       p.apertusProductId,
+      JSON.stringify(p.visibilityDefaults),
     ],
   );
   return p;
@@ -105,7 +125,7 @@ export async function updatePersona(p: Persona): Promise<void> {
        provider = ?, name = ?, name_slug = ?,
        system_prompt_override = ?, model_override = ?, color_override = ?,
        sort_order = ?, runs_after = ?, deleted_at = ?,
-       apertus_product_id = ?
+       apertus_product_id = ?, visibility_defaults = ?
      WHERE id = ?`,
     [
       p.provider,
@@ -118,6 +138,7 @@ export async function updatePersona(p: Persona): Promise<void> {
       JSON.stringify(p.runsAfter),
       p.deletedAt,
       p.apertusProductId,
+      JSON.stringify(p.visibilityDefaults),
       p.id,
     ],
   );

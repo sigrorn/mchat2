@@ -39,7 +39,7 @@ export async function exportPersonasToFile(
 }
 
 export type ImportOutcome =
-  | { ok: true; created: Persona[]; skipped: string[] }
+  | { ok: true; created: Persona[]; skipped: string[]; visibilityWarnings: string[] }
   | { ok: false; reason: "cancelled" }
   | { ok: false; reason: "error"; message: string };
 
@@ -70,6 +70,7 @@ export async function importPersonasFromFile(
       modelOverride: entry.modelOverride,
       colorOverride: entry.colorOverride,
       apertusProductId: entry.apertusProductId,
+      visibilityDefaults: entry.visibilityDefaults,
       currentMessageIndex,
     });
     created.push(p);
@@ -96,7 +97,12 @@ export async function importPersonasFromFile(
   for (const p of created) {
     await ensureIdentityPin(conversationId, p, history, messagesRepo);
   }
-  return { ok: true, created, skipped: resolved.skipped };
+  return {
+    ok: true,
+    created,
+    skipped: resolved.skipped,
+    visibilityWarnings: resolved.visibilityWarnings,
+  };
 }
 
 export function defaultExportFilename(title: string): string {

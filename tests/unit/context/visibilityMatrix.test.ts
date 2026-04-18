@@ -19,6 +19,7 @@ function persona(id: string, name: string): Persona {
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
+    visibilityDefaults: {},
   };
 }
 

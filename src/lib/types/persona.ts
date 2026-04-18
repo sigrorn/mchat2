@@ -37,6 +37,11 @@ export interface Persona {
   // base URL embeds a per-persona Product-Id (#15). A second provider
   // with knobs would justify refactoring this to a JSON blob.
   apertusProductId: string | null;
+  // #94: per-persona visibility defaults, keyed by persona nameSlug.
+  // 'y' = this persona sees the other's output; 'n' = hidden.
+  // Absent = use conversation default. Cross-editing keeps all
+  // personas in the same conversation consistent.
+  visibilityDefaults: Record<string, "y" | "n">;
 }
 
 // How the user's send intent was resolved.

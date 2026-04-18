@@ -31,6 +31,7 @@ const persona: Persona = {
   runsAfter: [],
   deletedAt: null,
   apertusProductId: null,
+    visibilityDefaults: {},
 };
 
 const personaTarget: PersonaTarget = {

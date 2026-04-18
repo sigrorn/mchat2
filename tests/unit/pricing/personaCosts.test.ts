@@ -19,6 +19,7 @@ function persona(id: string, provider: Persona["provider"] = "claude"): Persona 
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
+    visibilityDefaults: {},
   };
 }
 

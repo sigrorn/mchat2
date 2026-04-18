@@ -21,6 +21,7 @@ export interface ExportedPersona {
   modelOverride: string | null;
   colorOverride: string | null;
   apertusProductId: string | null;
+  visibilityDefaults: Record<string, "y" | "n">;
   runsAfter: string[]; // names of parent personas in this file
 }
 
@@ -41,6 +42,7 @@ export function serializePersonas(personas: readonly Persona[]): string {
       modelOverride: p.modelOverride,
       colorOverride: p.colorOverride,
       apertusProductId: p.apertusProductId,
+      visibilityDefaults: p.visibilityDefaults,
       runsAfter: p.runsAfter
         .map((id) => nameById.get(id))
         .filter((n): n is string => n !== undefined),
@@ -82,6 +84,7 @@ export function parsePersonasImport(raw: string): ParseResult {
       modelOverride: nullableString(entry["modelOverride"]),
       colorOverride: nullableString(entry["colorOverride"]),
       apertusProductId: nullableString(entry["apertusProductId"]),
+      visibilityDefaults: parseVisibilityDefaultsField(entry["visibilityDefaults"]),
       runsAfter: parseRunsAfterField(entry["runsAfter"]),
     });
   }
@@ -100,9 +103,11 @@ export interface ResolvedImport {
     modelOverride: string | null;
     colorOverride: string | null;
     apertusProductId: string | null;
+    visibilityDefaults: Record<string, "y" | "n">;
     runsAfter: string[]; // resolved names
   }>;
   skipped: string[];
+  visibilityWarnings: string[];
 }
 
 export function resolveImport(
@@ -132,17 +137,30 @@ export function resolveImport(
     existing.filter((p) => p.deletedAt === null).map((p) => p.name.toLowerCase()),
   );
   const known = new Set([...acceptedNames, ...existingLiveNames]);
+  const visibilityWarnings: string[] = [];
   return {
-    toCreate: accepted.map((p) => ({
-      name: p.name,
-      provider: p.provider,
-      systemPromptOverride: p.systemPromptOverride,
-      modelOverride: p.modelOverride,
-      colorOverride: p.colorOverride,
-      apertusProductId: p.apertusProductId,
-      runsAfter: p.runsAfter.filter((n) => known.has(n.toLowerCase())),
-    })),
+    toCreate: accepted.map((p) => {
+      const filtered: Record<string, "y" | "n"> = {};
+      for (const [slug, val] of Object.entries(p.visibilityDefaults)) {
+        if (known.has(slug.toLowerCase())) {
+          filtered[slug] = val;
+        } else {
+          visibilityWarnings.push(`${p.name}: dropped unknown visibility reference '${slug}'`);
+        }
+      }
+      return {
+        name: p.name,
+        provider: p.provider,
+        systemPromptOverride: p.systemPromptOverride,
+        modelOverride: p.modelOverride,
+        colorOverride: p.colorOverride,
+        apertusProductId: p.apertusProductId,
+        visibilityDefaults: filtered,
+        runsAfter: p.runsAfter.filter((n) => known.has(n.toLowerCase())),
+      };
+    }),
     skipped,
+    visibilityWarnings,
   };
 }
 
@@ -154,6 +172,15 @@ function parseRunsAfterField(v: unknown): string[] {
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && x !== "");
   if (typeof v === "string" && v !== "") return [v];
   return [];
+}
+
+function parseVisibilityDefaultsField(v: unknown): Record<string, "y" | "n"> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, "y" | "n"> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (val === "y" || val === "n") out[k] = val;
+  }
+  return out;
 }
 
 function nullableString(v: unknown): string | null {

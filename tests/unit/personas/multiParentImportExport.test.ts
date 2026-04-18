@@ -23,6 +23,7 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     runsAfter: over.runsAfter ?? [],
     deletedAt: over.deletedAt ?? null,
     apertusProductId: over.apertusProductId ?? null,
+    visibilityDefaults: over.visibilityDefaults ?? {},
   };
 }
 
@@ -34,6 +35,7 @@ function imp(over: Partial<ExportedPersona> & { name: string }): ExportedPersona
     modelOverride: over.modelOverride ?? null,
     colorOverride: over.colorOverride ?? null,
     apertusProductId: over.apertusProductId ?? null,
+    visibilityDefaults: over.visibilityDefaults ?? {},
     runsAfter: over.runsAfter ?? [],
   };
 }
