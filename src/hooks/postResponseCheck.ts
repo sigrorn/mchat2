@@ -11,6 +11,15 @@ import type { Conversation, Persona, PersonaTarget } from "@/lib/types";
 import { buildContext } from "@/lib/context";
 import { estimateTokens } from "@/lib/context/truncate";
 import { resolveAutocompactTokens, pendingWarnings } from "@/lib/commands/autocompactCheck";
+import { generateCompactionSummary } from "@/lib/conversations/compact";
+import { adapterFor } from "@/lib/providers/registryOfAdapters";
+import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { modelForTarget } from "@/lib/orchestration/streamRunner";
+import { resolveExtraConfig } from "@/lib/providers/extraConfig";
+import { keychain } from "@/lib/tauri/keychain";
+import { getSetting } from "@/lib/persistence/settings";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
+import * as messagesRepo from "@/lib/persistence/messages";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { usePersonasStore } from "@/stores/personasStore";
@@ -67,8 +76,6 @@ export async function postResponseCheck(conversationId: string): Promise<void> {
   if (personas.length === 0) return;
 
   const messages = useMessagesStore.getState().byConversation[conversationId] ?? [];
-  const { getSetting } = await import("@/lib/persistence/settings");
-  const { GLOBAL_SYSTEM_PROMPT_KEY } = await import("@/lib/settings/keys");
   const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
 
   const currentTokens = estimateMaxContextTokens(
@@ -110,16 +117,6 @@ async function runAutocompact(
   personas: readonly Persona[],
   currentTokens: number,
 ): Promise<void> {
-  const { buildContext } = await import("@/lib/context");
-  const { generateCompactionSummary } = await import("@/lib/conversations/compact");
-  const { adapterFor } = await import("@/lib/providers/registryOfAdapters");
-  const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
-  const { modelForTarget } = await import("@/lib/orchestration/streamRunner");
-  const { resolveExtraConfig } = await import("@/lib/providers/extraConfig");
-  const { keychain } = await import("@/lib/tauri/keychain");
-  const { getSetting } = await import("@/lib/persistence/settings");
-  const { GLOBAL_SYSTEM_PROMPT_KEY } = await import("@/lib/settings/keys");
-
   // Rough heuristic: >20k tokens likely takes >10s to summarize.
   if (currentTokens > 20000) {
     await useMessagesStore
@@ -194,7 +191,6 @@ async function runAutocompact(
 
   // Insert COMPACTION notice + per-persona summaries.
   await useMessagesStore.getState().appendNotice(conversationId, "COMPACTION");
-  const messagesRepo = await import("@/lib/persistence/messages");
   for (const { persona: p, summary } of summaries) {
     await messagesRepo.appendMessage({
       conversationId,
