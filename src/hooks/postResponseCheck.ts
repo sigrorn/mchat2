@@ -166,7 +166,7 @@ async function runAutocompact(
           extra,
         );
         const elapsedMs = Date.now() - t0;
-        if (!summary) return null;
+        if (!summary) return { ok: false, persona: p, error: "model returned empty summary" };
         const summaryTokens = estimateTokens(summary);
         return { ok: true, persona: p, summary, origTokens, summaryTokens, elapsedMs };
       } catch (e) {
