@@ -40,4 +40,8 @@ export interface Conversation {
   // Persisted persona selection (#65). Stores the selected persona keys
   // so the selection survives restarts. Empty array = nothing selected.
   selectedPersonas: string[];
+  // #102: hard lower bound set by //compact. Messages with index below
+  // this are excluded from context and cannot be reached by //limit.
+  // null = no floor.
+  compactionFloorIndex: number | null;
 }

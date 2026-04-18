@@ -93,10 +93,12 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
     }
     if (cmd.kind === "limit") {
       const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const floor = conversation.compactionFloorIndex;
       const target = cmd.payload.userNumber;
       if (target === null) {
         // //limit NONE — clear both fixed limit and limitsize.
-        await useConversationsStore.getState().setLimit(conversation.id, null);
+        // #102: clamp to compaction floor if one exists.
+        await useConversationsStore.getState().setLimit(conversation.id, floor);
         await useConversationsStore.getState().setLimitSize(conversation.id, null);
         return;
       }
@@ -121,8 +123,10 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         setText(raw);
         return;
       }
+      // #102: clamp to compaction floor.
+      const effective = floor !== null && idx < floor ? floor : idx;
       // //limit N clears limitsize (#64 interaction rule).
-      await useConversationsStore.getState().setLimit(conversation.id, idx);
+      await useConversationsStore.getState().setLimit(conversation.id, effective);
       await useConversationsStore.getState().setLimitSize(conversation.id, null);
       return;
     }

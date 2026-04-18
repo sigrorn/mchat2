@@ -18,6 +18,7 @@ const CONV: Conversation = {
   visibilityMatrix: {},
   limitSizeTokens: null,
   selectedPersonas: [],
+    compactionFloorIndex: null,
 };
 
 let writes: { path: string; content: string }[];

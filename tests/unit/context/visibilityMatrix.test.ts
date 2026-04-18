@@ -39,6 +39,7 @@ const BASE: Conversation = {
   visibilityMatrix: {},
   limitSizeTokens: null,
   selectedPersonas: [],
+    compactionFloorIndex: null,
 };
 
 describe("buildContext with visibilityMatrix (#75)", () => {

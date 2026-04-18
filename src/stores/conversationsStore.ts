@@ -28,6 +28,7 @@ interface State {
   ) => Promise<void>;
   setLimitSize: (id: string, limitSizeTokens: number | null) => Promise<void>;
   setSelectedPersonas: (id: string, keys: string[]) => Promise<void>;
+  setCompactionFloor: (id: string, floorIndex: number | null) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -99,6 +100,15 @@ export const useConversationsStore = create<State>((set, get) => ({
     const current = get().conversations.find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, selectedPersonas: keys };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
+    });
+  },
+  async setCompactionFloor(id, floorIndex) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = { ...current, compactionFloorIndex: floorIndex };
     await repo.updateConversation(next);
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),

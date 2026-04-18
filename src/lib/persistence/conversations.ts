@@ -20,6 +20,7 @@ interface Row {
   visibility_matrix?: string;
   limit_size_tokens?: number | null;
   selected_personas?: string;
+  compaction_floor_index?: number | null;
 }
 
 function rowToConversation(r: Row): Conversation {
@@ -35,6 +36,7 @@ function rowToConversation(r: Row): Conversation {
     visibilityMatrix: parseMatrix(r.visibility_matrix ?? "{}"),
     limitSizeTokens: r.limit_size_tokens ?? null,
     selectedPersonas: parseStringArray(r.selected_personas ?? "[]"),
+    compactionFloorIndex: r.compaction_floor_index ?? null,
   };
 }
 
@@ -60,8 +62,8 @@ export async function createConversation(
     `INSERT INTO conversations
        (id, title, system_prompt, created_at, last_provider,
         limit_mark_index, display_mode, visibility_mode, visibility_matrix,
-        limit_size_tokens, selected_personas)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        limit_size_tokens, selected_personas, compaction_floor_index)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       conv.id,
       conv.title,
@@ -74,6 +76,7 @@ export async function createConversation(
       JSON.stringify(conv.visibilityMatrix),
       conv.limitSizeTokens,
       JSON.stringify(conv.selectedPersonas),
+      conv.compactionFloorIndex,
     ],
   );
   return conv;
@@ -85,7 +88,7 @@ export async function updateConversation(conv: Conversation): Promise<void> {
        title = ?, system_prompt = ?, last_provider = ?,
        limit_mark_index = ?, display_mode = ?, visibility_mode = ?,
        visibility_matrix = ?, limit_size_tokens = ?,
-       selected_personas = ?
+       selected_personas = ?, compaction_floor_index = ?
      WHERE id = ?`,
     [
       conv.title,
@@ -97,6 +100,7 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       JSON.stringify(conv.visibilityMatrix),
       conv.limitSizeTokens,
       JSON.stringify(conv.selectedPersonas),
+      conv.compactionFloorIndex,
       conv.id,
     ],
   );

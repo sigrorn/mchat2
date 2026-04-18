@@ -123,6 +123,8 @@ export const MIGRATIONS: string[][] = [
   ],
   // 9 — Per-persona visibility defaults (#94).
   [`ALTER TABLE personas ADD COLUMN visibility_defaults TEXT NOT NULL DEFAULT '{}'`],
+  // 10 — Compaction floor index on conversations (#102).
+  [`ALTER TABLE conversations ADD COLUMN compaction_floor_index INTEGER`],
 ];
 
 // #98: backup the DB file before running migrations.

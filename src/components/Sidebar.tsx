@@ -49,6 +49,7 @@ export function Sidebar(): JSX.Element {
       visibilityMatrix: {},
       limitSizeTokens: null,
       selectedPersonas: [],
+      compactionFloorIndex: null,
     });
     const keys = await keychain.list();
     const hasKeys = keys.length > 0;

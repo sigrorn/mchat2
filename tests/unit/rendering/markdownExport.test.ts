@@ -16,6 +16,7 @@ const conv: Conversation = {
   visibilityMatrix: {},
   limitSizeTokens: null,
   selectedPersonas: [],
+    compactionFloorIndex: null,
 };
 
 function persona(id: string, name: string): Persona {

@@ -87,6 +87,10 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     if (m.role === "system" || m.role === "notice") continue;
     if (m.role === "assistant" && m.errorMessage !== null) continue;
 
+    // #102: hard floor from compaction — nothing below it enters context.
+    const floor = conversation.compactionFloorIndex;
+    if (floor !== null && m.index < floor) continue;
+
     if (limitMark !== null && m.index < limitMark && !m.pinned) continue;
     if (m.index < cutoff && !m.pinned) continue;
 

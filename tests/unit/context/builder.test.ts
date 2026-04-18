@@ -15,6 +15,7 @@ const CONV: Conversation = {
   visibilityMatrix: {},
   limitSizeTokens: null,
   selectedPersonas: [],
+    compactionFloorIndex: null,
 };
 
 function persona(over: Partial<Persona> = {}): Persona {

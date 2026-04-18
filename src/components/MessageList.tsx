@@ -90,6 +90,7 @@ export function MessageList({
       visibilityMatrix: {},
       limitSizeTokens: null,
       selectedPersonas: [],
+      compactionFloorIndex: null,
     },
   );
   // #47: editing state lives in messagesStore so the Composer's

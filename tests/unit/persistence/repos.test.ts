@@ -54,6 +54,7 @@ describe("conversationsRepo", () => {
       visibilityMatrix: {},
       limitSizeTokens: null,
       selectedPersonas: [],
+    compactionFloorIndex: null,
     });
     expect(c.id).toMatch(/^c_/);
     expect(c.createdAt).toBeGreaterThan(0);
