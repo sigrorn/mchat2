@@ -16,6 +16,8 @@ const conv: Conversation = {
   limitSizeTokens: null,
   selectedPersonas: [],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
 };
 
 const persona: Persona = {

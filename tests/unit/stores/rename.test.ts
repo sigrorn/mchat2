@@ -18,6 +18,8 @@ function seedConv(over: Partial<Conversation> = {}): Conversation {
     limitSizeTokens: null,
     selectedPersonas: [],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
     ...over,
   };
 }

@@ -50,6 +50,8 @@ describe("selectedPersonas persistence (#65)", () => {
       limitSizeTokens: null,
       selectedPersonas: ["p_abc", "p_def"],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
     });
     expect(c.selectedPersonas).toEqual(["p_abc", "p_def"]);
     const insert = calls.find((x) => x.sql.includes("INSERT INTO conversations"));
@@ -134,6 +136,8 @@ describe("selectedPersonas persistence (#65)", () => {
       limitSizeTokens: null,
       selectedPersonas: ["p_xyz"],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
     });
     const update = calls.find((x) => x.sql.includes("UPDATE conversations"));
     expect(update).toBeDefined();

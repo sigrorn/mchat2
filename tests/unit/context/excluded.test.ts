@@ -17,6 +17,8 @@ const baseConv: Conversation = {
   limitSizeTokens: null,
   selectedPersonas: [],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
 };
 
 describe("isExcludedByLimit", () => {

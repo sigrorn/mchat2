@@ -6,7 +6,7 @@
 
 export type { ProviderId } from "./providers";
 export type { Role, DisplayMode, Message } from "./messages";
-export type { Conversation } from "./conversation";
+export type { AutocompactThreshold, Conversation } from "./conversation";
 export type { PersonaId, Persona, ResolveMode, PersonaTarget } from "./persona";
 export type { StreamEvent, StreamEventType } from "./stream";
 export type { DagNodeStatus, DagNode, DagPlan, SendPlan } from "./dag";

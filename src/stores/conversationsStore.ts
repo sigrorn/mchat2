@@ -6,7 +6,7 @@
 // ------------------------------------------------------------------
 
 import { create } from "zustand";
-import type { Conversation } from "@/lib/types";
+import type { AutocompactThreshold, Conversation } from "@/lib/types";
 import * as repo from "@/lib/persistence/conversations";
 
 interface State {
@@ -29,6 +29,8 @@ interface State {
   setLimitSize: (id: string, limitSizeTokens: number | null) => Promise<void>;
   setSelectedPersonas: (id: string, keys: string[]) => Promise<void>;
   setCompactionFloor: (id: string, floorIndex: number | null) => Promise<void>;
+  setAutocompact: (id: string, threshold: AutocompactThreshold | null) => Promise<void>;
+  setContextWarningsFired: (id: string, fired: number[]) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -109,6 +111,29 @@ export const useConversationsStore = create<State>((set, get) => ({
     const current = get().conversations.find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, compactionFloorIndex: floorIndex };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
+    });
+  },
+  async setAutocompact(id, threshold) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = {
+      ...current,
+      autocompactThreshold: threshold,
+      // Reset warning flags when turning autocompact on.
+      contextWarningsFired: threshold ? [] : current.contextWarningsFired,
+    };
+    await repo.updateConversation(next);
+    set({
+      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
+    });
+  },
+  async setContextWarningsFired(id, fired) {
+    const current = get().conversations.find((c) => c.id === id);
+    if (!current) return;
+    const next: Conversation = { ...current, contextWarningsFired: fired };
     await repo.updateConversation(next);
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),

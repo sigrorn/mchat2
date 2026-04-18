@@ -55,6 +55,8 @@ describe("conversationsRepo", () => {
       limitSizeTokens: null,
       selectedPersonas: [],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
     });
     expect(c.id).toMatch(/^c_/);
     expect(c.createdAt).toBeGreaterThan(0);

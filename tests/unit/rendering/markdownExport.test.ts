@@ -17,6 +17,8 @@ const conv: Conversation = {
   limitSizeTokens: null,
   selectedPersonas: [],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
 };
 
 function persona(id: string, name: string): Persona {

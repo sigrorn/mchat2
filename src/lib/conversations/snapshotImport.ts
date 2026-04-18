@@ -34,6 +34,8 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     limitSizeTokens: snapshot.limitSizeTokens ?? null,
     selectedPersonas: [],
     compactionFloorIndex: snapshot.compactionFloorIndex ?? null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
     lastProvider: null,
   });
 

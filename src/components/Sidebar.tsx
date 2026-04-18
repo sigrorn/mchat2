@@ -51,6 +51,8 @@ export function Sidebar(): JSX.Element {
       limitSizeTokens: null,
       selectedPersonas: [],
       compactionFloorIndex: null,
+      autocompactThreshold: null,
+      contextWarningsFired: [],
     });
     const keys = await keychain.list();
     const hasKeys = keys.length > 0;

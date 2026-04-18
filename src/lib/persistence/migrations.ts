@@ -125,6 +125,11 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE personas ADD COLUMN visibility_defaults TEXT NOT NULL DEFAULT '{}'`],
   // 10 — Compaction floor index on conversations (#102).
   [`ALTER TABLE conversations ADD COLUMN compaction_floor_index INTEGER`],
+  // 11 — Autocompact threshold on conversations (#105).
+  [
+    `ALTER TABLE conversations ADD COLUMN autocompact_threshold TEXT`,
+    `ALTER TABLE conversations ADD COLUMN context_warnings_fired TEXT NOT NULL DEFAULT '[]'`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

@@ -6,6 +6,11 @@
 
 import type { ProviderId } from "./providers";
 
+export interface AutocompactThreshold {
+  mode: "kTokens" | "percent";
+  value: number;
+}
+
 export interface Conversation {
   id: string;
   title: string;
@@ -44,4 +49,11 @@ export interface Conversation {
   // this are excluded from context and cannot be reached by //limit.
   // null = no floor.
   compactionFloorIndex: number | null;
+  // #105: autocompact threshold. null = off (default).
+  // mode "kTokens": compact when context ≥ value*1000 tokens.
+  // mode "percent": compact when context ≥ value% of tightest model.
+  autocompactThreshold: AutocompactThreshold | null;
+  // #105: tracks which warning thresholds (80/90/98%) have already
+  // fired so they don't repeat. Reset when autocompact is turned on.
+  contextWarningsFired?: number[];
 }

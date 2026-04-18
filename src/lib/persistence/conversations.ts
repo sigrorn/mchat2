@@ -5,7 +5,7 @@
 // ------------------------------------------------------------------
 
 import { sql } from "../tauri/sql";
-import type { Conversation, ProviderId } from "../types";
+import type { AutocompactThreshold, Conversation, ProviderId } from "../types";
 import { newConversationId } from "./ids";
 
 interface Row {
@@ -21,6 +21,8 @@ interface Row {
   limit_size_tokens?: number | null;
   selected_personas?: string;
   compaction_floor_index?: number | null;
+  autocompact_threshold?: string | null;
+  context_warnings_fired?: string;
 }
 
 function rowToConversation(r: Row): Conversation {
@@ -37,6 +39,8 @@ function rowToConversation(r: Row): Conversation {
     limitSizeTokens: r.limit_size_tokens ?? null,
     selectedPersonas: parseStringArray(r.selected_personas ?? "[]"),
     compactionFloorIndex: r.compaction_floor_index ?? null,
+    autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold ?? null),
+    contextWarningsFired: parseNumberArray(r.context_warnings_fired ?? "[]"),
   };
 }
 
@@ -62,8 +66,9 @@ export async function createConversation(
     `INSERT INTO conversations
        (id, title, system_prompt, created_at, last_provider,
         limit_mark_index, display_mode, visibility_mode, visibility_matrix,
-        limit_size_tokens, selected_personas, compaction_floor_index)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        limit_size_tokens, selected_personas, compaction_floor_index,
+        autocompact_threshold, context_warnings_fired)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       conv.id,
       conv.title,
@@ -77,6 +82,8 @@ export async function createConversation(
       conv.limitSizeTokens,
       JSON.stringify(conv.selectedPersonas),
       conv.compactionFloorIndex,
+      conv.autocompactThreshold ? JSON.stringify(conv.autocompactThreshold) : null,
+      JSON.stringify(conv.contextWarningsFired ?? []),
     ],
   );
   return conv;
@@ -88,7 +95,8 @@ export async function updateConversation(conv: Conversation): Promise<void> {
        title = ?, system_prompt = ?, last_provider = ?,
        limit_mark_index = ?, display_mode = ?, visibility_mode = ?,
        visibility_matrix = ?, limit_size_tokens = ?,
-       selected_personas = ?, compaction_floor_index = ?
+       selected_personas = ?, compaction_floor_index = ?,
+       autocompact_threshold = ?, context_warnings_fired = ?
      WHERE id = ?`,
     [
       conv.title,
@@ -101,6 +109,8 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       conv.limitSizeTokens,
       JSON.stringify(conv.selectedPersonas),
       conv.compactionFloorIndex,
+      conv.autocompactThreshold ? JSON.stringify(conv.autocompactThreshold) : null,
+      JSON.stringify(conv.contextWarningsFired ?? []),
       conv.id,
     ],
   );
@@ -129,6 +139,35 @@ function parseMatrix(raw: string): Record<string, string[]> {
     return out;
   } catch {
     return {};
+  }
+}
+
+function parseAutocompactThreshold(raw: string | null): AutocompactThreshold | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+    const obj = parsed as Record<string, unknown>;
+    if (
+      (obj.mode === "kTokens" || obj.mode === "percent") &&
+      typeof obj.value === "number" &&
+      obj.value > 0
+    ) {
+      return { mode: obj.mode, value: obj.value };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseNumberArray(raw: string): number[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is number => typeof x === "number");
+  } catch {
+    return [];
   }
 }
 

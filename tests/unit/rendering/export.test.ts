@@ -16,6 +16,8 @@ const CONV: Conversation = {
   limitSizeTokens: null,
   selectedPersonas: [],
     compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
 };
 
 describe("exportToHtml", () => {
