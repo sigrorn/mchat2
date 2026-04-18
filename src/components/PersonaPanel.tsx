@@ -363,48 +363,63 @@ function PersonaRow({
           </Field>
           {allPersonas.filter((p) => p.id !== persona.id).length > 0 && (
             <Field label="Visibility">
-              <table className="w-full text-left">
-                <thead>
-                  <tr>
-                    <th className="pb-1 font-normal text-neutral-500">persona</th>
-                    <th className="pb-1 text-center font-normal text-neutral-500">sees</th>
-                    <th className="pb-1 text-center font-normal text-neutral-500">seen by</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allPersonas
-                    .filter((p) => p.id !== persona.id)
-                    .map((other) => {
-                      const seesVal = visDefs[other.nameSlug] ?? "y";
-                      const seenByBase = other.visibilityDefaults[persona.nameSlug] ?? "y";
-                      const seenByVal =
-                        other.nameSlug in seenByEdits
-                          ? (seenByEdits[other.nameSlug] ?? "y")
-                          : seenByBase;
-                      return (
-                        <tr key={other.id}>
-                          <td className="py-0.5 text-neutral-800">{other.name}</td>
-                          <td className="py-0.5 text-center">
-                            <VisToggle
-                              value={seesVal}
-                              onChange={(v) =>
-                                setVisDefs({ ...visDefs, [other.nameSlug]: v })
+              <div className="space-y-2">
+                <div>
+                  <span className="text-neutral-500">Can see responses from:</span>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {allPersonas
+                      .filter((p) => p.id !== persona.id)
+                      .map((other) => {
+                        const checked = (visDefs[other.nameSlug] ?? "y") === "y";
+                        return (
+                          <label key={other.id} className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setVisDefs({
+                                  ...visDefs,
+                                  [other.nameSlug]: checked ? "n" : "y",
+                                })
                               }
                             />
-                          </td>
-                          <td className="py-0.5 text-center">
-                            <VisToggle
-                              value={seenByVal}
-                              onChange={(v) =>
-                                setSeenByEdits({ ...seenByEdits, [other.nameSlug]: v })
+                            <span className="text-neutral-800">{other.name}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Responses seen by:</span>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {allPersonas
+                      .filter((p) => p.id !== persona.id)
+                      .map((other) => {
+                        const seenByBase = other.visibilityDefaults[persona.nameSlug] ?? "y";
+                        const seenByVal =
+                          other.nameSlug in seenByEdits
+                            ? (seenByEdits[other.nameSlug] ?? "y")
+                            : seenByBase;
+                        const checked = seenByVal === "y";
+                        return (
+                          <label key={other.id} className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setSeenByEdits({
+                                  ...seenByEdits,
+                                  [other.nameSlug]: checked ? "n" : "y",
+                                })
                               }
                             />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
+                            <span className="text-neutral-800">{other.name}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
             </Field>
           )}
           <Field label="System prompt">
@@ -646,45 +661,58 @@ function CreateForm({
       </Field>
       {personas.length > 0 && (
         <Field label="Visibility">
-          <table className="w-full text-left">
-            <thead>
-              <tr>
-                <th className="pb-1 font-normal text-neutral-500">persona</th>
-                <th className="pb-1 text-center font-normal text-neutral-500">sees</th>
-                <th className="pb-1 text-center font-normal text-neutral-500">seen by</th>
-              </tr>
-            </thead>
-            <tbody>
-              {personas.map((other) => {
-                const seesVal = visDefs[other.nameSlug] ?? "y";
-                const seenByVal =
-                  other.nameSlug in seenByEdits
-                    ? (seenByEdits[other.nameSlug] ?? "y")
-                    : "y";
-                return (
-                  <tr key={other.id}>
-                    <td className="py-0.5 text-neutral-800">{other.name}</td>
-                    <td className="py-0.5 text-center">
-                      <VisToggle
-                        value={seesVal}
-                        onChange={(v) =>
-                          setVisDefs({ ...visDefs, [other.nameSlug]: v })
+          <div className="space-y-2">
+            <div>
+              <span className="text-neutral-500">Can see responses from:</span>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {personas.map((other) => {
+                  const checked = (visDefs[other.nameSlug] ?? "y") === "y";
+                  return (
+                    <label key={other.id} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setVisDefs({
+                            ...visDefs,
+                            [other.nameSlug]: checked ? "n" : "y",
+                          })
                         }
                       />
-                    </td>
-                    <td className="py-0.5 text-center">
-                      <VisToggle
-                        value={seenByVal}
-                        onChange={(v) =>
-                          setSeenByEdits({ ...seenByEdits, [other.nameSlug]: v })
+                      <span className="text-neutral-800">{other.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <span className="text-neutral-500">Responses seen by:</span>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {personas.map((other) => {
+                  const seenByVal =
+                    other.nameSlug in seenByEdits
+                      ? (seenByEdits[other.nameSlug] ?? "y")
+                      : "y";
+                  const checked = seenByVal === "y";
+                  return (
+                    <label key={other.id} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setSeenByEdits({
+                            ...seenByEdits,
+                            [other.nameSlug]: checked ? "n" : "y",
+                          })
                         }
                       />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <span className="text-neutral-800">{other.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </Field>
       )}
       <Field label="System prompt">
@@ -732,26 +760,3 @@ function labelFor(id: string, all: readonly Persona[]): string {
   return all.find((p) => p.id === id)?.name ?? id;
 }
 
-function VisToggle({
-  value,
-  onChange,
-}: {
-  value: "y" | "n";
-  onChange: (v: "y" | "n") => void;
-}): JSX.Element {
-  const toggle = (): void => onChange(value === "y" ? "n" : "y");
-  const color =
-    value === "y"
-      ? "bg-green-100 text-green-800 border-green-300"
-      : "bg-red-100 text-red-800 border-red-300";
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      className={`inline-flex h-5 w-5 items-center justify-center rounded border text-[10px] font-semibold ${color}`}
-      title={value === "y" ? "yes" : "no"}
-    >
-      {value}
-    </button>
-  );
-}
