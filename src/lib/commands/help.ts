@@ -56,6 +56,7 @@ Info
   //help               Show this help text
 
 Maintenance
+  //compact            Summarize conversation for each persona
   //vacuum             Compact the SQLite database
 
 Keyboard shortcuts

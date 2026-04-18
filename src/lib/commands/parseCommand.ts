@@ -29,6 +29,7 @@ export type ParsedCommand =
   | { kind: "select"; payload: { names: string[] } }
   | { kind: "selectAll" }
   | { kind: "vacuum" }
+  | { kind: "compact" }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -119,6 +120,10 @@ export function parseCommand(raw: string): ParsedCommand {
   if (verb === "vacuum") {
     if (arg !== "") return { kind: "error", message: "vacuum: this command takes no arguments." };
     return { kind: "vacuum" };
+  }
+  if (verb === "compact") {
+    if (arg !== "") return { kind: "error", message: "compact: this command takes no arguments." };
+    return { kind: "compact" };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {

@@ -469,6 +469,124 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore.getState().appendNotice(conversation.id, "database vacuumed.");
       return;
     }
+    if (cmd.kind === "compact") {
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      if (personas.length === 0) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, "compact: no personas to compact.");
+        return;
+      }
+      const { buildContext } = await import("@/lib/context");
+      const { generateCompactionSummary } = await import("@/lib/conversations/compact");
+      const { adapterFor } = await import("@/lib/providers/registryOfAdapters");
+      const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
+      const { modelForTarget } = await import("@/lib/orchestration/streamRunner");
+      const { keychain } = await import("@/lib/tauri/keychain");
+      const { getSetting } = await import("@/lib/persistence/settings");
+      const { GLOBAL_SYSTEM_PROMPT_KEY } = await import("@/lib/settings/keys");
+
+      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          conversation.id,
+          `compacting: generating summaries for ${personas.length} persona${personas.length === 1 ? "" : "s"}…`,
+        );
+
+      const summaries: Array<{ persona: typeof personas[number]; summary: string }> = [];
+      for (const p of personas) {
+        const target = {
+          provider: p.provider,
+          personaId: p.id,
+          key: p.id,
+          displayName: p.name,
+        };
+        const ctx = buildContext({
+          conversation,
+          target,
+          messages: history,
+          personas,
+          globalSystemPrompt: globalPrompt,
+        });
+        if (ctx.messages.length === 0) continue;
+        try {
+          const ak = PROVIDER_REGISTRY[p.provider].requiresKey
+            ? await keychain.get(PROVIDER_REGISTRY[p.provider].keychainKey)
+            : null;
+          const model = modelForTarget(target, personas);
+          const summary = await generateCompactionSummary(
+            adapterFor(p.provider),
+            ak,
+            model,
+            ctx.messages,
+          );
+          if (summary) summaries.push({ persona: p, summary });
+        } catch (e) {
+          await useMessagesStore
+            .getState()
+            .appendNotice(
+              conversation.id,
+              `compact: failed for ${p.name}: ${(e as Error).message}`,
+            );
+        }
+      }
+
+      if (summaries.length === 0) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, "compact: no summaries generated.");
+        return;
+      }
+
+      // Insert COMPACTION notice + per-persona summaries.
+      await useMessagesStore.getState().appendNotice(conversation.id, "COMPACTION");
+      const messagesRepo = await import("@/lib/persistence/messages");
+      for (const { persona: p, summary } of summaries) {
+        await messagesRepo.appendMessage({
+          conversationId: conversation.id,
+          role: "assistant",
+          content: `[compacted summary]\n\n${summary}`,
+          provider: p.provider,
+          model: p.modelOverride ?? PROVIDER_REGISTRY[p.provider].defaultModel,
+          personaId: p.id,
+          displayMode: "lines",
+          pinned: true,
+          pinTarget: p.id,
+          addressedTo: [],
+          errorMessage: null,
+          errorTransient: false,
+          inputTokens: 0,
+          outputTokens: 0,
+          usageEstimated: false,
+          audience: [],
+        });
+      }
+      await useMessagesStore.getState().load(conversation.id);
+
+      // Set the compaction floor to the COMPACTION notice index.
+      const freshHistory = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+      const compactionNotice = [...freshHistory].reverse().find(
+        (m) => m.role === "notice" && m.content === "COMPACTION",
+      );
+      if (compactionNotice) {
+        await useConversationsStore
+          .getState()
+          .setCompactionFloor(conversation.id, compactionNotice.index);
+        await useConversationsStore
+          .getState()
+          .setLimit(conversation.id, compactionNotice.index);
+      }
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          conversation.id,
+          `compacted ${summaries.length} persona${summaries.length === 1 ? "" : "s"}.`,
+        );
+      return;
+    }
   };
 
   // #96: +/- target modifiers — add/remove personas from selection.
