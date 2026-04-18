@@ -18,6 +18,7 @@ import {
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
 import { useMessagesStore } from "@/stores/messagesStore";
+import { usePersonasStore } from "@/stores/personasStore";
 
 interface MenuPos {
   id: string;
@@ -91,14 +92,52 @@ export function Sidebar(): JSX.Element {
     if (r.ok) await useMessagesStore.getState().appendNotice(id, `snapshot saved to ${r.path}.`);
   };
 
+  const onImportSnapshot = async (): Promise<void> => {
+    const { importSnapshotFile } = await import("@/lib/conversations/snapshotFileOps");
+    const { importSnapshot } = await import("@/lib/conversations/snapshotImport");
+    const file = await importSnapshotFile();
+    if (!file.ok) {
+      if (file.reason === "error") {
+        // Could show error, but for now just silently return
+      }
+      return;
+    }
+    const result = await importSnapshot(file.snapshot);
+    await useConversationsStore.getState().load();
+    select(result.conversation.id);
+    await usePersonasStore.getState().load(result.conversation.id);
+    await useMessagesStore.getState().load(result.conversation.id);
+    if (result.missingKeys.length > 0) {
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          result.conversation.id,
+          `imported. Missing API keys for: ${result.missingKeys.join(", ")}. Edit these personas to assign a valid provider before sending.`,
+        );
+    } else {
+      await useMessagesStore
+        .getState()
+        .appendNotice(result.conversation.id, "snapshot imported successfully.");
+    }
+  };
+
   return (
     <aside className="flex w-64 flex-col border-r border-neutral-200 bg-neutral-50">
-      <button
-        onClick={onNew}
-        className="m-2 rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700"
-      >
-        New conversation
-      </button>
+      <div className="m-2 flex gap-2">
+        <button
+          onClick={onNew}
+          className="flex-1 rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700"
+        >
+          New conversation
+        </button>
+        <button
+          onClick={() => void onImportSnapshot()}
+          className="rounded border border-neutral-300 px-2 py-2 text-xs text-neutral-700 hover:bg-neutral-100"
+          title="Import snapshot"
+        >
+          Import
+        </button>
+      </div>
       <ul className="flex-1 overflow-auto">
         {conversations.map((c) => (
           <li key={c.id}>
