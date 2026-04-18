@@ -7,9 +7,8 @@
 //                context/builder, conversations/compact.
 // ------------------------------------------------------------------
 
-import type { Conversation, Persona, PersonaTarget } from "../types";
+import type { Conversation, Persona } from "../types";
 import { PROVIDER_REGISTRY } from "../providers/registry";
-import { estimateTokens } from "../context/truncate";
 
 const WARNING_THRESHOLDS = [80, 90, 98];
 

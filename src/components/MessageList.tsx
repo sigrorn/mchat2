@@ -91,6 +91,8 @@ export function MessageList({
       limitSizeTokens: null,
       selectedPersonas: [],
       compactionFloorIndex: null,
+      autocompactThreshold: null,
+      contextWarningsFired: [],
     },
   );
   // #47: editing state lives in messagesStore so the Composer's

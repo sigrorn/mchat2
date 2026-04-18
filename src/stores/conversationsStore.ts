@@ -123,7 +123,7 @@ export const useConversationsStore = create<State>((set, get) => ({
       ...current,
       autocompactThreshold: threshold,
       // Reset warning flags when turning autocompact on.
-      contextWarningsFired: threshold ? [] : current.contextWarningsFired,
+      contextWarningsFired: threshold ? [] : (current.contextWarningsFired ?? []),
     };
     await repo.updateConversation(next);
     set({

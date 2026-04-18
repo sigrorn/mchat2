@@ -47,7 +47,7 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
     : null;
   const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
   const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
-  const extraConfig = (await resolveExtraConfig(target.provider, persona)) ?? {};
+  const extraConfig = (await resolveExtraConfig(target.provider, persona ?? null)) ?? {};
   const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
   const { debugSession, workingDir } = useUiStore.getState();
   const slug = persona?.nameSlug ?? target.key;
