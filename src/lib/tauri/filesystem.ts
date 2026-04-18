@@ -14,6 +14,8 @@ export interface FsImpl {
   writeBinary(path: string, contents: Uint8Array): Promise<void>;
   exists(path: string): Promise<boolean>;
   mkdir(path: string): Promise<void>;
+  copyFile(src: string, dst: string): Promise<void>;
+  removeFile(path: string): Promise<void>;
   saveDialog(opts: SaveDialogOptions): Promise<string | null>;
   openDialog(opts: OpenDialogOptions): Promise<string | null>;
 }
@@ -57,6 +59,14 @@ const defaultImpl: FsImpl = {
     const fs = await import("@tauri-apps/plugin-fs");
     await fs.mkdir(path, { recursive: true });
   },
+  async copyFile(src, dst) {
+    const fs = await import("@tauri-apps/plugin-fs");
+    await fs.copyFile(src, dst);
+  },
+  async removeFile(path) {
+    const fs = await import("@tauri-apps/plugin-fs");
+    await fs.remove(path);
+  },
   async saveDialog(opts) {
     const d = await import("@tauri-apps/plugin-dialog");
     const o: Parameters<typeof d.save>[0] = {};
@@ -85,6 +95,8 @@ export const fs = {
   writeBinary: (p: string, c: Uint8Array) => impl.writeBinary(p, c),
   exists: (p: string) => impl.exists(p),
   mkdir: (p: string) => impl.mkdir(p),
+  copyFile: (s: string, d: string) => impl.copyFile(s, d),
+  removeFile: (p: string) => impl.removeFile(p),
   saveDialog: (o: SaveDialogOptions) => impl.saveDialog(o),
   openDialog: (o: OpenDialogOptions) => impl.openDialog(o),
 };

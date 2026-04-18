@@ -125,6 +125,32 @@ export const MIGRATIONS: string[][] = [
   [`ALTER TABLE personas ADD COLUMN visibility_defaults TEXT NOT NULL DEFAULT '{}'`],
 ];
 
+// #98: backup the DB file before running migrations.
+async function backupBeforeMigration(schemaVersion: number): Promise<string | null> {
+  try {
+    const { appDataDir } = await import("@tauri-apps/api/path");
+    const dir = await appDataDir();
+    const sep = dir.includes("\\") ? "\\" : "/";
+    const dbPath = `${dir}${sep}mchat2.db`;
+    const backupPath = `${dir}${sep}mchat2.${schemaVersion}.db`;
+    const { fs } = await import("../tauri/filesystem");
+    if (await fs.exists(backupPath)) return null;
+    await fs.copyFile(dbPath, backupPath);
+    return backupPath;
+  } catch {
+    return null;
+  }
+}
+
+async function removeBackup(path: string): Promise<void> {
+  try {
+    const { fs } = await import("../tauri/filesystem");
+    await fs.removeFile(path);
+  } catch {
+    // Silent — backup removal is best-effort.
+  }
+}
+
 // Runs pending migrations against the open DB. Uses SQLite user_version
 // instead of a table to keep the schema self-describing.
 export async function runMigrations(): Promise<number> {
@@ -134,6 +160,14 @@ export async function runMigrations(): Promise<number> {
   await sql.execute("PRAGMA foreign_keys = OFF");
   const rows = await sql.select<{ user_version: number }>("PRAGMA user_version");
   const current = rows[0]?.user_version ?? 0;
+  if (current >= MIGRATIONS.length) {
+    await sql.execute("PRAGMA foreign_keys = ON");
+    return 0;
+  }
+
+  // #98: backup before applying any migration.
+  const backupPath = await backupBeforeMigration(current);
+
   let applied = 0;
   for (let i = current; i < MIGRATIONS.length; i++) {
     const stmts = MIGRATIONS[i];
@@ -145,5 +179,9 @@ export async function runMigrations(): Promise<number> {
     applied++;
   }
   await sql.execute("PRAGMA foreign_keys = ON");
+
+  // #98: remove backup after successful migration.
+  if (backupPath) await removeBackup(backupPath);
+
   return applied;
 }

@@ -41,6 +41,8 @@ beforeEach(() => {
     writeBinary: async () => {},
     exists: async () => true,
     mkdir: async () => {},
+    copyFile: async () => {},
+    removeFile: async () => {},
     saveDialog: async () => saveReturn,
     openDialog: async () => null,
   });

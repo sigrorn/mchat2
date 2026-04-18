@@ -256,6 +256,8 @@ function memFs() {
     writeBinary: async () => {},
     exists: async (p) => store.has(p),
     mkdir: async () => {},
+    copyFile: async () => {},
+    removeFile: async () => {},
     saveDialog: async () => "/tmp/export.html",
     openDialog: async () => null,
   });

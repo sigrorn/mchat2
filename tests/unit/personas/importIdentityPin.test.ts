@@ -87,6 +87,8 @@ function makeStubs() {
       return true;
     },
     async mkdir() {},
+    async copyFile() {},
+    async removeFile() {},
     async openDialog() {
       return "/tmp/personas.json";
     },

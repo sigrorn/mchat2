@@ -65,6 +65,8 @@ describe("fs mock", () => {
       writeBinary: async () => {},
       exists: async (p) => store.has(p),
     mkdir: async () => {},
+    copyFile: async () => {},
+    removeFile: async () => {},
       saveDialog: async () => "/tmp/x",
       openDialog: async () => null,
     });
