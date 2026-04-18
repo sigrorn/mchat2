@@ -128,7 +128,7 @@ async function runAutocompact(
   const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
 
   type CompactResult =
-    | { ok: true; persona: (typeof personas)[number]; summary: string }
+    | { ok: true; persona: (typeof personas)[number]; summary: string; origTokens: number; summaryTokens: number; elapsedMs: number }
     | { ok: false; persona: (typeof personas)[number]; error: string };
 
   const results = await Promise.all(
@@ -147,7 +147,11 @@ async function runAutocompact(
         globalSystemPrompt: globalPrompt,
       });
       if (ctx.messages.length === 0) return null;
+      const origTokens =
+        (ctx.systemPrompt ? estimateTokens(ctx.systemPrompt) : 0) +
+        ctx.messages.reduce((s, m) => s + estimateTokens(m.content), 0);
       useSendStore.getState().setTargetStatus(conversationId, p.id, "streaming");
+      const t0 = Date.now();
       try {
         const ak = PROVIDER_REGISTRY[p.provider].requiresKey
           ? await keychain.get(PROVIDER_REGISTRY[p.provider].keychainKey)
@@ -161,7 +165,10 @@ async function runAutocompact(
           ctx.messages,
           extra,
         );
-        return summary ? { ok: true, persona: p, summary } : null;
+        const elapsedMs = Date.now() - t0;
+        if (!summary) return null;
+        const summaryTokens = estimateTokens(summary);
+        return { ok: true, persona: p, summary, origTokens, summaryTokens, elapsedMs };
       } catch (e) {
         useSendStore.getState().setTargetStatus(conversationId, p.id, "retrying");
         return { ok: false, persona: p, error: (e as Error).message };
@@ -226,10 +233,15 @@ async function runAutocompact(
       .getState()
       .setLimit(conversationId, compactionNotice.index);
   }
-  await useMessagesStore
-    .getState()
-    .appendNotice(
-      conversationId,
-      `auto-compacted ${summaries.length} persona${summaries.length === 1 ? "" : "s"}.`,
-    );
+  const lines = [`auto-compacted ${summaries.length} persona${summaries.length === 1 ? "" : "s"}.`];
+  for (const s of summaries) {
+    const origK = (s.origTokens / 1000).toFixed(1);
+    const compK = (s.summaryTokens / 1000).toFixed(1);
+    const pct = s.origTokens > 0 ? Math.round((1 - s.summaryTokens / s.origTokens) * 100) : 0;
+    const sec = s.elapsedMs / 1000;
+    const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+    const ss = String(Math.floor(sec % 60)).padStart(2, "0");
+    lines.push(`  ${s.persona.name}  ${origK}k → ${compK}k  −${pct}%  ${mm}:${ss}`);
+  }
+  await useMessagesStore.getState().appendNotice(conversationId, lines.join("\n"));
 }
