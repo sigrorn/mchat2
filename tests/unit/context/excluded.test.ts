@@ -49,4 +49,19 @@ describe("isExcludedByLimit", () => {
     const m = makeMessage({ conversationId: "c_1", role: "notice", content: "x", index: 0 });
     expect(isExcludedByLimit(m, { ...baseConv, limitMarkIndex: 5 })).toBe(false);
   });
+
+  it("true for messages below compaction floor (#102)", () => {
+    const m = makeMessage({ conversationId: "c_1", role: "user", index: 2 });
+    expect(isExcludedByLimit(m, { ...baseConv, compactionFloorIndex: 5 })).toBe(true);
+  });
+
+  it("true for pinned messages below compaction floor (#103)", () => {
+    const m = makeMessage({ conversationId: "c_1", role: "user", index: 2, pinned: true });
+    expect(isExcludedByLimit(m, { ...baseConv, compactionFloorIndex: 5 })).toBe(true);
+  });
+
+  it("false for messages at or above compaction floor", () => {
+    const m = makeMessage({ conversationId: "c_1", role: "user", index: 5 });
+    expect(isExcludedByLimit(m, { ...baseConv, compactionFloorIndex: 5 })).toBe(false);
+  });
 });

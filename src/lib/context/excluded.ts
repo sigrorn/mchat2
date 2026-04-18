@@ -17,6 +17,10 @@ export function isExcludedByLimit(
   conversation: Conversation,
   effectiveLimitIndex?: number | null,
 ): boolean {
+  // #102: compaction floor — everything below is excluded, including pins.
+  const floor = conversation.compactionFloorIndex;
+  if (floor !== null && message.index < floor) return true;
+
   const fixedMark = conversation.limitMarkIndex;
   const slidingMark = effectiveLimitIndex ?? null;
   const mark =
