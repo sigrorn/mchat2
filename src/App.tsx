@@ -14,9 +14,6 @@ import { lifecycle } from "@/lib/tauri/lifecycle";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 
-// #107: build timestamp injected by vite define.
-declare const __BUILD_TIMESTAMP__: string;
-
 // Module-level dedup: React 18 strict mode double-invokes effects,
 // but migrations must not run concurrently. A shared promise ensures
 // the boot sequence runs exactly once regardless of how many mounts fire.

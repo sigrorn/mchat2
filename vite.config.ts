@@ -3,23 +3,35 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { execSync } from "node:child_process";
 
-function getBuildTimestamp(): string {
+function getGitInfo(): { timestamp: string; commitHash: string; commitDate: string } {
   try {
-    // Last commit's committer date in YYYYMMDDHHmmss format.
-    return execSync("git log -1 --format=%cd --date=format:%Y%m%d%H%M%S", {
+    const timestamp = execSync("git log -1 --format=%cd --date=format:%Y%m%d%H%M%S", {
       encoding: "utf8",
     }).trim();
+    const commitHash = execSync("git log -1 --format=%h", {
+      encoding: "utf8",
+    }).trim();
+    const commitDate = execSync("git log -1 --format=%cd --date=format:%Y-%m-%d %H:%M:%S", {
+      encoding: "utf8",
+    }).trim();
+    return { timestamp, commitHash, commitDate };
   } catch {
-    return new Date().toISOString().replace(/[-T:.Z]/g, "").slice(0, 14);
+    const ts = new Date().toISOString().replace(/[-T:.Z]/g, "").slice(0, 14);
+    return { timestamp: ts, commitHash: "unknown", commitDate: "unknown" };
   }
 }
 
 // Tauri-friendly Vite config.
 export default defineConfig(async () => ({
   plugins: [react()],
-  define: {
-    __BUILD_TIMESTAMP__: JSON.stringify(getBuildTimestamp()),
-  },
+  define: (() => {
+    const git = getGitInfo();
+    return {
+      __BUILD_TIMESTAMP__: JSON.stringify(git.timestamp),
+      __BUILD_COMMIT_HASH__: JSON.stringify(git.commitHash),
+      __BUILD_COMMIT_DATE__: JSON.stringify(git.commitDate),
+    };
+  })(),
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },

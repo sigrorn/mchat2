@@ -38,6 +38,7 @@
     "sql:allow-select",
     "sql:allow-close",
     "window-state:default",
+    "core:window:allow-set-title",
     "fs:allow-mkdir",
     "fs:allow-exists",
     "fs:allow-copy-file",

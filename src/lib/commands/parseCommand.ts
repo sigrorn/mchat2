@@ -34,6 +34,7 @@ export type ParsedCommand =
   | { kind: "autocompact"; payload: { mode: "percent"; value: number } }
   | { kind: "autocompact"; payload: { mode: "off" } }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
+  | { kind: "version" }
   | { kind: "error"; message: string };
 
 const LIMIT_HELP =
@@ -130,6 +131,10 @@ export function parseCommand(raw: string): ParsedCommand {
   }
   if (verb === "autocompact") {
     return parseAutocompact(arg);
+  }
+  if (verb === "version") {
+    if (arg !== "") return { kind: "error", message: "version: this command takes no arguments." };
+    return { kind: "version" };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {

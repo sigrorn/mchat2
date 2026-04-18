@@ -230,6 +230,15 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       await useMessagesStore.getState().appendNotice(conversation.id, formatPersonasInfo(personas, messages));
       return;
     }
+    if (cmd.kind === "version") {
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          conversation.id,
+          `mchat2 v${__BUILD_TIMESTAMP__}\ncommit ${__BUILD_COMMIT_HASH__}  ${__BUILD_COMMIT_DATE__}`,
+        );
+      return;
+    }
     if (cmd.kind === "stats") {
       const { formatStats } = await import("@/lib/commands/stats");
       const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];

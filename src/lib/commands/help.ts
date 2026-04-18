@@ -54,6 +54,7 @@ Info
   //personas           List active personas with details
   //stats              Show conversation token statistics
   //help               Show this help text
+  //version            Show build version info
 
 Maintenance
   //compact            Summarize conversation for each persona
