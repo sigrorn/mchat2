@@ -30,6 +30,9 @@ export type ParsedCommand =
   | { kind: "selectAll" }
   | { kind: "vacuum" }
   | { kind: "compact" }
+  | { kind: "autocompact"; payload: { mode: "kTokens"; value: number } }
+  | { kind: "autocompact"; payload: { mode: "percent"; value: number } }
+  | { kind: "autocompact"; payload: { mode: "off" } }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "error"; message: string };
 
@@ -125,6 +128,9 @@ export function parseCommand(raw: string): ParsedCommand {
     if (arg !== "") return { kind: "error", message: "compact: this command takes no arguments." };
     return { kind: "compact" };
   }
+  if (verb === "autocompact") {
+    return parseAutocompact(arg);
+  }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {
       return {
@@ -191,6 +197,37 @@ function parseEdit(arg: string): ParsedCommand {
     };
   }
   return { kind: "edit", payload: { userNumber: n } };
+}
+
+function parseAutocompact(arg: string): ParsedCommand {
+  if (arg === "") {
+    return {
+      kind: "error",
+      message:
+        "autocompact: specify a threshold. Use //autocompact N (k-tokens), //autocompact N% (percent of tightest model), or //autocompact off.",
+    };
+  }
+  const lc = arg.toLowerCase();
+  if (lc === "off") return { kind: "autocompact", payload: { mode: "off" } };
+  const pctMatch = arg.match(/^(\d+)%$/);
+  if (pctMatch) {
+    const pct = Number(pctMatch[1]);
+    if (pct < 1 || pct > 100) {
+      return { kind: "error", message: `autocompact: percentage must be between 1 and 100.` };
+    }
+    return { kind: "autocompact", payload: { mode: "percent", value: pct } };
+  }
+  if (/^\d+$/.test(arg)) {
+    const n = Number(arg);
+    if (n < 1) {
+      return { kind: "error", message: `autocompact: threshold must be at least 1 k-token.` };
+    }
+    return { kind: "autocompact", payload: { mode: "kTokens", value: n } };
+  }
+  return {
+    kind: "error",
+    message: `autocompact: '${arg}' is not valid. Use //autocompact N, //autocompact N%, or //autocompact off.`,
+  };
 }
 
 function parseLimit(arg: string): ParsedCommand {
