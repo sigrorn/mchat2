@@ -4,4 +4,5 @@ declare const __BUILD_INFO__: {
   timestamp: string;
   commitHash: string;
   commitDate: string;
+  commitMessage: string;
 };

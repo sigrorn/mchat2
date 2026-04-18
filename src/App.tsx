@@ -29,9 +29,9 @@ function bootOnce(): Promise<void> {
       // #107: set window title with build timestamp after Tauri init.
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        await getCurrentWindow().setTitle(`mchat2 v${__BUILD_INFO__.timestamp}`);
+        await getCurrentWindow().setTitle(`mchat2 v${__BUILD_INFO__.timestamp} (${__BUILD_INFO__.commitHash})`);
       } catch {
-        document.title = `mchat2 v${__BUILD_INFO__.timestamp}`;
+        document.title = `mchat2 v${__BUILD_INFO__.timestamp} (${__BUILD_INFO__.commitHash})`;
       }
     })();
   }

@@ -235,7 +235,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         .getState()
         .appendNotice(
           conversation.id,
-          `mchat2 v${__BUILD_INFO__.timestamp}\ncommit ${__BUILD_INFO__.commitHash}  ${__BUILD_INFO__.commitDate}`,
+          `mchat2 v${__BUILD_INFO__.timestamp} (${__BUILD_INFO__.commitHash})\n${__BUILD_INFO__.commitDate}\n${__BUILD_INFO__.commitMessage}`,
         );
       return;
     }

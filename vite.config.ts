@@ -19,10 +19,13 @@ function getGitInfo(): string {
       /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/,
       "$1-$2-$3 $4:$5:$6",
     );
-    return JSON.stringify({ timestamp, commitHash, commitDate });
+    const commitMessage = execSync("git log -1 --format=%s", {
+      encoding: "utf8",
+    }).trim();
+    return JSON.stringify({ timestamp, commitHash, commitDate, commitMessage });
   } catch {
     const ts = new Date().toISOString().replace(/[-T:.Z]/g, "").slice(0, 14);
-    return JSON.stringify({ timestamp: ts, commitHash: "unknown", commitDate: "unknown" });
+    return JSON.stringify({ timestamp: ts, commitHash: "unknown", commitDate: "unknown", commitMessage: "unknown" });
   }
 }
 
