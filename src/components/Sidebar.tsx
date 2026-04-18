@@ -83,6 +83,14 @@ export function Sidebar(): JSX.Element {
     if (r.ok) await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
   };
 
+  const takeSnapshot = async (id: string): Promise<void> => {
+    const data = await getExportData(id);
+    if (!data) return;
+    const { exportSnapshot } = await import("@/lib/conversations/snapshotFileOps");
+    const r = await exportSnapshot(data.conversation, data.personas, data.messages);
+    if (r.ok) await useMessagesStore.getState().appendNotice(id, `snapshot saved to ${r.path}.`);
+  };
+
   return (
     <aside className="flex w-64 flex-col border-r border-neutral-200 bg-neutral-50">
       <button
@@ -164,6 +172,12 @@ export function Sidebar(): JSX.Element {
               label: "Export to Markdown",
               onSelect: () => {
                 void exportMarkdown(menu.id);
+              },
+            },
+            {
+              label: "Take snapshot",
+              onSelect: () => {
+                void takeSnapshot(menu.id);
               },
             },
             {
