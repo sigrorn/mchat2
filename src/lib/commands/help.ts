@@ -41,6 +41,7 @@ Display
   //visibility         Show current visibility settings
   //visibility full    All personas see all responses
   //visibility separated  Each persona sees only its own responses
+  //visibility default Reset to persona visibility defaults
 
 Info
   //order              Show DAG execution order

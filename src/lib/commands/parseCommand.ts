@@ -21,6 +21,7 @@ export type ParsedCommand =
   | { kind: "limitsize"; payload: { kTokens: number | null } }
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
   | { kind: "visibilityStatus" }
+  | { kind: "visibilityDefault" }
   | { kind: "order" }
   | { kind: "help" }
   | { kind: "personas" }
@@ -76,9 +77,10 @@ export function parseCommand(raw: string): ParsedCommand {
     const lc = arg.toLowerCase();
     if (lc === "separated") return { kind: "visibility", payload: { mode: "separated" } };
     if (lc === "full" || lc === "joined") return { kind: "visibility", payload: { mode: "joined" } };
+    if (lc === "default") return { kind: "visibilityDefault" };
     return {
       kind: "error",
-      message: `visibility: unknown mode '${arg}'. Use //visibility, //visibility separated, or //visibility full.`,
+      message: `visibility: unknown mode '${arg}'. Use //visibility, //visibility separated, //visibility full, or //visibility default.`,
     };
   }
   if (verb === "help") {

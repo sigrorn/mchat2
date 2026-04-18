@@ -73,7 +73,7 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
   // setting (#25) since it's an Infomaniak account-level value. The
   // send-time gate lives in useSend / the Apertus adapter.
   const visDefaults = input.visibilityDefaults ?? {};
-  const created = await repo.createPersona({
+  return repo.createPersona({
     conversationId: input.conversationId,
     provider: input.provider,
     name,
@@ -88,12 +88,6 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     apertusProductId: input.apertusProductId?.trim() || null,
     visibilityDefaults: visDefaults,
   });
-
-  // #94: cross-edit — mirror the new persona's "sees" into siblings'
-  // visibility defaults as their corresponding "seen by" entries.
-  await applyCrossEdits(slug, visDefaults, existing);
-
-  return created;
 }
 
 export interface UpdatePersonaInput {
@@ -178,14 +172,10 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
   };
   await repo.updatePersona(next);
 
-  // #94: cross-edit siblings when visibility defaults changed.
-  const siblings = await repo.listPersonas(current.conversationId);
-  const others = siblings.filter((p) => p.id !== current.id);
-  if (input.visibilityDefaults !== undefined) {
-    await applyCrossEdits(slug, visDefaults, others);
-  }
   // #94: if renamed, update slug keys in all siblings' defaults.
   if (slug !== current.nameSlug) {
+    const siblings = await repo.listPersonas(current.conversationId);
+    const others = siblings.filter((p) => p.id !== current.id);
     await renameSlugInSiblings(current.nameSlug, slug, others);
   }
 
@@ -236,45 +226,29 @@ export async function deletePersona(id: PersonaId): Promise<void> {
 
 // --- #94: cross-editing helpers -------------------------------------------
 
-// When persona A sets sees[B] = 'n', we update B's defaults so that
-// B.sees[A_slug] mirrors A's intent: if A says "I see B = n", we set
-// B's entry for A to the SAME value — "B sees A = n" would be wrong;
-// "sees" is directional. What we mirror is the reciprocal relationship:
-//   A.sees[B] = v  →  nothing on B (B's "seen by A" is derived)
-// But the user's seenBy edits ARE stored as sees on the other persona.
-// The UI sends the full resolved visibilityDefaults, so applyCrossEdits
-// just ensures the reciprocal "seenBy" view stays consistent:
-//   A.sees[B_slug] = v  →  B must have B.sees[A_slug] only if the UI
-//   explicitly set it; otherwise leave it.
-//
-// In practice the UI resolves both directions into a single `sees` map
-// before calling update. Cross-editing here handles the case where the
-// persona being edited references a sibling — the sibling needs its own
-// `sees` entry for the edited persona's slug set to the reciprocal value.
-async function applyCrossEdits(
+// Update sibling personas' visibilityDefaults to reflect "seen by" edits
+// made while editing this persona. seenByEdits maps sibling slugs to what
+// the sibling should have for editedSlug in its own `sees`.
+export async function applySeenByEdits(
   editedSlug: string,
-  editedSees: Record<string, "y" | "n">,
+  seenByEdits: Record<string, "y" | "n" | undefined>,
   siblings: Persona[],
 ): Promise<void> {
   const bySlug = new Map(siblings.map((p) => [p.nameSlug, p] as const));
-  for (const [targetSlug, value] of Object.entries(editedSees)) {
-    const sibling = bySlug.get(targetSlug);
+  for (const [siblingSlug, value] of Object.entries(seenByEdits)) {
+    const sibling = bySlug.get(siblingSlug);
     if (!sibling) continue;
     const current = sibling.visibilityDefaults[editedSlug];
     if (current === value) continue;
-    const updated: Persona = {
-      ...sibling,
-      visibilityDefaults: { ...sibling.visibilityDefaults, [editedSlug]: value },
-    };
-    await repo.updatePersona(updated);
-  }
-  // If a previously-set key was removed (set back to default), remove
-  // the reciprocal entry from the sibling too.
-  for (const sibling of siblings) {
-    if (editedSees[sibling.nameSlug] === undefined && sibling.visibilityDefaults[editedSlug] !== undefined) {
+    if (value === undefined) {
+      if (current === undefined) continue;
       const { [editedSlug]: _, ...rest } = sibling.visibilityDefaults;
-      const updated: Persona = { ...sibling, visibilityDefaults: rest };
-      await repo.updatePersona(updated);
+      await repo.updatePersona({ ...sibling, visibilityDefaults: rest });
+    } else {
+      await repo.updatePersona({
+        ...sibling,
+        visibilityDefaults: { ...sibling.visibilityDefaults, [editedSlug]: value },
+      });
     }
   }
 }

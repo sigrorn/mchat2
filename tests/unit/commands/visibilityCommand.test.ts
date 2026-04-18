@@ -39,4 +39,12 @@ describe("parseCommand //visibility", () => {
   it("no argument → status query (#78)", () => {
     expect(parseCommand("//visibility").kind).toBe("visibilityStatus");
   });
+
+  it("//visibility default → reset to persona defaults (#94)", () => {
+    expect(parseCommand("//visibility default")).toEqual({ kind: "visibilityDefault" });
+  });
+
+  it("//visibility DEFAULT → case-insensitive (#94)", () => {
+    expect(parseCommand("//visibility DEFAULT")).toEqual({ kind: "visibilityDefault" });
+  });
 });

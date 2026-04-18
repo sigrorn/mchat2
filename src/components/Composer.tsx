@@ -255,6 +255,16 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         );
       return;
     }
+    if (cmd.kind === "visibilityDefault") {
+      const { buildMatrixFromDefaults } = await import("@/lib/personas/service");
+      const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+      const matrix = buildMatrixFromDefaults(personas);
+      await useConversationsStore.getState().setVisibilityMatrix(conversation.id, matrix);
+      await useMessagesStore
+        .getState()
+        .appendNotice(conversation.id, "visibility: reset to persona defaults.");
+      return;
+    }
     if (cmd.kind === "displayMode") {
       await useConversationsStore.getState().setDisplayMode(conversation.id, cmd.payload.mode);
       await useMessagesStore

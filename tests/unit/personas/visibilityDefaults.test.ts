@@ -37,15 +37,6 @@ describe("buildMatrixFromDefaults", () => {
   });
 
   it("language coach: sees all, seen by none", () => {
-    const ps = [
-      persona({ id: "p_a", name: "Alice" }),
-      persona({ id: "p_b", name: "Bob" }),
-      persona({
-        id: "p_c",
-        name: "Coach",
-        visibilityDefaults: { alice: "y", bob: "y" },
-      }),
-    ];
     // Alice and Bob should have Coach hidden (not in their row).
     // Cross-editing would have set alice.sees[coach]='n' and bob.sees[coach]='n',
     // but buildMatrixFromDefaults just reads what's stored.

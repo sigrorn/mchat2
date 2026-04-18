@@ -19,6 +19,7 @@ import {
   createPersona,
   deletePersona,
   updatePersona,
+  applySeenByEdits,
   PersonaValidationError,
 } from "@/lib/personas/service";
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
@@ -26,8 +27,10 @@ import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import { getSetting } from "@/lib/persistence/settings";
 import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import * as messagesRepo from "@/lib/persistence/messages";
+import { buildMatrixFromDefaults } from "@/lib/personas/service";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useMessagesStore } from "@/stores/messagesStore";
+import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore, type StreamStatus } from "@/stores/sendStore";
 
 const EMPTY_STATUS: Readonly<Record<string, StreamStatus>> = Object.freeze({});
@@ -78,6 +81,12 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
           // freshly added persona without the user having to remember
           // to tick its checkbox.
           addToSelection(conversation.id, [p.id]);
+          // #94: seed the visibility matrix from all persona defaults.
+          const all = [...personas, p];
+          const matrix = buildMatrixFromDefaults(all);
+          void useConversationsStore
+            .getState()
+            .setVisibilityMatrix(conversation.id, matrix);
         }}
       />
       <ul className="flex-1 overflow-auto">
@@ -90,8 +99,16 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
             conversationId={conversation.id}
             onToggle={() => toggle(p.id)}
             onSave={async (patch) => {
-              const next = await updatePersona({ id: p.id, ...patch });
+              const { seenByEdits: sbe, ...personaPatch } = patch;
+              const next = await updatePersona({ id: p.id, ...personaPatch });
               upsert(next);
+              // #94: apply "seen by" edits to sibling personas.
+              if (sbe) {
+                const siblings = personas.filter((x) => x.id !== p.id);
+                await applySeenByEdits(next.nameSlug, sbe, siblings);
+                // Reload siblings so the store reflects cross-edits.
+                await usePersonasStore.getState().load(conversation.id);
+              }
               // If the rename changed the name, refresh the identity
               // pin in-place so the LLM hears the new name on next send.
               if (patch.name && patch.name !== p.name) {
@@ -99,10 +116,24 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
                 await ensureIdentityPin(conversation.id, next, history, messagesRepo);
                 await useMessagesStore.getState().load(conversation.id);
               }
+              // #94: rebuild visibility matrix after defaults change.
+              if (patch.visibilityDefaults !== undefined || sbe) {
+                const fresh = usePersonasStore.getState().byConversation[conversation.id] ?? [];
+                const matrix = buildMatrixFromDefaults(fresh);
+                void useConversationsStore
+                  .getState()
+                  .setVisibilityMatrix(conversation.id, matrix);
+              }
             }}
             onDelete={async () => {
               await deletePersona(p.id);
               remove(p);
+              // #94: rebuild matrix after removal.
+              const remaining = personas.filter((x) => x.id !== p.id);
+              const matrix = buildMatrixFromDefaults(remaining);
+              void useConversationsStore
+                .getState()
+                .setVisibilityMatrix(conversation.id, matrix);
             }}
             allPersonas={personas}
           />
@@ -136,6 +167,8 @@ function PersonaRow({
     systemPromptOverride?: string | null;
     modelOverride?: string | null;
     colorOverride?: string | null;
+    visibilityDefaults?: Record<string, "y" | "n">;
+    seenByEdits?: Record<string, "y" | "n" | undefined>;
     runsAfter?: string[];
     apertusProductId?: string | null;
   }) => Promise<void>;
@@ -149,19 +182,24 @@ function PersonaRow({
   const [model, setModel] = useState(persona.modelOverride ?? "");
   const [runsAfter, setRunsAfter] = useState<string[]>(persona.runsAfter);
   const [colorOverride, setColorOverride] = useState<string | null>(persona.colorOverride);
+  const [visDefs, setVisDefs] = useState<Record<string, "y" | "n">>(persona.visibilityDefaults);
+  const [seenByEdits, setSeenByEdits] = useState<Record<string, "y" | "n" | undefined>>({});
   const [error, setError] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
     setError(null);
     try {
-      await onSave({
+      const patch: Parameters<typeof onSave>[0] = {
         name,
         provider,
         systemPromptOverride: prompt ? prompt : null,
         modelOverride: model ? model : null,
         colorOverride,
+        visibilityDefaults: visDefs,
         runsAfter,
-      });
+      };
+      if (Object.keys(seenByEdits).length > 0) patch.seenByEdits = seenByEdits;
+      await onSave(patch);
       setEditing(false);
     } catch (e) {
       setError(e instanceof PersonaValidationError ? e.message : (e as Error).message);
@@ -323,6 +361,60 @@ function PersonaRow({
               )}
             </div>
           </Field>
+          {allPersonas.filter((p) => p.id !== persona.id).length > 0 && (
+            <Field label="Visibility">
+              <table className="w-full text-left">
+                <thead>
+                  <tr>
+                    <th className="pb-1 font-normal text-neutral-500">persona</th>
+                    <th className="pb-1 text-center font-normal text-neutral-500">sees</th>
+                    <th className="pb-1 text-center font-normal text-neutral-500">seen by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allPersonas
+                    .filter((p) => p.id !== persona.id)
+                    .map((other) => {
+                      const seesVal = visDefs[other.nameSlug];
+                      const seenByBase = other.visibilityDefaults[persona.nameSlug];
+                      const seenByVal =
+                        other.nameSlug in seenByEdits
+                          ? seenByEdits[other.nameSlug]
+                          : seenByBase;
+                      return (
+                        <tr key={other.id}>
+                          <td className="py-0.5 text-neutral-800">{other.name}</td>
+                          <td className="py-0.5 text-center">
+                            <TriStateButton
+                              value={seesVal}
+                              onChange={(v) => {
+                                if (v === undefined) {
+                                  const { [other.nameSlug]: _, ...rest } = visDefs;
+                                  setVisDefs(rest);
+                                } else {
+                                  setVisDefs({ ...visDefs, [other.nameSlug]: v });
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="py-0.5 text-center">
+                            <TriStateButton
+                              value={seenByVal}
+                              onChange={(v) => {
+                                setSeenByEdits({
+                                  ...seenByEdits,
+                                  [other.nameSlug]: v,
+                                });
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </Field>
+          )}
           <Field label="System prompt">
             <textarea
               value={prompt}
@@ -593,4 +685,37 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function labelFor(id: string, all: readonly Persona[]): string {
   return all.find((p) => p.id === id)?.name ?? id;
+}
+
+const TRI_LABELS: Record<string, string> = { y: "y", n: "n" };
+const TRI_COLORS: Record<string, string> = {
+  y: "bg-green-100 text-green-800 border-green-300",
+  n: "bg-red-100 text-red-800 border-red-300",
+};
+
+function TriStateButton({
+  value,
+  onChange,
+}: {
+  value: "y" | "n" | undefined;
+  onChange: (v: "y" | "n" | undefined) => void;
+}): JSX.Element {
+  const cycle = (): void => {
+    if (value === undefined) onChange("y");
+    else if (value === "y") onChange("n");
+    else onChange(undefined);
+  };
+  const label = value !== undefined ? TRI_LABELS[value] : "\u00B7";
+  const color =
+    value !== undefined ? TRI_COLORS[value] : "bg-neutral-100 text-neutral-400 border-neutral-300";
+  return (
+    <button
+      type="button"
+      onClick={cycle}
+      className={`inline-flex h-5 w-5 items-center justify-center rounded border text-[10px] font-semibold ${color}`}
+      title={value === undefined ? "default" : value === "y" ? "yes" : "no"}
+    >
+      {label}
+    </button>
+  );
 }
