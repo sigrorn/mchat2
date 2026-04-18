@@ -121,4 +121,50 @@ describe("parseCommand", () => {
     expect(parseCommand("//lines foo").kind).toBe("error");
     expect(parseCommand("//cols 5").kind).toBe("error");
   });
+
+  // Autocompact — issue #105.
+  it("//autocompact N → kTokens mode", () => {
+    expect(parseCommand("//autocompact 48")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "kTokens", value: 48 },
+    });
+    expect(parseCommand("  //autocompact 100  ")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "kTokens", value: 100 },
+    });
+  });
+
+  it("//autocompact N% → percent mode", () => {
+    expect(parseCommand("//autocompact 75%")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "percent", value: 75 },
+    });
+    expect(parseCommand("//autocompact 80%")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "percent", value: 80 },
+    });
+  });
+
+  it("//autocompact off → off mode", () => {
+    expect(parseCommand("//autocompact off")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "off" },
+    });
+    expect(parseCommand("//autocompact OFF")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "off" },
+    });
+  });
+
+  it("//autocompact with no args → error", () => {
+    expect(parseCommand("//autocompact").kind).toBe("error");
+  });
+
+  it("//autocompact with invalid arg → error", () => {
+    expect(parseCommand("//autocompact foo").kind).toBe("error");
+    expect(parseCommand("//autocompact %").kind).toBe("error");
+    expect(parseCommand("//autocompact 0").kind).toBe("error");
+    expect(parseCommand("//autocompact 0%").kind).toBe("error");
+    expect(parseCommand("//autocompact 101%").kind).toBe("error");
+  });
 });
