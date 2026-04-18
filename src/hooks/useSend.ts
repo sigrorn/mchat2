@@ -26,6 +26,7 @@ import { useSendStore } from "@/stores/sendStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { selectionAfterResolve } from "./sendSelection";
 import { runOneTarget } from "./runOneTarget";
+import { postResponseCheck } from "./postResponseCheck";
 
 export interface SendOptions {
   pinned?: boolean;
@@ -105,6 +106,9 @@ export function useSend(conversation: Conversation) {
       }
 
       await useMessagesStore.getState().load(conversation.id);
+
+      // #105: post-response autocompact / context warnings.
+      void postResponseCheck(conversation.id);
 
       // #54: auto-title
       if (conversation.title === "New conversation") {

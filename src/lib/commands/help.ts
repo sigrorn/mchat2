@@ -57,6 +57,9 @@ Info
 
 Maintenance
   //compact            Summarize conversation for each persona
+  //autocompact N      Auto-compact when context reaches N k-tokens
+  //autocompact N%     Auto-compact at N% of tightest model
+  //autocompact off    Disable auto-compaction (default)
   //vacuum             Compact the SQLite database
 
 Keyboard shortcuts

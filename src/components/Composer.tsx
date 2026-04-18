@@ -132,6 +132,10 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
     }
     if (cmd.kind === "limitsize") {
       // #64: sliding token budget.
+      // #105: using limitsize turns autocompact off.
+      if (conversation.autocompactThreshold) {
+        await useConversationsStore.getState().setAutocompact(conversation.id, null);
+      }
       const kTokens = cmd.payload.kTokens;
       if (kTokens === 0) {
         await useConversationsStore.getState().setLimitSize(conversation.id, null);
@@ -467,6 +471,31 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const { sql } = await import("@/lib/tauri/sql");
       await sql.execute("VACUUM");
       await useMessagesStore.getState().appendNotice(conversation.id, "database vacuumed.");
+      return;
+    }
+    if (cmd.kind === "autocompact") {
+      const { payload } = cmd;
+      if (payload.mode === "off") {
+        await useConversationsStore.getState().setAutocompact(conversation.id, null);
+        await useMessagesStore.getState().appendNotice(conversation.id, "autocompact: off.");
+        return;
+      }
+      // Disable limitsize when autocompact is turned on (#105).
+      if (conversation.limitSizeTokens !== null) {
+        await useConversationsStore.getState().setLimitSize(conversation.id, null);
+      }
+      const threshold = { mode: payload.mode, value: payload.value };
+      await useConversationsStore.getState().setAutocompact(conversation.id, threshold);
+      const label =
+        payload.mode === "kTokens"
+          ? `${payload.value}k tokens`
+          : `${payload.value}% of tightest model`;
+      await useMessagesStore
+        .getState()
+        .appendNotice(
+          conversation.id,
+          `autocompact: will compact when context exceeds ${label}. limitsize cleared.`,
+        );
       return;
     }
     if (cmd.kind === "compact") {
