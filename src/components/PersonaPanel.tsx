@@ -168,7 +168,7 @@ function PersonaRow({
     modelOverride?: string | null;
     colorOverride?: string | null;
     visibilityDefaults?: Record<string, "y" | "n">;
-    seenByEdits?: Record<string, "y" | "n" | undefined>;
+    seenByEdits?: Record<string, "y" | "n">;
     runsAfter?: string[];
     apertusProductId?: string | null;
   }) => Promise<void>;
@@ -183,7 +183,7 @@ function PersonaRow({
   const [runsAfter, setRunsAfter] = useState<string[]>(persona.runsAfter);
   const [colorOverride, setColorOverride] = useState<string | null>(persona.colorOverride);
   const [visDefs, setVisDefs] = useState<Record<string, "y" | "n">>(persona.visibilityDefaults);
-  const [seenByEdits, setSeenByEdits] = useState<Record<string, "y" | "n" | undefined>>({});
+  const [seenByEdits, setSeenByEdits] = useState<Record<string, "y" | "n">>({});
   const [error, setError] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
@@ -375,37 +375,29 @@ function PersonaRow({
                   {allPersonas
                     .filter((p) => p.id !== persona.id)
                     .map((other) => {
-                      const seesVal = visDefs[other.nameSlug];
-                      const seenByBase = other.visibilityDefaults[persona.nameSlug];
+                      const seesVal = visDefs[other.nameSlug] ?? "y";
+                      const seenByBase = other.visibilityDefaults[persona.nameSlug] ?? "y";
                       const seenByVal =
                         other.nameSlug in seenByEdits
-                          ? seenByEdits[other.nameSlug]
+                          ? (seenByEdits[other.nameSlug] ?? "y")
                           : seenByBase;
                       return (
                         <tr key={other.id}>
                           <td className="py-0.5 text-neutral-800">{other.name}</td>
                           <td className="py-0.5 text-center">
-                            <TriStateButton
+                            <VisToggle
                               value={seesVal}
-                              onChange={(v) => {
-                                if (v === undefined) {
-                                  const { [other.nameSlug]: _, ...rest } = visDefs;
-                                  setVisDefs(rest);
-                                } else {
-                                  setVisDefs({ ...visDefs, [other.nameSlug]: v });
-                                }
-                              }}
+                              onChange={(v) =>
+                                setVisDefs({ ...visDefs, [other.nameSlug]: v })
+                              }
                             />
                           </td>
                           <td className="py-0.5 text-center">
-                            <TriStateButton
+                            <VisToggle
                               value={seenByVal}
-                              onChange={(v) => {
-                                setSeenByEdits({
-                                  ...seenByEdits,
-                                  [other.nameSlug]: v,
-                                });
-                              }}
+                              onChange={(v) =>
+                                setSeenByEdits({ ...seenByEdits, [other.nameSlug]: v })
+                              }
                             />
                           </td>
                         </tr>
@@ -462,6 +454,8 @@ function CreateForm({
   const [prompt, setPrompt] = useState("");
   const [scope, setScope] = useState<"inherit" | "new">("inherit");
   const [colorOverride, setColorOverride] = useState<string | null>(null);
+  const [visDefs, setVisDefs] = useState<Record<string, "y" | "n">>({});
+  const [seenByEdits, setSeenByEdits] = useState<Record<string, "y" | "n">>({});
   const [error, setError] = useState<string | null>(null);
 
   const [modelOptions, setModelOptions] = useState<ModelInfo[]>([]);
@@ -495,7 +489,13 @@ function CreateForm({
         ...(model ? { modelOverride: model } : {}),
         ...(prompt ? { systemPromptOverride: prompt } : {}),
         ...(colorOverride ? { colorOverride } : {}),
+        visibilityDefaults: visDefs,
       });
+      // #94: apply "seen by" edits to existing personas.
+      if (Object.keys(seenByEdits).length > 0) {
+        const siblings = [...personas];
+        await applySeenByEdits(p.nameSlug, seenByEdits, siblings);
+      }
       const scopeInfo = scope === "inherit" ? ("inherit" as const) : { newAtMsg: history.length };
       await ensureIdentityPin(conversationId, p, history, messagesRepo, scopeInfo);
       await useMessagesStore.getState().load(conversationId);
@@ -505,6 +505,8 @@ function CreateForm({
       setPrompt("");
       setScope("inherit");
       setColorOverride(null);
+      setVisDefs({});
+      setSeenByEdits({});
       setOpen(false);
     } catch (e) {
       setError(e instanceof PersonaValidationError ? e.message : (e as Error).message);
@@ -642,6 +644,49 @@ function CreateForm({
           )}
         </div>
       </Field>
+      {personas.length > 0 && (
+        <Field label="Visibility">
+          <table className="w-full text-left">
+            <thead>
+              <tr>
+                <th className="pb-1 font-normal text-neutral-500">persona</th>
+                <th className="pb-1 text-center font-normal text-neutral-500">sees</th>
+                <th className="pb-1 text-center font-normal text-neutral-500">seen by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {personas.map((other) => {
+                const seesVal = visDefs[other.nameSlug] ?? "y";
+                const seenByVal =
+                  other.nameSlug in seenByEdits
+                    ? (seenByEdits[other.nameSlug] ?? "y")
+                    : "y";
+                return (
+                  <tr key={other.id}>
+                    <td className="py-0.5 text-neutral-800">{other.name}</td>
+                    <td className="py-0.5 text-center">
+                      <VisToggle
+                        value={seesVal}
+                        onChange={(v) =>
+                          setVisDefs({ ...visDefs, [other.nameSlug]: v })
+                        }
+                      />
+                    </td>
+                    <td className="py-0.5 text-center">
+                      <VisToggle
+                        value={seenByVal}
+                        onChange={(v) =>
+                          setSeenByEdits({ ...seenByEdits, [other.nameSlug]: v })
+                        }
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Field>
+      )}
       <Field label="System prompt">
         <textarea
           value={prompt}
@@ -687,35 +732,26 @@ function labelFor(id: string, all: readonly Persona[]): string {
   return all.find((p) => p.id === id)?.name ?? id;
 }
 
-const TRI_LABELS: Record<string, string> = { y: "y", n: "n" };
-const TRI_COLORS: Record<string, string> = {
-  y: "bg-green-100 text-green-800 border-green-300",
-  n: "bg-red-100 text-red-800 border-red-300",
-};
-
-function TriStateButton({
+function VisToggle({
   value,
   onChange,
 }: {
-  value: "y" | "n" | undefined;
-  onChange: (v: "y" | "n" | undefined) => void;
+  value: "y" | "n";
+  onChange: (v: "y" | "n") => void;
 }): JSX.Element {
-  const cycle = (): void => {
-    if (value === undefined) onChange("y");
-    else if (value === "y") onChange("n");
-    else onChange(undefined);
-  };
-  const label = value !== undefined ? TRI_LABELS[value] : "\u00B7";
+  const toggle = (): void => onChange(value === "y" ? "n" : "y");
   const color =
-    value !== undefined ? TRI_COLORS[value] : "bg-neutral-100 text-neutral-400 border-neutral-300";
+    value === "y"
+      ? "bg-green-100 text-green-800 border-green-300"
+      : "bg-red-100 text-red-800 border-red-300";
   return (
     <button
       type="button"
-      onClick={cycle}
+      onClick={toggle}
       className={`inline-flex h-5 w-5 items-center justify-center rounded border text-[10px] font-semibold ${color}`}
-      title={value === undefined ? "default" : value === "y" ? "yes" : "no"}
+      title={value === "y" ? "yes" : "no"}
     >
-      {label}
+      {value}
     </button>
   );
 }

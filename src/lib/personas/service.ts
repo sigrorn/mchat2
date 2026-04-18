@@ -231,25 +231,18 @@ export async function deletePersona(id: PersonaId): Promise<void> {
 // the sibling should have for editedSlug in its own `sees`.
 export async function applySeenByEdits(
   editedSlug: string,
-  seenByEdits: Record<string, "y" | "n" | undefined>,
-  siblings: Persona[],
+  seenByEdits: Record<string, "y" | "n">,
+  siblings: readonly Persona[],
 ): Promise<void> {
   const bySlug = new Map(siblings.map((p) => [p.nameSlug, p] as const));
   for (const [siblingSlug, value] of Object.entries(seenByEdits)) {
     const sibling = bySlug.get(siblingSlug);
     if (!sibling) continue;
-    const current = sibling.visibilityDefaults[editedSlug];
-    if (current === value) continue;
-    if (value === undefined) {
-      if (current === undefined) continue;
-      const { [editedSlug]: _, ...rest } = sibling.visibilityDefaults;
-      await repo.updatePersona({ ...sibling, visibilityDefaults: rest });
-    } else {
-      await repo.updatePersona({
-        ...sibling,
-        visibilityDefaults: { ...sibling.visibilityDefaults, [editedSlug]: value },
-      });
-    }
+    if (sibling.visibilityDefaults[editedSlug] === value) continue;
+    await repo.updatePersona({
+      ...sibling,
+      visibilityDefaults: { ...sibling.visibilityDefaults, [editedSlug]: value },
+    });
   }
 }
 
