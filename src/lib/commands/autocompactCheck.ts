@@ -28,6 +28,19 @@ function tightestMaxTokens(personas: readonly Persona[]): number {
 }
 
 /**
+ * Names of the persona(s) whose provider has the tightest maxContextTokens.
+ * Used in compaction warnings so the user knows who's driving the threshold.
+ */
+export function tightestPersonaNames(personas: readonly Persona[]): string[] {
+  if (personas.length === 0) return [];
+  const tightest = tightestMaxTokens(personas);
+  if (!Number.isFinite(tightest)) return [];
+  return personas
+    .filter((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens === tightest)
+    .map((p) => p.name);
+}
+
+/**
  * Resolve the effective autocompact token threshold.
  * Returns null if autocompact is off.
  */

@@ -10,7 +10,7 @@
 import type { Conversation, Persona, PersonaTarget } from "@/lib/types";
 import { buildContext } from "@/lib/context";
 import { estimateTokens } from "@/lib/context/truncate";
-import { resolveAutocompactTokens, pendingWarnings } from "@/lib/commands/autocompactCheck";
+import { resolveAutocompactTokens, pendingWarnings, tightestPersonaNames } from "@/lib/commands/autocompactCheck";
 import { generateCompactionSummary } from "@/lib/conversations/compact";
 import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
@@ -98,11 +98,13 @@ export async function postResponseCheck(conversationId: string): Promise<void> {
     const fired = [...(conversation.contextWarningsFired ?? []), ...warnings];
     await useConversationsStore.getState().setContextWarningsFired(conversationId, fired);
     const highest = warnings[warnings.length - 1]!;
+    const names = tightestPersonaNames(personas);
+    const forClause = names.length > 0 ? ` (for ${names.join(", ")})` : "";
     await useMessagesStore
       .getState()
       .appendNotice(
         conversationId,
-        `⚠ ${highest}% context of tightest model reached — time for //compact ?`,
+        `⚠ ${highest}% context of tightest model reached${forClause} — time for //compact ?`,
       );
   }
 }
