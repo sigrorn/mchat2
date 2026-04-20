@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolveAutocompactTokens,
   pendingWarnings,
+  tightestPersonaNames,
 } from "@/lib/commands/autocompactCheck";
 import type { Conversation, Persona } from "@/lib/types";
 
@@ -108,5 +109,24 @@ describe("pendingWarnings", () => {
 
   it("returns empty when no personas", () => {
     expect(pendingWarnings(BASE_CONV, 200000, [])).toEqual([]);
+  });
+});
+
+describe("tightestPersonaNames", () => {
+  it("returns name of the single tightest persona (#109)", () => {
+    // openai 128k < claude 200k → GPT is tightest
+    expect(tightestPersonaNames([PERSONA_128K, PERSONA_200K])).toEqual(["GPT"]);
+  });
+
+  it("returns all names tied for tightest", () => {
+    const other128k: Persona = { ...PERSONA_128K, id: "p3", name: "Albert", nameSlug: "albert" };
+    expect(tightestPersonaNames([PERSONA_128K, other128k, PERSONA_200K])).toEqual([
+      "GPT",
+      "Albert",
+    ]);
+  });
+
+  it("returns empty when no personas", () => {
+    expect(tightestPersonaNames([])).toEqual([]);
   });
 });
