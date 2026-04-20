@@ -122,6 +122,53 @@ describe("parseCommand", () => {
     expect(parseCommand("//cols 5").kind).toBe("error");
   });
 
+  // Compact with preservation count — issue #110.
+  it("//compact (no arg) → compact without preservation", () => {
+    expect(parseCommand("//compact")).toEqual({ kind: "compact", payload: { preserve: 0 } });
+  });
+
+  it("//compact N → compact with preservation count", () => {
+    expect(parseCommand("//compact 2")).toEqual({ kind: "compact", payload: { preserve: 2 } });
+    expect(parseCommand("//compact 0")).toEqual({ kind: "compact", payload: { preserve: 0 } });
+  });
+
+  it("//compact with invalid arg → error", () => {
+    expect(parseCommand("//compact foo").kind).toBe("error");
+    expect(parseCommand("//compact -1").kind).toBe("error");
+  });
+
+  // Autocompact with preserve — issue #111.
+  it("//autocompact N preserve M → kTokens mode with preservation", () => {
+    expect(parseCommand("//autocompact 48 preserve 2")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "kTokens", value: 48, preserve: 2 },
+    });
+  });
+
+  it("//autocompact N% preserve M → percent mode with preservation", () => {
+    expect(parseCommand("//autocompact 75% preserve 3")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "percent", value: 75, preserve: 3 },
+    });
+  });
+
+  it("//autocompact N (no preserve) keeps preserve undefined", () => {
+    expect(parseCommand("//autocompact 48")).toEqual({
+      kind: "autocompact",
+      payload: { mode: "kTokens", value: 48 },
+    });
+  });
+
+  it("//autocompact off preserve → error (cannot combine)", () => {
+    expect(parseCommand("//autocompact off preserve 2").kind).toBe("error");
+  });
+
+  it("//autocompact N preserve without value → error", () => {
+    expect(parseCommand("//autocompact 48 preserve").kind).toBe("error");
+    expect(parseCommand("//autocompact 48 preserve foo").kind).toBe("error");
+    expect(parseCommand("//autocompact 48 preserve -1").kind).toBe("error");
+  });
+
   // Autocompact — issue #105.
   it("//autocompact N → kTokens mode", () => {
     expect(parseCommand("//autocompact 48")).toEqual({
