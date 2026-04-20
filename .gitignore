@@ -60,3 +60,4 @@ playwright/.cache/
 *.sqlite
 *.sqlite-journal
 src-tauri/gen/
+vite.config.js

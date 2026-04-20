@@ -29,9 +29,9 @@ export type ParsedCommand =
   | { kind: "select"; payload: { names: string[] } }
   | { kind: "selectAll" }
   | { kind: "vacuum" }
-  | { kind: "compact" }
-  | { kind: "autocompact"; payload: { mode: "kTokens"; value: number } }
-  | { kind: "autocompact"; payload: { mode: "percent"; value: number } }
+  | { kind: "compact"; payload: { preserve: number } }
+  | { kind: "autocompact"; payload: { mode: "kTokens"; value: number; preserve?: number } }
+  | { kind: "autocompact"; payload: { mode: "percent"; value: number; preserve?: number } }
   | { kind: "autocompact"; payload: { mode: "off" } }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "version" }
@@ -126,8 +126,15 @@ export function parseCommand(raw: string): ParsedCommand {
     return { kind: "vacuum" };
   }
   if (verb === "compact") {
-    if (arg !== "") return { kind: "error", message: "compact: this command takes no arguments." };
-    return { kind: "compact" };
+    if (arg === "") return { kind: "compact", payload: { preserve: 0 } };
+    const negMatch = arg.match(/^-(\d+)$/);
+    if (!negMatch) {
+      return {
+        kind: "error",
+        message: `compact: '${arg}' is not a valid preservation count. Use //compact or //compact -N (preserve last N user messages).`,
+      };
+    }
+    return { kind: "compact", payload: { preserve: Number(negMatch[1]) } };
   }
   if (verb === "autocompact") {
     return parseAutocompact(arg);
@@ -209,29 +216,67 @@ function parseAutocompact(arg: string): ParsedCommand {
     return {
       kind: "error",
       message:
-        "autocompact: specify a threshold. Use //autocompact N (k-tokens), //autocompact N% (percent of tightest model), or //autocompact off.",
+        "autocompact: specify a threshold. Use //autocompact Nk (e.g. 12k for k-tokens), //autocompact N% (percent of tightest model), or //autocompact off.",
     };
   }
-  const lc = arg.toLowerCase();
-  if (lc === "off") return { kind: "autocompact", payload: { mode: "off" } };
-  const pctMatch = arg.match(/^(\d+)%$/);
+  // Split into threshold part and optional "preserve -N" suffix.
+  const preserveMatch = arg.match(/^(.*?)\s+preserve(?:\s+(.*))?$/i);
+  const thresholdArg = preserveMatch ? preserveMatch[1]!.trim() : arg;
+  const preserveArg = preserveMatch ? (preserveMatch[2] ?? "").trim() : null;
+
+  let preserve: number | undefined;
+  if (preserveArg !== null) {
+    if (preserveArg === "") {
+      return {
+        kind: "error",
+        message: "autocompact: 'preserve' requires a count (e.g. //autocompact 12k preserve -2).",
+      };
+    }
+    const preserveNeg = preserveArg.match(/^-(\d+)$/);
+    if (!preserveNeg) {
+      return {
+        kind: "error",
+        message: `autocompact: preserve count '${preserveArg}' must be negative (e.g. -2 for last 2 user messages).`,
+      };
+    }
+    preserve = Number(preserveNeg[1]);
+  }
+
+  const lc = thresholdArg.toLowerCase();
+  if (lc === "off") {
+    if (preserveArg !== null) {
+      return {
+        kind: "error",
+        message: "autocompact: 'preserve' cannot be combined with 'off'.",
+      };
+    }
+    return { kind: "autocompact", payload: { mode: "off" } };
+  }
+  const pctMatch = thresholdArg.match(/^(\d+)%$/);
   if (pctMatch) {
     const pct = Number(pctMatch[1]);
     if (pct < 1 || pct > 100) {
       return { kind: "error", message: `autocompact: percentage must be between 1 and 100.` };
     }
-    return { kind: "autocompact", payload: { mode: "percent", value: pct } };
+    return {
+      kind: "autocompact",
+      payload: { mode: "percent", value: pct, ...(preserve !== undefined ? { preserve } : {}) },
+    };
   }
-  if (/^\d+$/.test(arg)) {
-    const n = Number(arg);
+  const kMatch = thresholdArg.match(/^(\d+)k$/i);
+  if (kMatch) {
+    const n = Number(kMatch[1]);
     if (n < 1) {
-      return { kind: "error", message: `autocompact: threshold must be at least 1 k-token.` };
+      return { kind: "error", message: `autocompact: threshold must be at least 1k.` };
     }
-    return { kind: "autocompact", payload: { mode: "kTokens", value: n } };
+    return {
+      kind: "autocompact",
+      payload: { mode: "kTokens", value: n, ...(preserve !== undefined ? { preserve } : {}) },
+    };
   }
   return {
     kind: "error",
-    message: `autocompact: '${arg}' is not valid. Use //autocompact N, //autocompact N%, or //autocompact off.`,
+    message: `autocompact: '${thresholdArg}' is not valid. Use //autocompact Nk (e.g. 12k), //autocompact N%, or //autocompact off.`,
   };
 }
 

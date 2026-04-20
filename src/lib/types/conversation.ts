@@ -9,6 +9,9 @@ import type { ProviderId } from "./providers";
 export interface AutocompactThreshold {
   mode: "kTokens" | "percent";
   value: number;
+  // #111: optional preservation count. Number of recent user messages
+  // per persona to keep verbatim when autocompact triggers (0 = none).
+  preserve?: number;
 }
 
 export interface Conversation {

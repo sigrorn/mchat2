@@ -161,6 +161,25 @@ describe("messagesRepo", () => {
   });
 });
 
+describe("messagesRepo.shiftMessageIndicesFrom", () => {
+  it("shifts indices >= fromIdx by the given delta for the conversation", async () => {
+    const calls = makeRecorder();
+    await msgRepo.shiftMessageIndicesFrom("c_1", 5, 3);
+    // Expect a single UPDATE that shifts all rows at/after fromIdx by +delta.
+    const update = calls.find((c) => /UPDATE messages/i.test(c.sql) && /idx\s*=\s*idx\s*\+/.test(c.sql));
+    expect(update).toBeTruthy();
+    expect(update?.params).toContain("c_1");
+    expect(update?.params).toContain(5);
+  });
+
+  it("is a no-op when delta is 0", async () => {
+    const calls = makeRecorder();
+    await msgRepo.shiftMessageIndicesFrom("c_1", 0, 0);
+    const updates = calls.filter((c) => /UPDATE messages/i.test(c.sql));
+    expect(updates.length).toBe(0);
+  });
+});
+
 describe("settingsRepo", () => {
   it("setSetting uses upsert", async () => {
     const calls = makeRecorder();

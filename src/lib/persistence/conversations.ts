@@ -153,7 +153,11 @@ function parseAutocompactThreshold(raw: string | null): AutocompactThreshold | n
       typeof obj.value === "number" &&
       obj.value > 0
     ) {
-      return { mode: obj.mode, value: obj.value };
+      const result: AutocompactThreshold = { mode: obj.mode, value: obj.value };
+      if (typeof obj.preserve === "number" && obj.preserve > 0) {
+        result.preserve = obj.preserve;
+      }
+      return result;
     }
     return null;
   } catch {

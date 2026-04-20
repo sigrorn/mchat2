@@ -493,17 +493,27 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       if (conversation.limitSizeTokens !== null) {
         await useConversationsStore.getState().setLimitSize(conversation.id, null);
       }
-      const threshold = { mode: payload.mode, value: payload.value };
+      const threshold: import("@/lib/types").AutocompactThreshold = {
+        mode: payload.mode,
+        value: payload.value,
+        ...(payload.preserve !== undefined && payload.preserve > 0
+          ? { preserve: payload.preserve }
+          : {}),
+      };
       await useConversationsStore.getState().setAutocompact(conversation.id, threshold);
       const label =
         payload.mode === "kTokens"
           ? `${payload.value}k tokens`
           : `${payload.value}% of tightest model`;
+      const preserveSuffix =
+        threshold.preserve && threshold.preserve > 0
+          ? ` (preserving last ${threshold.preserve} user message${threshold.preserve === 1 ? "" : "s"})`
+          : "";
       await useMessagesStore
         .getState()
         .appendNotice(
           conversation.id,
-          `autocompact: will compact when context exceeds ${label}. limitsize cleared.`,
+          `autocompact: will compact when context exceeds ${label}${preserveSuffix}. limitsize cleared.`,
         );
       return;
     }
@@ -515,145 +525,57 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
           .appendNotice(conversation.id, "compact: no personas to compact.");
         return;
       }
-      const { buildContext } = await import("@/lib/context");
-      const { generateCompactionSummary } = await import("@/lib/conversations/compact");
-      const { adapterFor } = await import("@/lib/providers/registryOfAdapters");
-      const { PROVIDER_REGISTRY } = await import("@/lib/providers/registry");
-      const { modelForTarget } = await import("@/lib/orchestration/streamRunner");
-      const { resolveExtraConfig } = await import("@/lib/providers/extraConfig");
-      const { keychain } = await import("@/lib/tauri/keychain");
-      const { getSetting } = await import("@/lib/persistence/settings");
-      const { GLOBAL_SYSTEM_PROMPT_KEY } = await import("@/lib/settings/keys");
-
-      const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
-      const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-
+      const { runCompaction, formatPersonaLine } = await import(
+        "@/lib/conversations/runCompaction"
+      );
+      const preserve = cmd.payload.preserve;
+      const preserveLabel =
+        preserve > 0 ? ` (preserving last ${preserve} user message${preserve === 1 ? "" : "s"})` : "";
       await useMessagesStore
         .getState()
         .appendNotice(
           conversation.id,
-          `compacting: generating summaries for ${personas.length} persona${personas.length === 1 ? "" : "s"}…`,
+          `compacting: generating summaries for ${personas.length} persona${personas.length === 1 ? "" : "s"}${preserveLabel}…`,
         );
-
-      // Run all persona compactions in parallel (ignoring runsAfter DAG).
-      const { estimateTokens } = await import("@/lib/context/truncate");
-
-      type CompactResult =
-        | { ok: true; persona: typeof personas[number]; summary: string; origTokens: number; summaryTokens: number; elapsedMs: number }
-        | { ok: false; persona: typeof personas[number]; error: string };
-
-      const results = await Promise.all(
-        personas.map(async (p): Promise<CompactResult | null> => {
-          const target = {
-            provider: p.provider,
-            personaId: p.id,
-            key: p.id,
-            displayName: p.name,
-          };
-          const ctx = buildContext({
-            conversation,
-            target,
-            messages: history,
-            personas,
-            globalSystemPrompt: globalPrompt,
-          });
-          if (ctx.messages.length === 0) return null;
-          const origTokens =
-            (ctx.systemPrompt ? estimateTokens(ctx.systemPrompt) : 0) +
-            ctx.messages.reduce((s, m) => s + estimateTokens(m.content), 0);
-          useSendStore.getState().setTargetStatus(conversation.id, p.id, "streaming");
-          const t0 = Date.now();
-          try {
-            const ak = PROVIDER_REGISTRY[p.provider].requiresKey
-              ? await keychain.get(PROVIDER_REGISTRY[p.provider].keychainKey)
-              : null;
-            const model = modelForTarget(target, personas);
-            const extra = await resolveExtraConfig(p.provider, p);
-            const summary = await generateCompactionSummary(
-              adapterFor(p.provider),
-              ak,
-              model,
-              ctx.messages,
-              extra,
-            );
-            const elapsedMs = Date.now() - t0;
-            if (!summary) return { ok: false, persona: p, error: "model returned empty summary" };
-            const summaryTokens = estimateTokens(summary);
-            return { ok: true, persona: p, summary, origTokens, summaryTokens, elapsedMs };
-          } catch (e) {
-            useSendStore.getState().setTargetStatus(conversation.id, p.id, "retrying");
-            return { ok: false, persona: p, error: (e as Error).message };
-          } finally {
-            useSendStore.getState().clearTargetStatus(conversation.id, p.id);
-          }
-        }),
-      );
-
-      const summaries = results.filter(
-        (r): r is Extract<CompactResult, { ok: true }> => r !== null && r.ok,
-      );
-      for (const r of results) {
-        if (r && !r.ok) {
-          await useMessagesStore
-            .getState()
-            .appendNotice(conversation.id, `compact: failed for ${r.persona.name}: ${r.error}`);
-        }
+      const result = await runCompaction(conversation, personas, preserve, {
+        onPersonaStart: (pid) =>
+          useSendStore.getState().setTargetStatus(conversation.id, pid, "streaming"),
+        onPersonaError: (pid) =>
+          useSendStore.getState().setTargetStatus(conversation.id, pid, "retrying"),
+        onPersonaDone: (pid) => useSendStore.getState().clearTargetStatus(conversation.id, pid),
+      });
+      for (const f of result.failures) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(conversation.id, `compact: failed for ${f.persona.name}: ${f.error}`);
       }
-
-      if (summaries.length === 0) {
+      if (result.nothingToDo) {
+        await useMessagesStore
+          .getState()
+          .appendNotice(
+            conversation.id,
+            `compact: nothing to compact (preserve ${preserve} already covers the full unexcluded history).`,
+          );
+        return;
+      }
+      if (result.summaries.length === 0) {
         await useMessagesStore
           .getState()
           .appendNotice(conversation.id, "compact: no summaries generated.");
         return;
       }
-
-      // Insert COMPACTION notice + per-persona summaries.
-      await useMessagesStore.getState().appendNotice(conversation.id, "COMPACTION");
-      const messagesRepo = await import("@/lib/persistence/messages");
-      for (const { persona: p, summary } of summaries) {
-        await messagesRepo.appendMessage({
-          conversationId: conversation.id,
-          role: "assistant",
-          content: `[compacted summary]\n\n${summary}`,
-          provider: p.provider,
-          model: p.modelOverride ?? PROVIDER_REGISTRY[p.provider].defaultModel,
-          personaId: p.id,
-          displayMode: "lines",
-          pinned: true,
-          pinTarget: p.id,
-          addressedTo: [],
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: 0,
-          usageEstimated: false,
-          audience: [],
-        });
-      }
       await useMessagesStore.getState().load(conversation.id);
-
-      // Set the compaction floor to the COMPACTION notice index.
-      const freshHistory = useMessagesStore.getState().byConversation[conversation.id] ?? [];
-      const compactionNotice = [...freshHistory].reverse().find(
-        (m) => m.role === "notice" && m.content === "COMPACTION",
-      );
-      if (compactionNotice) {
-        await useConversationsStore
-          .getState()
-          .setCompactionFloor(conversation.id, compactionNotice.index);
-        await useConversationsStore
-          .getState()
-          .setLimit(conversation.id, compactionNotice.index);
-      }
-      const lines = [`compacted ${summaries.length} persona${summaries.length === 1 ? "" : "s"}.`];
-      for (const s of summaries) {
-        const origK = (s.origTokens / 1000).toFixed(1);
-        const compK = (s.summaryTokens / 1000).toFixed(1);
-        const pct = s.origTokens > 0 ? Math.round((1 - s.summaryTokens / s.origTokens) * 100) : 0;
-        const sec = s.elapsedMs / 1000;
-        const mm = String(Math.floor(sec / 60)).padStart(2, "0");
-        const ss = String(Math.floor(sec % 60)).padStart(2, "0");
-        lines.push(`  ${s.persona.name}  ${origK}k → ${compK}k  −${pct}%  ${mm}:${ss}`);
+      await useConversationsStore
+        .getState()
+        .setCompactionFloor(conversation.id, result.cutoff);
+      await useConversationsStore
+        .getState()
+        .setLimit(conversation.id, result.cutoff);
+      const lines = [
+        `compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,
+      ];
+      for (const s of result.summaries) {
+        lines.push(formatPersonaLine(s, result.tightestMaxTokens));
       }
       await useMessagesStore.getState().appendNotice(conversation.id, lines.join("\n"));
       return;

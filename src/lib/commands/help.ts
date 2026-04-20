@@ -57,9 +57,11 @@ Info
   //version            Show build version info
 
 Maintenance
-  //compact            Summarize conversation for each persona
-  //autocompact N      Auto-compact when context reaches N k-tokens
-  //autocompact N%     Auto-compact at N% of tightest model
+  //compact            Summarize the full conversation for each persona
+  //compact -N         Compact, preserving last N user messages (e.g. //compact -2)
+  //autocompact 12k    Auto-compact when context reaches 12k tokens (the 'k' suffix is required)
+  //autocompact 75%    Auto-compact at 75% of the tightest model's context window
+  //autocompact 12k preserve -2   Auto-compact and preserve last 2 user messages
   //autocompact off    Disable auto-compaction (default)
   //vacuum             Compact the SQLite database
 

@@ -1,4 +1,6 @@
 // Tests for the per-persona compaction cutoff helper — issue #110.
+// Semantics: preserve the last N non-pinned user messages visible to each
+// persona; cutoff is the minimum across personas.
 import { describe, it, expect } from "vitest";
 import { computeCompactionCutoff } from "@/lib/conversations/compactionCutoff";
 import type { Conversation, Message, Persona } from "@/lib/types";
@@ -70,21 +72,22 @@ function msg(
 }
 
 describe("computeCompactionCutoff", () => {
-  it("N=0 returns the length of messages (compact everything)", () => {
+  it("N=0 returns the index after the last message (compact everything)", () => {
     const messages = [msg(0, "user"), msg(1, "assistant", { personaId: "p1" })];
     const personas = [persona("p1")];
     expect(computeCompactionCutoff(CONV, messages, personas, 0)).toBe(2);
   });
 
-  it("N >= visible messages returns 0 (nothing to compact)", () => {
+  it("N >= visible user messages returns existing floor (nothing to compact)", () => {
     const messages = [msg(0, "user"), msg(1, "assistant", { personaId: "p1" })];
     const personas = [persona("p1")];
     expect(computeCompactionCutoff(CONV, messages, personas, 5)).toBe(0);
   });
 
-  it("single persona, N=2 returns the index of the 2nd-from-last visible", () => {
+  it("single persona, N=2 returns index of the 2nd-from-last user message", () => {
     // Indices: 0=user, 1=asst, 2=user, 3=asst, 4=user
-    // All visible to p1. Last 2 visible: indices 3, 4. Cutoff = index 3.
+    // User messages at indices 0, 2, 4. Last 2 user messages: 2 and 4.
+    // Cutoff = index 2. Messages [2, 3, 4] are preserved.
     const messages = [
       msg(0, "user"),
       msg(1, "assistant", { personaId: "p1" }),
@@ -93,16 +96,13 @@ describe("computeCompactionCutoff", () => {
       msg(4, "user"),
     ];
     const personas = [persona("p1")];
-    expect(computeCompactionCutoff(CONV, messages, personas, 2)).toBe(3);
+    expect(computeCompactionCutoff(CONV, messages, personas, 2)).toBe(2);
   });
 
   it("two personas with different visibility, N=2 uses the minimum cutoff", () => {
-    // Scenario from issue:
-    // p1 sees: msg 53 (addressed @all), msg 55 (@all)
-    // p2 sees: msg 53 (@all), msg 54 (@p2 only), msg 55 (@all)
-    // N=2:
-    //   p1's last 2 visible: 53, 55 → cutoff 53
-    //   p2's last 2 visible: 54, 55 → cutoff 54
+    // Example from issue:
+    // p1 sees user messages 53 (@all) and 55 (@all) — last 2: 53, 55 → cutoff 53
+    // p2 sees user messages 53 (@all), 54 (@p2), 55 (@all) — last 2: 54, 55 → cutoff 54
     // min = 53
     const messages = [
       msg(53, "user"),
@@ -113,21 +113,22 @@ describe("computeCompactionCutoff", () => {
     expect(computeCompactionCutoff(CONV, messages, personas, 2)).toBe(53);
   });
 
-  it("notices and failed assistants are skipped in the count", () => {
+  it("pinned user messages (identity pins) are excluded from the count", () => {
+    // Pinned identity message at 0 shouldn't count as a "fresh" user turn.
     const messages = [
-      msg(0, "user"),
-      msg(1, "notice"),
-      msg(2, "assistant", { personaId: "p1", errorMessage: "failed" }),
-      msg(3, "assistant", { personaId: "p1" }),
-      msg(4, "user"),
+      msg(0, "user", { pinned: true }), // identity pin — excluded
+      msg(1, "user"),
+      msg(2, "assistant", { personaId: "p1" }),
+      msg(3, "user"),
+      msg(4, "assistant", { personaId: "p1" }),
+      msg(5, "user"),
     ];
     const personas = [persona("p1")];
-    // Visible: indices 0, 3, 4 (notice + failed skipped)
-    // Last 2 visible: 3, 4 → cutoff 3
+    // Non-pinned user messages: 1, 3, 5. Last 2: 3, 5. Cutoff = 3.
     expect(computeCompactionCutoff(CONV, messages, personas, 2)).toBe(3);
   });
 
-  it("respects an existing compactionFloorIndex as a lower bound", () => {
+  it("respects existing compactionFloorIndex as a lower bound", () => {
     const messages = [
       msg(0, "user"),
       msg(1, "user"),
@@ -137,15 +138,16 @@ describe("computeCompactionCutoff", () => {
     ];
     const conv = { ...CONV, compactionFloorIndex: 2 };
     const personas = [persona("p1")];
-    // Floor at 2: visible from 2 onwards. Last 2: indices 3, 4 → cutoff 3.
+    // Floor at 2: user messages visible from 2 onwards: 2, 3, 4.
+    // Last 2: 3, 4. Cutoff = 3.
     expect(computeCompactionCutoff(conv, messages, personas, 2)).toBe(3);
   });
 
-  it("cutoff never goes below existing compactionFloorIndex", () => {
+  it("falls back to existing floor when a persona has < N user messages", () => {
     const messages = [msg(0, "user"), msg(1, "user"), msg(2, "user")];
     const conv = { ...CONV, compactionFloorIndex: 2 };
     const personas = [persona("p1")];
-    // Only msg 2 visible. N=5 > visible count → cutoff = floor (2), no compaction happens.
+    // Floor at 2: only msg 2 visible. N=5 > visible count → cutoff = floor (2).
     expect(computeCompactionCutoff(conv, messages, personas, 5)).toBe(2);
   });
 

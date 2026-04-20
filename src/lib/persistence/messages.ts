@@ -221,6 +221,72 @@ export async function applyMessageMutation(mutation: {
   await sql.execute(`UPDATE messages SET ${sets.join(", ")} WHERE id = ?`, values);
 }
 
+// Insert a message at an explicit `idx`. Caller must ensure the slot
+// is free (typically after calling shiftMessageIndicesFrom to open a
+// gap). Used by //compact -N (#110) to place the COMPACTION notice +
+// summaries mid-conversation.
+export async function insertMessageAtIndex(
+  partial: Omit<Message, "id" | "createdAt"> & {
+    id?: string;
+    createdAt?: number;
+  },
+): Promise<Message> {
+  const msg: Message = {
+    ...partial,
+    id: partial.id ?? newMessageId(),
+    createdAt: partial.createdAt ?? Date.now(),
+  };
+  await sql.execute(
+    `INSERT INTO messages
+       (id, conversation_id, role, content, provider, model, persona_id,
+        display_mode, pinned, pin_target, addressed_to, created_at, idx,
+        error_message, error_transient, input_tokens, output_tokens,
+        usage_estimated, audience)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      msg.id,
+      msg.conversationId,
+      msg.role,
+      msg.content,
+      msg.provider,
+      msg.model,
+      msg.personaId,
+      msg.displayMode,
+      msg.pinned ? 1 : 0,
+      msg.pinTarget,
+      JSON.stringify(msg.addressedTo),
+      msg.createdAt,
+      msg.index,
+      msg.errorMessage,
+      msg.errorTransient ? 1 : 0,
+      msg.inputTokens,
+      msg.outputTokens,
+      msg.usageEstimated ? 1 : 0,
+      JSON.stringify(msg.audience),
+    ],
+  );
+  return msg;
+}
+
+// Shift `idx` values of all messages at-or-after `fromIdx` by `delta`
+// within one conversation. Used by //compact -N (#110) to open a
+// numbered gap for the inserted COMPACTION notice + summaries.
+//
+// Safety: SQLite validates the UNIQUE (conversation_id, idx) index
+// after the whole UPDATE completes, not per-row, so `idx = idx + delta`
+// is safe even though intermediate rows would collide mid-update.
+export async function shiftMessageIndicesFrom(
+  conversationId: string,
+  fromIdx: number,
+  delta: number,
+): Promise<void> {
+  if (delta === 0) return;
+  await sql.execute(
+    "UPDATE messages SET idx = idx + ? WHERE conversation_id = ? AND idx >= ?",
+    [delta, conversationId, fromIdx],
+  );
+}
+
 // Truncate the tail of a conversation — used by edit/replay (#44) to
 // drop every row after the edited user message so the regenerated
 // replies take their place.
