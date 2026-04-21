@@ -415,13 +415,26 @@ function MessageBubble({
   // Notice rows (#8): UI-only info/error from in-app commands. Visually
   // distinct, italicized, never reach the LLM.
   if (message.role === "notice") {
+    // #112: notices that contain a markdown table (detected by a
+    // "|---|" separator row) render through the markdown pipeline for
+    // column alignment; simple single-line notices keep the plain-text
+    // + #N-click path.
+    const hasMarkdownTable = /^\s*\|[\s\-:|]+\|\s*$/m.test(message.content);
     return (
       <div
         role="note"
         data-message-id={message.id}
-        className="mb-3 whitespace-pre-wrap rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm italic text-amber-900 shadow-sm"
+        className={`mb-3 rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm ${
+          hasMarkdownTable ? "" : "whitespace-pre-wrap italic"
+        }`}
       >
-        <NoticeContent content={message.content} />
+        {hasMarkdownTable ? (
+          <div className="markdown-body">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          </div>
+        ) : (
+          <NoticeContent content={message.content} />
+        )}
       </div>
     );
   }
