@@ -18,26 +18,28 @@ export function formatStats(
   if (personas.length === 0) return "stats: no personas.";
 
   const lines: string[] = [];
-  const allChars = messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .reduce((s, m) => s + m.content.length, 0);
   const allTokens = estimateTokens(messages.map((m) => m.content).join(""));
 
   lines.push(`Chat stats — ${conversation.title}`);
-  lines.push(`  all messages      ${allTokens.toLocaleString()} tokens (~${allChars.toLocaleString()} chars)`);
+  lines.push(`  all messages      ${allTokens.toLocaleString()} tokens`);
 
   for (const p of personas) {
     const target = { provider: p.provider, personaId: p.id, key: p.id, displayName: p.name };
+    const maxContext = PROVIDER_REGISTRY[p.provider].maxContextTokens;
     const ctx = buildContext({
       conversation,
       target,
       messages: [...messages],
       personas: [...personas],
-      maxContextTokens: PROVIDER_REGISTRY[p.provider].maxContextTokens,
+      maxContextTokens: maxContext,
     });
-    const chars = ctx.messages.reduce((s, m) => s + m.content.length, 0);
     const tokens = estimateTokens(ctx.messages.map((m) => m.content).join(""));
-    lines.push(`  ${p.name.padEnd(16)} ${tokens.toLocaleString()} tokens (~${chars.toLocaleString()} chars)`);
+    const pctLabel = Number.isFinite(maxContext) && maxContext > 0
+      ? `${((tokens / maxContext) * 100).toFixed(2)}% of max context`
+      : "unlimited context";
+    lines.push(
+      `  ${p.name.padEnd(16)} ${tokens.toLocaleString()} tokens (${pctLabel})`,
+    );
   }
 
   return lines.join("\n");
