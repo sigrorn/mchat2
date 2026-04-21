@@ -22,4 +22,37 @@ describe("formatHelp (#80)", () => {
     expect(text).toContain("//personas");
     expect(text).toContain("@all");
   });
+
+  // #112: markdown table format + generic forms with samples.
+  it("renders as markdown tables", () => {
+    const text = formatHelp();
+    // Expect at least one table header separator row like "|---|---|".
+    expect(text).toMatch(/\|\s*-{3,}\s*\|/);
+  });
+
+  it("uses generic form //autocompact Nk with a concrete sample", () => {
+    const text = formatHelp();
+    expect(text).toContain("//autocompact Nk");
+    expect(text).toContain("//autocompact 12k");
+    // The 'k' suffix requirement is called out.
+    expect(text.toLowerCase()).toContain("k' suffix");
+  });
+
+  it("uses generic form //autocompact N% with description", () => {
+    const text = formatHelp();
+    expect(text).toContain("//autocompact N%");
+  });
+
+  it("shows preserve generic form with concrete sample", () => {
+    const text = formatHelp();
+    expect(text).toContain("preserve -N");
+    // A worked example like 12k preserve -2
+    expect(text).toMatch(/preserve\s+-\d+/);
+  });
+
+  it("uses generic form //compact -N with concrete sample", () => {
+    const text = formatHelp();
+    expect(text).toContain("//compact -N");
+    expect(text).toContain("//compact -2");
+  });
 });
