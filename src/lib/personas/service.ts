@@ -254,7 +254,8 @@ async function renameSlugInSiblings(
   for (const sibling of siblings) {
     const value = sibling.visibilityDefaults[oldSlug];
     if (value === undefined) continue;
-    const { [oldSlug]: _, ...rest } = sibling.visibilityDefaults;
+    const rest = { ...sibling.visibilityDefaults };
+    delete rest[oldSlug];
     const updated: Persona = {
       ...sibling,
       visibilityDefaults: { ...rest, [newSlug]: value },
@@ -269,7 +270,8 @@ async function removeSlugFromSiblings(
 ): Promise<void> {
   for (const sibling of siblings) {
     if (sibling.visibilityDefaults[slug] === undefined) continue;
-    const { [slug]: _, ...rest } = sibling.visibilityDefaults;
+    const rest = { ...sibling.visibilityDefaults };
+    delete rest[slug];
     const updated: Persona = { ...sibling, visibilityDefaults: rest };
     await repo.updatePersona(updated);
   }
