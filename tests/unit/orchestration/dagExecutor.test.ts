@@ -86,6 +86,34 @@ describe("executeDag", () => {
     expect(p.nodes.get("b")?.status).toBe("skipped");
   });
 
+  // #117: within-level dispatch order. When multiple nodes are eligible
+  // simultaneously, they should be dispatched in the order nodes appear
+  // in plan.nodes (caller controls that order by sorting targets in
+  // sendPlanner).
+  it("dispatches eligible roots in plan.nodes insertion order", async () => {
+    // Insert b before a so the executor has to respect insertion order,
+    // not alphabetical.
+    const p = plan([
+      ["b", null],
+      ["a", null],
+      ["c", null],
+    ]);
+    const started: string[] = [];
+    await executeDag({
+      plan: p,
+      async runNode(n) {
+        started.push(n.key);
+        // No await — resolves synchronously, so siblings dispatched in
+        // the same pass all register their 'started' entry before the
+        // next dispatch.
+        return "completed";
+      },
+    });
+    // All three are eligible at the start; must be dispatched in the
+    // order they were inserted into plan.nodes.
+    expect(started).toEqual(["b", "a", "c"]);
+  });
+
   it("cancelCascades=false leaves children runnable after cancel", async () => {
     const p = plan([
       ["a", null],

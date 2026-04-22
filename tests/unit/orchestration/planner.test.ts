@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { planSend } from "@/lib/orchestration/sendPlanner";
 import type { Persona, PersonaTarget } from "@/lib/types";
 
-function persona(id: string, runsAfter: string[] = []): Persona {
+function persona(id: string, runsAfter: string[] = [], sortOrder = 0): Persona {
   return {
     id,
     conversationId: "c_1",
@@ -13,7 +13,7 @@ function persona(id: string, runsAfter: string[] = []): Persona {
     modelOverride: null,
     colorOverride: null,
     createdAtMessageIndex: 0,
-    sortOrder: 0,
+    sortOrder,
     runsAfter,
     deletedAt: null,
     apertusProductId: null,
@@ -78,5 +78,44 @@ describe("planSend", () => {
       runId: 1,
     });
     expect(plan?.kind).toBe("single");
+  });
+
+  // #117: stable display order — parallel mode sorts targets by persona.sortOrder.
+  it("parallel mode returns targets sorted by persona.sortOrder", () => {
+    const plan = planSend({
+      mode: "targeted",
+      targets: [target("c"), target("a"), target("b")],
+      personas: [
+        persona("a", [], 0),
+        persona("b", [], 1),
+        persona("c", [], 2),
+      ],
+      runId: 1,
+    });
+    expect(plan?.kind).toBe("parallel");
+    if (plan?.kind === "parallel") {
+      expect(plan.targets.map((t) => t.key)).toEqual(["a", "b", "c"]);
+    }
+  });
+
+  it("DAG mode sorts nodes and roots by persona.sortOrder within a level", () => {
+    // a (0), c (2) are both roots; b (1) runs after c.
+    // Roots should be listed in sortOrder: [a, c].
+    const plan = planSend({
+      mode: "all",
+      targets: [target("c"), target("b"), target("a")],
+      personas: [
+        persona("a", [], 0),
+        persona("b", ["c"], 1),
+        persona("c", [], 2),
+      ],
+      runId: 1,
+    });
+    expect(plan?.kind).toBe("dag");
+    if (plan?.kind === "dag") {
+      // Map iteration order should reflect sortOrder: a, c, b.
+      expect([...plan.plan.nodes.keys()]).toEqual(["a", "c", "b"]);
+      expect(plan.plan.roots).toEqual(["a", "c"]);
+    }
   });
 });
