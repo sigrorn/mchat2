@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { planSend } from "@/lib/orchestration/sendPlanner";
+import { executeDag } from "@/lib/orchestration/dagExecutor";
 import type { Persona, PersonaTarget } from "@/lib/types";
 
 function persona(id: string, runsAfter: string[] = [], sortOrder = 0): Persona {
@@ -98,9 +99,9 @@ describe("planSend", () => {
     }
   });
 
-  it("DAG mode sorts nodes and roots by persona.sortOrder within a level", () => {
+  it("DAG mode lists roots in sortOrder; dispatch visits nodes in sortOrder+topo order", async () => {
     // a (0), c (2) are both roots; b (1) runs after c.
-    // Roots should be listed in sortOrder: [a, c].
+    // Desired display order: a, c, b.
     const plan = planSend({
       mode: "all",
       targets: [target("c"), target("b"), target("a")],
@@ -112,10 +113,19 @@ describe("planSend", () => {
       runId: 1,
     });
     expect(plan?.kind).toBe("dag");
-    if (plan?.kind === "dag") {
-      // Map iteration order should reflect sortOrder: a, c, b.
-      expect([...plan.plan.nodes.keys()]).toEqual(["a", "c", "b"]);
-      expect(plan.plan.roots).toEqual(["a", "c"]);
-    }
+    if (plan?.kind !== "dag") return;
+    // Roots: nodes with no parents, in sortOrder.
+    expect(plan.plan.roots).toEqual(["a", "c"]);
+    // Dispatch order: execute with a runNode that records the dispatch
+    // sequence. Expected: a, c (both root, sortOrder), then b (after c).
+    const started: string[] = [];
+    await executeDag({
+      plan: plan.plan,
+      async runNode(n) {
+        started.push(n.key);
+        return "completed";
+      },
+    });
+    expect(started).toEqual(["a", "c", "b"]);
   });
 });

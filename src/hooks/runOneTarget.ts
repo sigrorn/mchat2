@@ -18,6 +18,7 @@ import { keychain } from "@/lib/tauri/keychain";
 import { getSetting } from "@/lib/persistence/settings";
 import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
+import * as messagesRepo from "@/lib/persistence/messages";
 import { useUiStore } from "@/stores/uiStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useSendStore } from "@/stores/sendStore";
@@ -42,13 +43,44 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
     startedAt: Date.now(),
   });
 
+  // #117: pre-append the placeholder row SYNCHRONOUSLY (before any
+  // await below) so multi-persona sends get a deterministic display
+  // order matching the caller's target array. messagesRepo.appendMessage
+  // is async but has no awaits in its body — it returns a promise that
+  // chains via a per-conversation appendChain, so siblings calling it
+  // in Promise.all/map order enqueue in that same order and get
+  // contiguous indices.
+  const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+  const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
+  const priorUser = [...history].reverse().find((m) => m.role === "user");
+  const audience = priorUser?.addressedTo ?? [];
+  const placeholderPromise = messagesRepo.appendMessage({
+    conversationId: conversation.id,
+    role: "assistant",
+    content: "",
+    provider: target.provider,
+    model: modelForTarget(target, personas),
+    personaId: target.personaId,
+    displayMode: conversation.displayMode,
+    pinned: false,
+    pinTarget: null,
+    addressedTo: [],
+    errorMessage: null,
+    errorTransient: false,
+    inputTokens: 0,
+    outputTokens: 0,
+    usageEstimated: false,
+    audience,
+  });
+
   const apiKey = PROVIDER_REGISTRY[target.provider].requiresKey
     ? await keychain.get(PROVIDER_REGISTRY[target.provider].keychainKey)
     : null;
-  const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
-  const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
   const extraConfig = (await resolveExtraConfig(target.provider, persona ?? null)) ?? {};
   const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+
+  const placeholder = await placeholderPromise;
+  useMessagesStore.getState().append(placeholder);
   const { debugSession, workingDir } = useUiStore.getState();
   const slug = persona?.nameSlug ?? target.key;
   const traceSink =
@@ -63,10 +95,9 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
 
   useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
 
-  // #58: capture the placeholder id BEFORE tokens arrive so we patch
-  // by specific id, never "the last assistant row". Fixes the parallel-
-  // send cross-contamination bug.
-  let placeholderId: string | null = null;
+  // #58/#117: placeholder is already pre-appended and in the store;
+  // patch by its specific id, never "the last assistant row".
+  const placeholderId: string = placeholder.id;
 
   try {
     const outcome = await runStream({
@@ -83,11 +114,8 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
       displayMode: conversation.displayMode,
       extraConfig,
       bufferTokens,
+      placeholderId,
       signal: controller.signal,
-      onPlaceholderCreated: (id, placeholder) => {
-        placeholderId = id;
-        useMessagesStore.getState().append(placeholder);
-      },
       onEvent: (() => {
         let pendingTokens = "";
         let rafId = 0;

@@ -65,6 +65,11 @@ export interface StreamRunInput {
   // persisted, BEFORE any token events fire. This lets the caller
   // patch by specific id instead of "the last assistant row".
   onPlaceholderCreated?: (messageId: string, placeholder: Message) => void;
+  // #117: optional pre-created placeholder. When the caller has
+  // pre-appended placeholders in a sorted order (to keep multi-persona
+  // display stable), it passes the placeholder id here so runStream
+  // skips its own appendMessage and doesn't allocate a new index.
+  placeholderId?: string;
 }
 
 export interface StreamRunOutcome {
@@ -99,27 +104,37 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   // Audience inherits the prior user row's addressedTo (issue #4):
   // every response to '@A @B hi' gets audience=[A,B] so either
   // persona sees all replies in that send group on the next turn.
-  const priorUser = [...history].reverse().find((m) => m.role === "user");
-  const audience = priorUser?.addressedTo ?? [];
-
-  const placeholder = await messagesRepo.appendMessage({
-    conversationId: conversation.id,
-    role: "assistant",
-    content: "",
-    provider: target.provider satisfies ProviderId,
-    model: input.model,
-    personaId: target.personaId,
-    displayMode: input.displayMode,
-    pinned: false,
-    pinTarget: null,
-    addressedTo: [],
-    errorMessage: null,
-    errorTransient: false,
-    inputTokens: 0,
-    outputTokens: 0,
-    usageEstimated: false,
-    audience,
-  });
+  let placeholder: Message;
+  if (input.placeholderId) {
+    // #117: caller pre-appended the placeholder (see useSend) to lock
+    // display order. Look it up rather than creating a new row.
+    const existing = await messagesRepo.getMessage(input.placeholderId);
+    if (!existing) {
+      throw new Error(`runStream: pre-appended placeholder ${input.placeholderId} not found`);
+    }
+    placeholder = existing;
+  } else {
+    const priorUser = [...history].reverse().find((m) => m.role === "user");
+    const audience = priorUser?.addressedTo ?? [];
+    placeholder = await messagesRepo.appendMessage({
+      conversationId: conversation.id,
+      role: "assistant",
+      content: "",
+      provider: target.provider satisfies ProviderId,
+      model: input.model,
+      personaId: target.personaId,
+      displayMode: input.displayMode,
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience,
+    });
+  }
 
   input.onPlaceholderCreated?.(placeholder.id, placeholder);
 

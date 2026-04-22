@@ -20,20 +20,40 @@ export interface PlanSendInput {
 // Targeted and 'others' modes ignore DAG — the user's explicit list is
 // exactly what runs, in parallel. 'all' and 'implicit' honor runsAfter.
 export function planSend(input: PlanSendInput): SendPlan | null {
-  const { mode, targets } = input;
-  if (targets.length === 0) return null;
-  if (targets.length === 1) {
-    const t = targets[0];
+  const { mode, personas } = input;
+  if (input.targets.length === 0) return null;
+  if (input.targets.length === 1) {
+    const t = input.targets[0];
     if (!t) return null;
     return { kind: "single", target: t };
   }
+  // #117: sort targets by persona.sortOrder for stable display order in
+  // multi-persona responses. DAG topological constraints (runsAfter)
+  // still take precedence; within a DAG level, sortOrder breaks ties.
+  const sortedTargets = sortTargetsBySortOrder(input.targets, personas);
   const honorsDag = mode === "all" || mode === "implicit";
-  if (!honorsDag) return { kind: "parallel", targets };
-  const plan = buildDag(targets, input.personas, input.runId);
+  if (!honorsDag) return { kind: "parallel", targets: sortedTargets };
+  const plan = buildDag(sortedTargets, personas, input.runId);
   if (plan.nodes.size === 0) return null;
   const anyEdges = [...plan.nodes.values()].some((n) => n.parents.length > 0);
-  if (!anyEdges) return { kind: "parallel", targets };
+  if (!anyEdges) return { kind: "parallel", targets: sortedTargets };
   return { kind: "dag", plan };
+}
+
+// Stable sort: (sortOrder asc, then original index as tiebreaker for
+// targets whose persona lookup fails or whose sortOrder collides).
+function sortTargetsBySortOrder(
+  targets: PersonaTarget[],
+  personas: Persona[],
+): PersonaTarget[] {
+  const sortOrderById = new Map(personas.map((p) => [p.id, p.sortOrder] as const));
+  const withIndex = targets.map((t, i) => ({
+    t,
+    i,
+    order: (t.personaId ? sortOrderById.get(t.personaId) : undefined) ?? Number.MAX_SAFE_INTEGER,
+  }));
+  withIndex.sort((a, b) => a.order - b.order || a.i - b.i);
+  return withIndex.map((x) => x.t);
 }
 
 // Build the induced subgraph: only edges between selected personas
