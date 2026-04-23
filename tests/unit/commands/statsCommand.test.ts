@@ -1,4 +1,4 @@
-// //stats formatter tests — issue #116.
+// //stats formatter tests — issues #116, #119.
 import { describe, it, expect } from "vitest";
 import { formatStats } from "@/lib/commands/stats";
 import type { Conversation, Message, Persona } from "@/lib/types";
@@ -44,6 +44,7 @@ function msg(
   role: "user" | "assistant",
   content: string,
   personaId: string | null = null,
+  overrides: Partial<Message> = {},
 ): Message {
   return {
     id: `m${index}`,
@@ -65,6 +66,7 @@ function msg(
     outputTokens: 0,
     usageEstimated: false,
     audience: [],
+    ...overrides,
   };
 }
 
@@ -81,25 +83,68 @@ describe("formatStats (#116)", () => {
     expect(out).not.toContain("chars)");
   });
 
-  it("per-persona lines include a '% of max context' column", () => {
-    const messages = [msg(0, "user", "Hello"), msg(1, "assistant", "Hi there", "p1")];
+  it("starts with the chat-stats heading", () => {
+    expect(formatStats(CONV, [], [persona("p1", "claudio", "claude")])).toMatch(/^##\s+Chat stats/);
+  });
+});
+
+describe("formatStats as markdown table (#119)", () => {
+  it("output contains a markdown table header with the four expected columns", () => {
+    const messages = [msg(0, "user", "Hello")];
     const personas = [persona("p1", "claudio", "claude")];
     const out = formatStats(CONV, messages, personas);
-    // The persona line should contain a percentage like "0.00%".
-    expect(out).toMatch(/claudio\s+\d[\d,]*\s+tokens\s+\(\d+(\.\d+)?%\s+of\s+max\s+context\)/);
+    // Header row lists the columns.
+    expect(out).toMatch(/\|\s*persona\s*\|\s*user messages\s*\|\s*tokens\s*\|\s*%\s+of max context\s*\|/i);
+    // Separator row present.
+    expect(out).toMatch(/\|\s*-+\s*\|.*\|.*\|.*\|/);
   });
 
-  it("'all messages' line has no percentage", () => {
+  it("'all messages' row is present with tokens; user-messages and % cells are blank", () => {
     const messages = [msg(0, "user", "Hello"), msg(1, "assistant", "Hi", "p1")];
     const personas = [persona("p1", "claudio", "claude")];
     const out = formatStats(CONV, messages, personas);
-    // The all-messages line should not contain the "max context" phrase.
-    const firstLine = out.split("\n").find((l) => l.includes("all messages"));
-    expect(firstLine).toBeTruthy();
-    expect(firstLine).not.toContain("max context");
+    // Find the all messages row — should have a token count but no persona %.
+    const allRow = out.split("\n").find((l) => /\|\s*all messages\s*\|/.test(l));
+    expect(allRow).toBeTruthy();
+    expect(allRow).not.toContain("%");
   });
 
-  it("starts with the chat-stats heading", () => {
-    expect(formatStats(CONV, [], [persona("p1", "claudio", "claude")])).toMatch(/^Chat stats/);
+  it("per-persona row includes a user-message count", () => {
+    const messages = [
+      msg(0, "user", "Hello"),
+      msg(1, "assistant", "Hi", "p1"),
+      msg(2, "user", "Another"),
+      msg(3, "user", "Third"),
+    ];
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(CONV, messages, personas);
+    // claudio row should contain the count 3 (three non-pinned user messages).
+    const claudioRow = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l));
+    expect(claudioRow).toBeTruthy();
+    expect(claudioRow).toMatch(/\|\s*claudio\s*\|\s*3\s*\|/);
+  });
+
+  it("user-message count excludes pinned messages and messages below compactionFloor", () => {
+    const pinnedIdentity = msg(0, "user", "identity", null, { pinned: true });
+    const messages = [
+      pinnedIdentity,
+      msg(1, "user", "before floor"),
+      msg(2, "user", "after floor 1"),
+      msg(3, "user", "after floor 2"),
+    ];
+    const conv = { ...CONV, compactionFloorIndex: 2 };
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(conv, messages, personas);
+    // Only msgs 2 and 3 count (pinned excluded; msg 1 below floor).
+    const claudioRow = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l));
+    expect(claudioRow).toMatch(/\|\s*claudio\s*\|\s*2\s*\|/);
+  });
+
+  it("per-persona row includes percentage of max context", () => {
+    const messages = [msg(0, "user", "Hello")];
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(CONV, messages, personas);
+    const claudioRow = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l));
+    expect(claudioRow).toMatch(/\d+(\.\d+)?%/);
   });
 });
