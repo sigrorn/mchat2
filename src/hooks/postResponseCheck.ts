@@ -2,19 +2,23 @@
 // Component: Post-response check
 // Responsibility: After all responses complete, handle autocompact
 //                 triggering and 80/90/98% context warnings.
+//                 All checks are per-persona (#118): each persona is
+//                 compared against ITS OWN model's max-context window.
 // Collaborators: hooks/useSend.ts, lib/commands/autocompactCheck.ts,
 //                lib/conversations/runCompaction.ts.
 // ------------------------------------------------------------------
 
-import type { Conversation, Persona, PersonaTarget } from "@/lib/types";
+import type { Conversation, Message, Persona, PersonaTarget } from "@/lib/types";
 import { buildContext } from "@/lib/context";
 import { estimateTokens } from "@/lib/context/truncate";
 import {
-  resolveAutocompactTokens,
   pendingWarnings,
-  tightestPersonaNames,
+  personasAtThreshold,
+  autocompactTriggers,
+  type PersonaUsage,
 } from "@/lib/commands/autocompactCheck";
 import { runCompaction, formatPersonaLine } from "@/lib/conversations/runCompaction";
+import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { getSetting } from "@/lib/persistence/settings";
 import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { useMessagesStore } from "@/stores/messagesStore";
@@ -23,16 +27,16 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
 
 /**
- * Estimate the current max context token count across all personas.
- * Uses the tightest (largest) context footprint among personas.
+ * Build a per-persona usage record: current context tokens and that
+ * persona's own provider max-context window.
  */
-function estimateMaxContextTokens(
+function computePersonaUsages(
   conversation: Conversation,
   personas: readonly Persona[],
-  messages: readonly import("@/lib/types").Message[],
+  messages: readonly Message[],
   globalSystemPrompt: string | null,
-): number {
-  let maxTokens = 0;
+): PersonaUsage[] {
+  const usages: PersonaUsage[] = [];
   for (const p of personas) {
     const target: PersonaTarget = {
       provider: p.provider,
@@ -49,10 +53,29 @@ function estimateMaxContextTokens(
     });
     const systemCost = ctx.systemPrompt ? estimateTokens(ctx.systemPrompt) : 0;
     const messageCost = ctx.messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
-    const total = systemCost + messageCost;
-    if (total > maxTokens) maxTokens = total;
+    usages.push({
+      persona: p,
+      tokens: systemCost + messageCost,
+      maxTokens: PROVIDER_REGISTRY[p.provider].maxContextTokens,
+    });
   }
-  return maxTokens;
+  return usages;
+}
+
+/**
+ * Format the list of personas triggering a warning as "albert at 85%,
+ * gemma at 82%" — using each persona's own ratio, not a shared one.
+ */
+function formatTriggeringPersonas(personas: readonly PersonaUsage[]): string {
+  return personas
+    .map((u) => {
+      const pct =
+        Number.isFinite(u.maxTokens) && u.maxTokens > 0
+          ? Math.round((u.tokens / u.maxTokens) * 100)
+          : 0;
+      return `${u.persona.name} at ${pct}%`;
+    })
+    .join(", ");
 }
 
 /**
@@ -71,29 +94,29 @@ export async function postResponseCheck(conversationId: string): Promise<void> {
   const messages = useMessagesStore.getState().byConversation[conversationId] ?? [];
   const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
 
-  const currentTokens = estimateMaxContextTokens(conversation, personas, messages, globalPrompt);
+  const usages = computePersonaUsages(conversation, personas, messages, globalPrompt);
 
-  // Case 1: autocompact is on — check threshold.
-  const threshold = resolveAutocompactTokens(conversation, personas);
-  if (threshold !== null && currentTokens >= threshold) {
+  // Case 1: autocompact is on — check per-persona triggers.
+  const triggers = autocompactTriggers(conversation, usages);
+  if (triggers.length > 0) {
     const preserve = conversation.autocompactThreshold?.preserve ?? 0;
     await runAutocompact(conversationId, conversation, personas, preserve);
     return;
   }
 
-  // Case 2: autocompact is off — check warning thresholds.
-  const warnings = pendingWarnings(conversation, currentTokens, personas);
+  // Case 2: autocompact is off — check warning thresholds (per-persona).
+  const warnings = pendingWarnings(conversation, usages);
   if (warnings.length > 0) {
     const fired = [...(conversation.contextWarningsFired ?? []), ...warnings];
     await useConversationsStore.getState().setContextWarningsFired(conversationId, fired);
     const highest = warnings[warnings.length - 1]!;
-    const names = tightestPersonaNames(personas);
-    const forClause = names.length > 0 ? ` (for ${names.join(", ")})` : "";
+    const triggering = personasAtThreshold(highest, usages);
+    const names = formatTriggeringPersonas(triggering);
     await useMessagesStore
       .getState()
       .appendNotice(
         conversationId,
-        `⚠ ${highest}% context of tightest model reached${forClause} — time for //compact ?`,
+        `⚠ ${names} — ${highest}% of own context window reached. Time for //compact ?`,
       );
   }
 }
