@@ -136,8 +136,10 @@ async function runAutocompact(
     .getState()
     .appendNotice(conversationId, formatStats(conversation, preMessages, personas));
   const result = await runCompaction(conversation, personas, preserve, {
+    // #123 — use "compacting" status (pale brown) for the persona row
+    // so autocompact is visually distinct from a regular response.
     onPersonaStart: (pid) =>
-      useSendStore.getState().setTargetStatus(conversationId, pid, "streaming"),
+      useSendStore.getState().setTargetStatus(conversationId, pid, "compacting"),
     onPersonaError: (pid) =>
       useSendStore.getState().setTargetStatus(conversationId, pid, "retrying"),
     onPersonaDone: (pid) => useSendStore.getState().clearTargetStatus(conversationId, pid),

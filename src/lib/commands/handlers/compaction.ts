@@ -86,8 +86,11 @@ export async function handleCompact(
       `compacting: generating summaries for ${personas.length} persona${personas.length === 1 ? "" : "s"}${preserveLabel}…`,
     );
   const result = await runCompaction(conversation, personas, preserve, {
+    // #123 — use "compacting" status (pale brown) instead of the
+    // regular "streaming" yellow, so the persona panel makes clear
+    // that a compaction is in progress rather than a normal reply.
     onPersonaStart: (pid) =>
-      useSendStore.getState().setTargetStatus(conversation.id, pid, "streaming"),
+      useSendStore.getState().setTargetStatus(conversation.id, pid, "compacting"),
     onPersonaError: (pid) =>
       useSendStore.getState().setTargetStatus(conversation.id, pid, "retrying"),
     onPersonaDone: (pid) => useSendStore.getState().clearTargetStatus(conversation.id, pid),

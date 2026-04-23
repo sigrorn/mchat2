@@ -39,6 +39,9 @@ function statusBgClass(status: StreamStatus | undefined): string {
   if (status === "queued") return "bg-green-50";
   if (status === "streaming") return "bg-yellow-50";
   if (status === "retrying") return "bg-red-50";
+  // #123 — pale light brown for an in-progress compaction, distinct
+  // from the yellow streaming-reply color.
+  if (status === "compacting") return "bg-amber-100";
   return "";
 }
 

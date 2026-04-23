@@ -17,10 +17,11 @@ export interface ActiveStream {
 }
 
 // Per-persona inflight state for the PersonaPanel row colouring (#31).
-//   queued    — DAG dependency hasn't run yet; adapter not contacted
-//   streaming — adapter open, tokens / usage flowing
-//   retrying  — last attempt failed transiently; runner is retrying
-export type StreamStatus = "queued" | "streaming" | "retrying";
+//   queued     — DAG dependency hasn't run yet; adapter not contacted
+//   streaming  — adapter open, tokens / usage flowing
+//   retrying   — last attempt failed transiently; runner is retrying
+//   compacting — compaction summarizer running for this persona (#123)
+export type StreamStatus = "queued" | "streaming" | "retrying" | "compacting";
 
 interface State {
   runIdByConversation: Record<string, number>;
