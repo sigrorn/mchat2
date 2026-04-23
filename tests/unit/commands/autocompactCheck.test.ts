@@ -1,9 +1,12 @@
-// Autocompact check tests — issue #105.
+// Autocompact check tests — issues #105, #118.
 import { describe, it, expect } from "vitest";
 import {
   resolveAutocompactTokens,
   pendingWarnings,
+  personasAtThreshold,
+  autocompactTriggers,
   tightestPersonaNames,
+  type PersonaUsage,
 } from "@/lib/commands/autocompactCheck";
 import type { Conversation, Persona } from "@/lib/types";
 
@@ -49,72 +52,151 @@ const PERSONA_200K: Persona = {
   nameSlug: "claude",
 };
 
-describe("resolveAutocompactTokens", () => {
+function usage(persona: Persona, tokens: number, maxTokens: number): PersonaUsage {
+  return { persona, tokens, maxTokens };
+}
+
+describe("resolveAutocompactTokens (kTokens mode, absolute)", () => {
   it("returns null when autocompact is off", () => {
-    expect(resolveAutocompactTokens(BASE_CONV, [PERSONA_128K])).toBeNull();
+    expect(resolveAutocompactTokens(BASE_CONV)).toBeNull();
   });
 
   it("kTokens mode: returns value * 1000", () => {
     const conv = { ...BASE_CONV, autocompactThreshold: { mode: "kTokens" as const, value: 48 } };
-    expect(resolveAutocompactTokens(conv, [PERSONA_128K])).toBe(48000);
+    expect(resolveAutocompactTokens(conv)).toBe(48000);
   });
 
-  it("percent mode: resolves against tightest model", () => {
+  it("percent mode: returns null (caller must use per-persona check)", () => {
     const conv = { ...BASE_CONV, autocompactThreshold: { mode: "percent" as const, value: 75 } };
-    // 75% of 128000 = 96000
-    expect(resolveAutocompactTokens(conv, [PERSONA_128K, PERSONA_200K])).toBe(96000);
-  });
-
-  it("percent mode with only 200k model: 75% = 150000", () => {
-    const conv = { ...BASE_CONV, autocompactThreshold: { mode: "percent" as const, value: 75 } };
-    expect(resolveAutocompactTokens(conv, [PERSONA_200K])).toBe(150000);
-  });
-
-  it("returns null when no personas", () => {
-    const conv = { ...BASE_CONV, autocompactThreshold: { mode: "percent" as const, value: 75 } };
-    expect(resolveAutocompactTokens(conv, [])).toBeNull();
+    expect(resolveAutocompactTokens(conv)).toBeNull();
   });
 });
 
-describe("pendingWarnings", () => {
+describe("pendingWarnings (#118: per-persona ratios)", () => {
   it("returns empty when autocompact is on", () => {
     const conv = { ...BASE_CONV, autocompactThreshold: { mode: "kTokens" as const, value: 48 } };
-    expect(pendingWarnings(conv, 200000, [PERSONA_128K])).toEqual([]);
+    // Persona at 100% of its max — still no warning because autocompact handles it.
+    const usages = [usage(PERSONA_128K, 128000, 128000)];
+    expect(pendingWarnings(conv, usages)).toEqual([]);
   });
 
-  it("fires 80% warning when context reaches 80% of tightest model", () => {
-    // 80% of 128000 = 102400
-    expect(pendingWarnings(BASE_CONV, 102400, [PERSONA_128K])).toEqual([80]);
+  it("fires 80% warning when any persona is at 80% of ITS OWN max", () => {
+    // GPT 128k at 80% = 102400.
+    const usages = [usage(PERSONA_128K, 102400, 128000)];
+    expect(pendingWarnings(BASE_CONV, usages)).toEqual([80]);
   });
 
-  it("fires 80% and 90% at once if context jumps past both", () => {
-    // 90% of 128000 = 115200
-    expect(pendingWarnings(BASE_CONV, 115200, [PERSONA_128K])).toEqual([80, 90]);
+  it("fires 80%/90% at once if a persona jumps past both", () => {
+    const usages = [usage(PERSONA_128K, 115200, 128000)]; // 90%
+    expect(pendingWarnings(BASE_CONV, usages)).toEqual([80, 90]);
   });
 
   it("fires all three at 98%+", () => {
-    // 98% of 128000 = 125440
-    expect(pendingWarnings(BASE_CONV, 125440, [PERSONA_128K])).toEqual([80, 90, 98]);
+    const usages = [usage(PERSONA_128K, 125440, 128000)]; // 98%
+    expect(pendingWarnings(BASE_CONV, usages)).toEqual([80, 90, 98]);
   });
 
-  it("does not repeat already-fired warnings", () => {
+  it("does not repeat already-fired thresholds", () => {
     const conv = { ...BASE_CONV, contextWarningsFired: [80] };
-    // past 90% threshold
-    expect(pendingWarnings(conv, 116000, [PERSONA_128K])).toEqual([90]);
+    const usages = [usage(PERSONA_128K, 116000, 128000)]; // ~90.6%
+    expect(pendingWarnings(conv, usages)).toEqual([90]);
   });
 
-  it("returns empty when below all thresholds", () => {
-    expect(pendingWarnings(BASE_CONV, 50000, [PERSONA_128K])).toEqual([]);
+  it("returns empty when no persona crosses any threshold", () => {
+    const usages = [usage(PERSONA_128K, 50000, 128000)]; // 39%
+    expect(pendingWarnings(BASE_CONV, usages)).toEqual([]);
   });
 
-  it("returns empty when no personas", () => {
-    expect(pendingWarnings(BASE_CONV, 200000, [])).toEqual([]);
+  it("mixed-window scenario from #118: no warning despite one large context", () => {
+    // 21k tokens vs 128k OpenAI max = 16.4% — below threshold.
+    // 12k tokens vs 16k Apertus max = 75% — below threshold.
+    // Neither persona crosses 80%.
+    const apertus: Persona = {
+      ...PERSONA_128K,
+      id: "p3",
+      name: "Albert",
+      nameSlug: "albert",
+      provider: "apertus",
+    };
+    const usages = [usage(PERSONA_128K, 21000, 128000), usage(apertus, 12000, 16384)];
+    expect(pendingWarnings(BASE_CONV, usages)).toEqual([]);
+  });
+
+  it("returns empty when no usages provided", () => {
+    expect(pendingWarnings(BASE_CONV, [])).toEqual([]);
+  });
+});
+
+describe("personasAtThreshold (#118)", () => {
+  it("returns personas whose ratio >= threshold%", () => {
+    const apertus: Persona = {
+      ...PERSONA_128K,
+      id: "p3",
+      name: "Albert",
+      nameSlug: "albert",
+      provider: "apertus",
+    };
+    const usages = [
+      usage(PERSONA_128K, 50000, 128000), // 39%
+      usage(apertus, 14000, 16384), // 85.4%
+      usage(PERSONA_200K, 180000, 200000), // 90%
+    ];
+    const at80 = personasAtThreshold(80, usages);
+    expect(at80.map((u) => u.persona.name)).toEqual(["Albert", "Claude"]);
+  });
+
+  it("returns empty when no persona meets the threshold", () => {
+    const usages = [usage(PERSONA_128K, 50000, 128000)];
+    expect(personasAtThreshold(80, usages)).toEqual([]);
+  });
+});
+
+describe("autocompactTriggers (#118: per-persona)", () => {
+  it("returns empty when autocompact is off", () => {
+    const usages = [usage(PERSONA_128K, 128000, 128000)];
+    expect(autocompactTriggers(BASE_CONV, usages)).toEqual([]);
+  });
+
+  it("kTokens mode: triggers for personas exceeding raw token count", () => {
+    const conv = { ...BASE_CONV, autocompactThreshold: { mode: "kTokens" as const, value: 48 } };
+    const usages = [
+      usage(PERSONA_128K, 50000, 128000), // exceeds 48k
+      usage(PERSONA_200K, 40000, 200000), // below 48k
+    ];
+    const triggered = autocompactTriggers(conv, usages);
+    expect(triggered.map((u) => u.persona.name)).toEqual(["GPT"]);
+  });
+
+  it("percent mode: triggers when a persona's own ratio >= threshold%", () => {
+    const conv = { ...BASE_CONV, autocompactThreshold: { mode: "percent" as const, value: 75 } };
+    const usages = [
+      usage(PERSONA_128K, 90000, 128000), // 70% — below
+      usage(PERSONA_200K, 160000, 200000), // 80% — above
+    ];
+    const triggered = autocompactTriggers(conv, usages);
+    expect(triggered.map((u) => u.persona.name)).toEqual(["Claude"]);
+  });
+
+  it("mixed-window scenario: large nvccoach context doesn't trigger", () => {
+    // Same as the #118 example. No persona crosses 75% of its own max.
+    const apertus: Persona = {
+      ...PERSONA_128K,
+      id: "p3",
+      name: "Albert",
+      nameSlug: "albert",
+      provider: "apertus",
+    };
+    const conv = { ...BASE_CONV, autocompactThreshold: { mode: "percent" as const, value: 75 } };
+    const usages = [
+      usage(PERSONA_128K, 21000, 128000), // 16%
+      usage(apertus, 12000, 16384), // 73%
+    ];
+    expect(autocompactTriggers(conv, usages)).toEqual([]);
   });
 });
 
 describe("tightestPersonaNames", () => {
   it("returns name of the single tightest persona (#109)", () => {
-    // openai 128k < claude 200k → GPT is tightest
     expect(tightestPersonaNames([PERSONA_128K, PERSONA_200K])).toEqual(["GPT"]);
   });
 
