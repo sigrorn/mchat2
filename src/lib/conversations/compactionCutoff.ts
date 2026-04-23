@@ -14,8 +14,11 @@ import type { Conversation, Message, Persona } from "../types";
  * persona — the kind that counts as a "fresh conversational turn" for
  * last-N preservation. Pinned user messages (identity pins) and
  * assistant messages don't count.
+ *
+ * Exported so //stats (#119) can count the same kind of message the
+ * //compact -N counter preserves.
  */
-function isCountableUserMessage(
+export function isCountableUserMessage(
   m: Message,
   personaKey: string,
 ): boolean {
