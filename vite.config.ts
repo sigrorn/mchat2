@@ -2,53 +2,38 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
-// #120 — MSI-compatible version string: YY.M.DAYMIN where
-//   YY     = year - 2000
-//   M      = month (1-12)
-//   DAYMIN = (day-1)*1440 + hour*60 + minute
-// Fits Windows MSI limits (0-255 . 0-255 . 0-65535). Kept in sync with
-// scripts/versionFromGit.mjs's encodeCalendarVersion.
-function calendarVersion(ts: string): string {
-  const year = Number(ts.slice(0, 4));
-  const month = Number(ts.slice(4, 6));
-  const day = Number(ts.slice(6, 8));
-  const hour = Number(ts.slice(8, 10));
-  const minute = Number(ts.slice(10, 12));
-  const yy = year - 2000;
-  const daymin = (day - 1) * 1440 + hour * 60 + minute;
-  return `${yy}.${month}.${daymin}`;
-}
-
-function getGitInfo(): string {
+// #121 — the version lives in package.json (and src-tauri/Cargo.toml +
+// tauri.conf.json), bumped per commit by scripts/bump-version.mjs.
+// This function reads it and adds git metadata for the in-app display.
+function getBuildInfo(): string {
+  let version = "unknown";
   try {
-    const timestamp = execSync("git log -1 --format=%cd --date=format:%Y%m%d%H%M%S", {
-      encoding: "utf8",
-    }).trim();
-    const commitHash = execSync("git log -1 --format=%h", {
-      encoding: "utf8",
-    }).trim();
-    const commitDateRaw = execSync("git log -1 --format=%cd --date=format:%Y%m%d%H%M%S", {
-      encoding: "utf8",
-    }).trim();
-    // Format as YYYY-MM-DD HH:MM:SS from the raw YYYYMMDDHHmmss.
+    const pkgPath = path.resolve(__dirname, "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
+    version = pkg.version ?? "unknown";
+  } catch {
+    // keep default "unknown"
+  }
+  try {
+    const commitHash = execSync("git log -1 --format=%h", { encoding: "utf8" }).trim();
+    const commitDateRaw = execSync(
+      "git log -1 --format=%cd --date=format:%Y%m%d%H%M%S",
+      { encoding: "utf8" },
+    ).trim();
     const commitDate = commitDateRaw.replace(
       /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/,
       "$1-$2-$3 $4:$5:$6",
     );
-    const commitMessage = execSync("git log -1 --format=%s", {
-      encoding: "utf8",
-    }).trim();
-    const version = calendarVersion(timestamp);
-    return JSON.stringify({ timestamp, commitHash, commitDate, commitMessage, version });
+    const commitMessage = execSync("git log -1 --format=%s", { encoding: "utf8" }).trim();
+    return JSON.stringify({ version, commitHash, commitDate, commitMessage });
   } catch {
-    const ts = new Date().toISOString().replace(/[-T:.Z]/g, "").slice(0, 14);
     return JSON.stringify({
-      timestamp: ts,
+      version,
       commitHash: "unknown",
       commitDate: "unknown",
       commitMessage: "unknown",
-      version: calendarVersion(ts),
     });
   }
 }
@@ -57,7 +42,7 @@ function getGitInfo(): string {
 export default defineConfig(async () => ({
   plugins: [react()],
   define: {
-    __BUILD_INFO__: getGitInfo(),
+    __BUILD_INFO__: getBuildInfo(),
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
