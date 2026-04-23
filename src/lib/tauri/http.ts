@@ -21,6 +21,10 @@ export interface StreamSSEOptions {
   body?: string;
   // Aborts the request and closes the reader. Emits no further events.
   signal?: AbortSignal;
+  // #124: abort the stream if no bytes arrive on the reader for this
+  // many ms. On timeout the helper throws HttpError(408, /timeout/)
+  // so retryManager picks it up as transient. Defaults to no timeout.
+  idleTimeoutMs?: number;
 }
 
 export interface HttpRequestOptions {
@@ -69,24 +73,10 @@ const defaultImpl: HttpImpl = {
     }
     const reader = res.body?.getReader();
     if (!reader) throw new Error("HTTP: response has no body");
-    const decoder = new TextDecoder();
-    let buf = "";
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      // Normalize CRLF → LF so the frame-boundary search works regardless
-      // of whether the server emits Unix or DOS line endings. Google's
-      // Gemini streamGenerateContent endpoint emits \r\n\r\n between
-      // events, which used to cause indexOf('\n\n') to never match and
-      // the entire stream to be silently discarded.
-      buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
-      let idx: number;
-      while ((idx = buf.indexOf("\n\n")) !== -1) {
-        const frame = buf.slice(0, idx);
-        buf = buf.slice(idx + 2);
-        const evt = parseSSEFrame(frame);
-        if (evt) yield evt;
-      }
+    if (opts.idleTimeoutMs && opts.idleTimeoutMs > 0) {
+      yield* readSSEFramesWithIdleTimeout(reader, opts.idleTimeoutMs);
+    } else {
+      yield* readSSEFrames(reader);
     }
   },
   async request(opts) {
@@ -129,6 +119,73 @@ export class HttpError extends Error {
   ) {
     super(`HTTP ${status}: ${body.slice(0, 200)}`);
     this.name = "HttpError";
+  }
+}
+
+/**
+ * Consume an SSE reader without an idle timeout. Extracted so the
+ * streaming loop is shared with the idle-timeout variant.
+ */
+export async function* readSSEFrames(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): AsyncIterable<SSEEvent> {
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    // Normalize CRLF → LF so the frame-boundary search works regardless
+    // of whether the server emits Unix or DOS line endings. Google's
+    // Gemini streamGenerateContent endpoint emits \r\n\r\n between
+    // events, which used to cause indexOf('\n\n') to never match and
+    // the entire stream to be silently discarded.
+    buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const evt = parseSSEFrame(frame);
+      if (evt) yield evt;
+    }
+  }
+}
+
+/**
+ * Consume an SSE reader with a per-chunk idle timeout (#124). If no
+ * bytes arrive within `idleTimeoutMs`, cancel the reader and throw
+ * HttpError(408, /timeout/) — the message substring "timeout" and 408
+ * status are what adapters map to transient so retryManager fires.
+ * The timer is reset on every successful chunk, not on every frame.
+ */
+export async function* readSSEFramesWithIdleTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  idleTimeoutMs: number,
+): AsyncIterable<SSEEvent> {
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        void reader.cancel().catch(() => {});
+        reject(new HttpError(408, `stream idle timeout (${idleTimeoutMs}ms with no bytes)`));
+      }, idleTimeoutMs);
+    });
+    let result: ReadableStreamReadResult<Uint8Array>;
+    try {
+      result = await Promise.race([reader.read(), timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (result.done) break;
+    buf += decoder.decode(result.value, { stream: true }).replace(/\r\n/g, "\n");
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const evt = parseSSEFrame(frame);
+      if (evt) yield evt;
+    }
   }
 }
 

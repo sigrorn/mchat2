@@ -58,6 +58,7 @@ export const anthropicAdapter: ProviderAdapter = {
         body: JSON.stringify(body),
       };
       if (args.signal) opts.signal = args.signal;
+      if (args.idleTimeoutMs) opts.idleTimeoutMs = args.idleTimeoutMs;
       for await (const evt of streamSSE(opts)) {
         if (!evt.data || evt.data === "[DONE]") continue;
         let parsed: unknown;
@@ -98,7 +99,7 @@ function errorFrom(streamId: string, e: unknown): StreamEvent {
     return { type: "cancelled", streamId };
   }
   if (e instanceof HttpError) {
-    const transient = e.status === 429 || e.status >= 500;
+    const transient = e.status === 429 || e.status === 408 || e.status >= 500;
     return { type: "error", streamId, transient, message: e.message };
   }
   return { type: "error", streamId, transient: true, message: (e as Error).message };

@@ -16,3 +16,15 @@ export const APERTUS_PRODUCT_ID_KEY = "apertus.productId";
 // User-chosen working directory for import/export dialogs and debug
 // trace files (#46). Required before the debug toggle is enabled.
 export const GENERAL_WORKING_DIR_KEY = "general.workingDir";
+
+// Idle timeout on streaming SSE reads (#124). If no bytes arrive on the
+// reader for this many ms, the watchdog cancels the stream and surfaces
+// a transient 408 so retryManager retries. Stored as an integer string.
+export const IDLE_TIMEOUT_MS_KEY = "general.idleTimeoutMs";
+export const DEFAULT_IDLE_TIMEOUT_MS = 50_000;
+
+// Max retry attempts for transient stream errors (#124). Paired with
+// the idle-timeout setting: the watchdog produces transient 408s,
+// retryManager honors this attempt cap. Stored as an integer string.
+export const MAX_RETRY_ATTEMPTS_KEY = "general.maxRetryAttempts";
+export const DEFAULT_MAX_RETRY_ATTEMPTS = 3;

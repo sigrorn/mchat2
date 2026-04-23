@@ -64,6 +64,7 @@ export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdap
           body: JSON.stringify(body),
         };
         if (args.signal) opts.signal = args.signal;
+        if (args.idleTimeoutMs) opts.idleTimeoutMs = args.idleTimeoutMs;
         for await (const evt of streamSSE(opts)) {
           if (!evt.data || evt.data === "[DONE]") continue;
           let parsed: Delta;
@@ -87,7 +88,7 @@ export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdap
           return;
         }
         if (e instanceof HttpError) {
-          const transient = e.status === 429 || e.status >= 500;
+          const transient = e.status === 429 || e.status === 408 || e.status >= 500;
           yield { type: "error", streamId: args.streamId, transient, message: e.message };
           return;
         }

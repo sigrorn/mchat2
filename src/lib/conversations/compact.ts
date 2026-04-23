@@ -34,6 +34,7 @@ export async function generateCompactionSummary(
   model: string,
   contextMessages: ChatMessage[],
   extraConfig?: Record<string, unknown>,
+  idleTimeoutMs?: number,
 ): Promise<CompactionSummaryResult> {
   const streamId = `compact:${Date.now()}`;
   let accumulated = "";
@@ -53,6 +54,7 @@ export async function generateCompactionSummary(
       { role: "user", content: "Now summarize this conversation concisely." },
     ],
     ...(extraConfig ? { extraConfig } : {}),
+    ...(idleTimeoutMs && idleTimeoutMs > 0 ? { idleTimeoutMs } : {}),
   })) {
     if (e.type === "token") {
       if (firstTokenAt === null) firstTokenAt = Date.now();

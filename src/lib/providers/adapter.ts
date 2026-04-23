@@ -31,6 +31,9 @@ export interface StreamArgs {
   // Provider-specific runtime config carried from the resolved
   // persona. Apertus reads .productId; other adapters ignore it.
   extraConfig?: Record<string, unknown>;
+  // #124: per-chunk idle timeout for the SSE reader. When > 0, the
+  // watchdog aborts a silent stream with a transient 408.
+  idleTimeoutMs?: number;
 }
 
 export interface ProviderAdapter {

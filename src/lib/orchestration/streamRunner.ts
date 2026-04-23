@@ -47,6 +47,9 @@ export interface StreamRunInput {
   // Adapter-specific runtime config (e.g. Apertus productId from the
   // persona). Passed through to adapter.stream as args.extraConfig.
   extraConfig?: Record<string, unknown>;
+  // #124: per-chunk idle timeout forwarded to the adapter. > 0 enables
+  // the watchdog; absent/0 keeps the old no-timeout behavior.
+  idleTimeoutMs?: number;
   // Called for every event emitted (including tokens) so the UI can
   // stream without polling the DB.
   onEvent?: (e: StreamEvent) => void;
@@ -166,6 +169,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     };
     if (signal) args.signal = signal;
     if (input.extraConfig) args.extraConfig = input.extraConfig;
+    if (input.idleTimeoutMs && input.idleTimeoutMs > 0) args.idleTimeoutMs = input.idleTimeoutMs;
     return adapter.stream(args);
   };
 

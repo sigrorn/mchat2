@@ -59,6 +59,7 @@ export const apertusAdapter: ProviderAdapter = {
         body: JSON.stringify(body),
       };
       if (args.signal) opts.signal = args.signal;
+      if (args.idleTimeoutMs) opts.idleTimeoutMs = args.idleTimeoutMs;
       for await (const evt of streamSSE(opts)) {
         if (!evt.data || evt.data === "[DONE]") continue;
         let parsed: {
@@ -83,7 +84,7 @@ export const apertusAdapter: ProviderAdapter = {
         return;
       }
       if (e instanceof HttpError) {
-        const transient = e.status === 429 || e.status >= 500;
+        const transient = e.status === 429 || e.status === 408 || e.status >= 500;
         yield { type: "error", streamId: args.streamId, transient, message: e.message };
         return;
       }
