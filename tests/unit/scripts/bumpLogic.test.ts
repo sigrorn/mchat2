@@ -1,0 +1,101 @@
+// Tests for the pure version-bump logic — issue #121.
+import { describe, it, expect } from "vitest";
+import {
+  isTestCommit,
+  parseIssueNumber,
+  computeNextVersion,
+  formatVersion,
+} from "../../../scripts/bumpLogic.mjs";
+
+describe("isTestCommit", () => {
+  it("true for subjects starting with 'tests:'", () => {
+    expect(isTestCommit("tests: bumpLogic (#121)")).toBe(true);
+  });
+
+  it("case-insensitive", () => {
+    expect(isTestCommit("Tests: foo")).toBe(true);
+    expect(isTestCommit("TESTS: foo")).toBe(true);
+  });
+
+  it("allows leading whitespace", () => {
+    expect(isTestCommit("  tests: foo")).toBe(true);
+  });
+
+  it("false for regular subjects", () => {
+    expect(isTestCommit("Implement foo (#121)")).toBe(false);
+    expect(isTestCommit("Fix bar (#118)")).toBe(false);
+  });
+
+  it("false when 'tests' is not at the start", () => {
+    expect(isTestCommit("Update tests: foo")).toBe(false);
+  });
+});
+
+describe("parseIssueNumber", () => {
+  it("extracts the first #NNN", () => {
+    expect(parseIssueNumber("Implement foo (#121)")).toBe(121);
+  });
+
+  it("takes the first when multiple are present", () => {
+    expect(parseIssueNumber("Fix (#118, #119)")).toBe(118);
+  });
+
+  it("returns null when none", () => {
+    expect(parseIssueNumber("Plain subject without refs")).toBeNull();
+  });
+
+  it("ignores numbers that aren't prefixed with #", () => {
+    expect(parseIssueNumber("Implement 117 something")).toBeNull();
+  });
+});
+
+describe("computeNextVersion", () => {
+  it("first bump: advances to new issue's major.minor with build=1", () => {
+    const next = computeNextVersion({ major: 0, minor: 0, build: 0 }, 121);
+    expect(next).toEqual({ major: 1, minor: 21, build: 1 });
+  });
+
+  it("same issue: increments build counter", () => {
+    const next = computeNextVersion({ major: 1, minor: 21, build: 3 }, 121);
+    expect(next).toEqual({ major: 1, minor: 21, build: 4 });
+  });
+
+  it("higher issue: advances and resets build to 1", () => {
+    const next = computeNextVersion({ major: 1, minor: 21, build: 3 }, 125);
+    expect(next).toEqual({ major: 1, minor: 25, build: 1 });
+  });
+
+  it("lower issue (never go backwards): keeps current major.minor, bumps build", () => {
+    // #118 < #121 → don't regress; stay at 1.21.x and increment.
+    const next = computeNextVersion({ major: 1, minor: 21, build: 3 }, 118);
+    expect(next).toEqual({ major: 1, minor: 21, build: 4 });
+  });
+
+  it("issue split at hundreds boundary", () => {
+    // issue 200 → 2.0
+    const next = computeNextVersion({ major: 1, minor: 99, build: 5 }, 200);
+    expect(next).toEqual({ major: 2, minor: 0, build: 1 });
+  });
+
+  it("major advance ignores minor comparison", () => {
+    // current 1.99, new issue 200 → 2.0 (even though minor 0 < 99)
+    const next = computeNextVersion({ major: 1, minor: 99, build: 5 }, 200);
+    expect(next.major).toBe(2);
+    expect(next.minor).toBe(0);
+  });
+
+  it("issue < 100 produces major=0", () => {
+    const next = computeNextVersion({ major: 0, minor: 0, build: 0 }, 87);
+    expect(next).toEqual({ major: 0, minor: 87, build: 1 });
+  });
+});
+
+describe("formatVersion", () => {
+  it("joins with dots", () => {
+    expect(formatVersion({ major: 1, minor: 21, build: 3 })).toBe("1.21.3");
+  });
+
+  it("handles zero components", () => {
+    expect(formatVersion({ major: 0, minor: 0, build: 1 })).toBe("0.0.1");
+  });
+});
