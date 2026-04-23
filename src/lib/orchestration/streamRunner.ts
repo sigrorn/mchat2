@@ -144,6 +144,10 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   let estimated = false;
   let finalError: { message: string; transient: boolean } | null = null;
   let cancelled = false;
+  // #122 — streaming timings for //stats aggregation.
+  let streamOpenAt: number | null = null;
+  let firstTokenAt: number | null = null;
+  let completeAt: number | null = null;
 
   // #40: emit the outbound rows once the built context is final and
   // before the adapter opens. Done inside the try/catch to guarantee
@@ -165,6 +169,10 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     return adapter.stream(args);
   };
 
+  // #122 — mark stream open just before the first adapter iteration.
+  // Within ~5ms of the actual socket write; any gap is dwarfed by
+  // network and model latency.
+  streamOpenAt = Date.now();
   try {
     for await (const e of withRetry(
       input.streamId,
@@ -182,6 +190,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
       }
       switch (e.type) {
         case "token":
+          if (firstTokenAt === null) firstTokenAt = Date.now();
           accumulated += e.text;
           break;
         case "usage":
@@ -196,7 +205,13 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
           cancelled = true;
           break;
         case "retrying":
+          // On a retry restart, reset stream-open to the new attempt
+          // and drop any first-token captured from the earlier one.
+          streamOpenAt = Date.now();
+          firstTokenAt = null;
+          break;
         case "complete":
+          completeAt = Date.now();
           break;
       }
     }
@@ -234,6 +249,22 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   );
   if (inputTokens > 0 || outputTokens > 0) {
     await messagesRepo.updateMessageUsage(placeholder.id, inputTokens, outputTokens, estimated);
+  }
+  // #122 — record timings only on successful completion. Failed /
+  // cancelled / silent streams leave ttft_ms + stream_ms NULL so
+  // //stats averages exclude them.
+  if (
+    !finalError &&
+    !cancelled &&
+    streamOpenAt !== null &&
+    firstTokenAt !== null &&
+    completeAt !== null
+  ) {
+    const ttftMs = firstTokenAt - streamOpenAt;
+    const streamMs = completeAt - firstTokenAt;
+    if (ttftMs >= 0 && streamMs >= 0) {
+      await messagesRepo.updateMessageTiming(placeholder.id, ttftMs, streamMs);
+    }
   }
 
   const kind: StreamRunOutcome["kind"] = cancelled

@@ -14,6 +14,7 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore } from "@/stores/sendStore";
 import { runCompaction, formatPersonaLine } from "@/lib/conversations/runCompaction";
+import { formatStats } from "@/lib/commands/stats";
 import type { CommandContext, CommandResult } from "./types";
 
 export async function handleAutocompact(
@@ -72,6 +73,12 @@ export async function handleCompact(
   const preserve = payload.preserve;
   const preserveLabel =
     preserve > 0 ? ` (preserving last ${preserve} user message${preserve === 1 ? "" : "s"})` : "";
+  // #122 — emit the current //stats snapshot before compacting so the
+  // user can see the TTFT/throughput averages that led up to this run.
+  const preMessages = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+  await useMessagesStore
+    .getState()
+    .appendNotice(conversation.id, formatStats(conversation, preMessages, personas));
   await useMessagesStore
     .getState()
     .appendNotice(

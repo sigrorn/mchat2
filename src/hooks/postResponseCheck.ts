@@ -18,6 +18,7 @@ import {
   type PersonaUsage,
 } from "@/lib/commands/autocompactCheck";
 import { runCompaction, formatPersonaLine } from "@/lib/conversations/runCompaction";
+import { formatStats } from "@/lib/commands/stats";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { getSetting } from "@/lib/persistence/settings";
 import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
@@ -127,6 +128,13 @@ async function runAutocompact(
   personas: readonly Persona[],
   preserve: number,
 ): Promise<void> {
+  // #122 — emit current //stats before autocompact begins so the
+  // pre-compaction TTFT/throughput averages are visible alongside the
+  // post-compaction recap.
+  const preMessages = useMessagesStore.getState().byConversation[conversationId] ?? [];
+  await useMessagesStore
+    .getState()
+    .appendNotice(conversationId, formatStats(conversation, preMessages, personas));
   const result = await runCompaction(conversation, personas, preserve, {
     onPersonaStart: (pid) =>
       useSendStore.getState().setTargetStatus(conversationId, pid, "streaming"),

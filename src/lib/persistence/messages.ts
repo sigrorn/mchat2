@@ -29,6 +29,8 @@ interface Row {
   output_tokens?: number;
   usage_estimated?: number;
   audience?: string;
+  ttft_ms?: number | null;
+  stream_ms?: number | null;
 }
 
 function rowToMessage(r: Row): Message {
@@ -60,6 +62,8 @@ function rowToMessage(r: Row): Message {
     outputTokens: r.output_tokens ?? 0,
     usageEstimated: (r.usage_estimated ?? 0) !== 0,
     audience: parseStringArray(r.audience ?? "[]"),
+    ttftMs: r.ttft_ms ?? null,
+    streamMs: r.stream_ms ?? null,
   };
 }
 
@@ -133,8 +137,8 @@ async function doAppend(
        (id, conversation_id, role, content, provider, model, persona_id,
         display_mode, pinned, pin_target, addressed_to, created_at, idx,
         error_message, error_transient, input_tokens, output_tokens,
-        usage_estimated, audience)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        usage_estimated, audience, ttft_ms, stream_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       msg.id,
       msg.conversationId,
@@ -155,6 +159,8 @@ async function doAppend(
       msg.outputTokens,
       msg.usageEstimated ? 1 : 0,
       JSON.stringify(msg.audience),
+      msg.ttftMs ?? null,
+      msg.streamMs ?? null,
     ],
   );
   return msg;
@@ -185,6 +191,20 @@ export async function updateMessageUsage(
   await sql.execute(
     "UPDATE messages SET input_tokens = ?, output_tokens = ?, usage_estimated = ? WHERE id = ?",
     [inputTokens, outputTokens, usageEstimated ? 1 : 0, id],
+  );
+}
+
+// #122 — record streaming timings on successful stream completion.
+// Not called for failed/cancelled streams (their timings stay NULL,
+// which excludes them from //stats averages).
+export async function updateMessageTiming(
+  id: string,
+  ttftMs: number,
+  streamMs: number,
+): Promise<void> {
+  await sql.execute(
+    "UPDATE messages SET ttft_ms = ?, stream_ms = ? WHERE id = ?",
+    [ttftMs, streamMs, id],
   );
 }
 
@@ -241,8 +261,8 @@ export async function insertMessageAtIndex(
        (id, conversation_id, role, content, provider, model, persona_id,
         display_mode, pinned, pin_target, addressed_to, created_at, idx,
         error_message, error_transient, input_tokens, output_tokens,
-        usage_estimated, audience)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        usage_estimated, audience, ttft_ms, stream_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       msg.id,
       msg.conversationId,
@@ -263,6 +283,8 @@ export async function insertMessageAtIndex(
       msg.outputTokens,
       msg.usageEstimated ? 1 : 0,
       JSON.stringify(msg.audience),
+      msg.ttftMs ?? null,
+      msg.streamMs ?? null,
     ],
   );
   return msg;

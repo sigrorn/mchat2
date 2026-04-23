@@ -130,6 +130,15 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE conversations ADD COLUMN autocompact_threshold TEXT`,
     `ALTER TABLE conversations ADD COLUMN context_warnings_fired TEXT NOT NULL DEFAULT '[]'`,
   ],
+  // 12 — Per-message streaming timings (#122).
+  // ttft_ms: ms from stream-open to first token event.
+  // stream_ms: ms from first token to complete event.
+  // Nullable; populated only for streamed assistant rows that
+  // completed successfully.
+  [
+    `ALTER TABLE messages ADD COLUMN ttft_ms INTEGER`,
+    `ALTER TABLE messages ADD COLUMN stream_ms INTEGER`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

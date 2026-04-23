@@ -142,6 +142,11 @@ export async function runCompaction(
         summaryTokens: number;
         preservedTokens: number;
         elapsedMs: number;
+        /** #122 — per-summary streaming timings, persisted on the inserted row. */
+        ttftMs: number | null;
+        streamMs: number | null;
+        /** #122 — tokens reported by the model, used to persist output_tokens on the row. */
+        reportedOutputTokens: number;
       }
     | { ok: false; persona: Persona; error: string };
 
@@ -163,7 +168,7 @@ export async function runCompaction(
           : null;
         const model = modelForTarget(target, [...personas]);
         const extra = await resolveExtraConfig(p.provider, p);
-        const summary = await generateCompactionSummary(
+        const summaryResult = await generateCompactionSummary(
           adapterFor(p.provider),
           ak,
           model,
@@ -171,11 +176,11 @@ export async function runCompaction(
           extra,
         );
         const elapsedMs = Date.now() - t0;
-        if (!summary) {
+        if (!summaryResult.summary) {
           hooks.onPersonaError?.(p.id);
           return { ok: false, persona: p, error: "model returned empty summary" };
         }
-        const summaryTokens = estimateTokens(summary);
+        const summaryTokens = estimateTokens(summaryResult.summary);
         // Compute preserved tokens for this persona: rebuild context on
         // the preserved slice and sum.
         const preservedCtx = buildContext({
@@ -192,11 +197,14 @@ export async function runCompaction(
         return {
           ok: true,
           persona: p,
-          summary,
+          summary: summaryResult.summary,
           origTokens: ctxInfo.origTokens,
           summaryTokens,
           preservedTokens,
           elapsedMs,
+          ttftMs: summaryResult.ttftMs,
+          streamMs: summaryResult.streamMs,
+          reportedOutputTokens: summaryResult.outputTokens,
         };
       } catch (e) {
         hooks.onPersonaError?.(p.id);
@@ -209,7 +217,13 @@ export async function runCompaction(
 
   const successes: PersonaCompactionStat[] = [];
   const failures: CompactionFailure[] = [];
-  const summaryContents: Array<{ persona: Persona; summary: string }> = [];
+  const summaryContents: Array<{
+    persona: Persona;
+    summary: string;
+    ttftMs: number | null;
+    streamMs: number | null;
+    reportedOutputTokens: number;
+  }> = [];
   for (const r of results) {
     if (!r) continue;
     if (r.ok) {
@@ -220,7 +234,13 @@ export async function runCompaction(
         preservedTokens: r.preservedTokens,
         elapsedMs: r.elapsedMs,
       });
-      summaryContents.push({ persona: r.persona, summary: r.summary });
+      summaryContents.push({
+        persona: r.persona,
+        summary: r.summary,
+        ttftMs: r.ttftMs,
+        streamMs: r.streamMs,
+        reportedOutputTokens: r.reportedOutputTokens,
+      });
     } else {
       failures.push({ persona: r.persona, error: r.error });
     }
@@ -264,25 +284,29 @@ export async function runCompaction(
   });
 
   // Insert per-persona summaries at cutoff+1 .. cutoff+numSummaries.
+  // #122 — timings from the summary stream are persisted so the next
+  // //stats run will include the compaction itself in the averages.
   for (let i = 0; i < summaryContents.length; i++) {
-    const { persona: p, summary } = summaryContents[i]!;
+    const s = summaryContents[i]!;
     await messagesRepo.insertMessageAtIndex({
       conversationId: conversation.id,
       role: "assistant",
-      content: `[compacted summary]\n\n${summary}`,
-      provider: p.provider,
-      model: p.modelOverride ?? PROVIDER_REGISTRY[p.provider].defaultModel,
-      personaId: p.id,
+      content: `[compacted summary]\n\n${s.summary}`,
+      provider: s.persona.provider,
+      model: s.persona.modelOverride ?? PROVIDER_REGISTRY[s.persona.provider].defaultModel,
+      personaId: s.persona.id,
       displayMode: "lines",
       pinned: true,
-      pinTarget: p.id,
+      pinTarget: s.persona.id,
       addressedTo: [],
       errorMessage: null,
       errorTransient: false,
       inputTokens: 0,
-      outputTokens: 0,
+      outputTokens: s.reportedOutputTokens,
       usageEstimated: false,
       audience: [],
+      ttftMs: s.ttftMs,
+      streamMs: s.streamMs,
       index: cutoff + 1 + i,
     });
   }

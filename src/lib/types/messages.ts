@@ -55,4 +55,10 @@ export interface Message {
   // True when the adapter had to approximate usage (no server-reported
   // counts). Surfaces via the '~' prefix in cost displays.
   usageEstimated: boolean;
+  // #122 — streaming timings, populated by streamRunner on successful
+  // completion. Undefined/null for non-streamed rows, failed or
+  // cancelled streams, and pre-migration rows. Optional so most call
+  // sites (non-streamed row construction) don't need to set them.
+  ttftMs?: number | null;
+  streamMs?: number | null;
 }
