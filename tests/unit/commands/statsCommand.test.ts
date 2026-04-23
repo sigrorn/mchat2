@@ -86,6 +86,30 @@ describe("formatStats (#116)", () => {
   it("starts with the chat-stats heading", () => {
     expect(formatStats(CONV, [], [persona("p1", "claudio", "claude")])).toMatch(/^##\s+Chat stats/);
   });
+
+  // #122: drop the conversation title suffix; keep just "## Chat stats".
+  it("heading is just 'Chat stats' (no conversation title suffix)", () => {
+    const out = formatStats(CONV, [], [persona("p1", "claudio", "claude")]);
+    const first = out.split("\n")[0] ?? "";
+    expect(first.trim()).toBe("## Chat stats");
+  });
+});
+
+describe("formatStats columns with timings (#122)", () => {
+  it("includes avg TTFT and avg tok/s columns in the header", () => {
+    const out = formatStats(CONV, [msg(0, "user", "hi")], [persona("p1", "claudio", "claude")]);
+    expect(out).toMatch(/\|\s*avg TTFT\s*\|/i);
+    expect(out).toMatch(/\|\s*avg tok\/s\s*\|/i);
+  });
+
+  it("persona row shows '—' for both timing columns when no data", () => {
+    const out = formatStats(CONV, [msg(0, "user", "hi")], [persona("p1", "claudio", "claude")]);
+    const claudioRow = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l));
+    expect(claudioRow).toBeTruthy();
+    // Expect at least two "—" cells in the row (one per timing column).
+    const dashes = (claudioRow!.match(/—/g) ?? []).length;
+    expect(dashes).toBeGreaterThanOrEqual(2);
+  });
 });
 
 describe("formatStats as markdown table (#119)", () => {
