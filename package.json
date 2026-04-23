@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "tauri": "node scripts/tauri-wrapper.mjs",
     "tauri:build": "node scripts/tauri-build.mjs",
     "stamp-version": "node scripts/stamp-version.mjs",
     "reset-version": "node scripts/reset-version.mjs",

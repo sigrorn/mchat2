@@ -13,6 +13,7 @@ import { calendarVersionFromGit } from "./versionFromGit.mjs";
 const ROOT = resolve(import.meta.dirname, "..");
 const PKG = resolve(ROOT, "package.json");
 const TAURI_CONF = resolve(ROOT, "src-tauri", "tauri.conf.json");
+const CARGO_TOML = resolve(ROOT, "src-tauri", "Cargo.toml");
 const BACKUP = resolve(ROOT, ".version-backup.json");
 
 function readJson(path) {
@@ -23,7 +24,7 @@ function writeJson(path, obj) {
   writeFileSync(path, JSON.stringify(obj, null, 2) + "\n", "utf8");
 }
 
-function setVersionField(path, newVersion) {
+function setJsonVersionField(path, newVersion) {
   const raw = readFileSync(path, "utf8");
   // Preserve original formatting: only replace the top-level "version"
   // string rather than reflowing the whole file through JSON.stringify.
@@ -34,6 +35,24 @@ function setVersionField(path, newVersion) {
   writeFileSync(path, updated, "utf8");
 }
 
+function setTomlVersionField(path, newVersion) {
+  const raw = readFileSync(path, "utf8");
+  // Match `version = "..."` only within the [package] section header
+  // (or at file start before any other section). Simple pattern: the
+  // first `version = "..."` line in the file.
+  const updated = raw.replace(
+    /^(\s*)version(\s*)=(\s*)"[^"]*"/m,
+    (_, a, b, c) => `${a}version${b}=${c}"${newVersion}"`,
+  );
+  writeFileSync(path, updated, "utf8");
+}
+
+function readTomlVersion(path) {
+  const raw = readFileSync(path, "utf8");
+  const match = raw.match(/^\s*version\s*=\s*"([^"]*)"/m);
+  return match?.[1] ?? "unknown";
+}
+
 function main() {
   const version = calendarVersionFromGit();
   const pkg = readJson(PKG);
@@ -41,15 +60,19 @@ function main() {
   const backup = {
     "package.json": pkg.version,
     "src-tauri/tauri.conf.json": tauri.version,
+    "src-tauri/Cargo.toml": readTomlVersion(CARGO_TOML),
     stamped: version,
     stampedAt: Date.now(),
   };
   writeJson(BACKUP, backup);
 
-  setVersionField(PKG, version);
-  setVersionField(TAURI_CONF, version);
+  setJsonVersionField(PKG, version);
+  setJsonVersionField(TAURI_CONF, version);
+  setTomlVersionField(CARGO_TOML, version);
 
-  console.log(`stamped version ${version} into package.json and tauri.conf.json`);
+  console.log(
+    `stamped version ${version} into package.json, tauri.conf.json, and Cargo.toml`,
+  );
   console.log(`backup written to ${BACKUP}`);
 }
 
