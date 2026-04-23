@@ -61,3 +61,6 @@ playwright/.cache/
 *.sqlite-journal
 src-tauri/gen/
 vite.config.js
+
+# #120 — version stamp backup (restored after tauri:build)
+.version-backup.json

@@ -26,12 +26,17 @@ function bootOnce(): Promise<void> {
       await useConversationsStore.getState().load();
       await useUiStore.getState().loadFontScale();
       await useUiStore.getState().loadWorkingDir();
-      // #107: set window title with build timestamp after Tauri init.
+      // #107/#120: set window title with calendar-semver version and
+      // short commit hash. Runs after Tauri init so the user-visible
+      // title matches the installed bundle's version (also stamped from
+      // the same git timestamp — see scripts/stamp-version.mjs).
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        await getCurrentWindow().setTitle(`mchat2 v${__BUILD_INFO__.timestamp} (${__BUILD_INFO__.commitHash})`);
+        await getCurrentWindow().setTitle(
+          `mchat2 v${__BUILD_INFO__.version} (${__BUILD_INFO__.commitHash})`,
+        );
       } catch {
-        document.title = `mchat2 v${__BUILD_INFO__.timestamp} (${__BUILD_INFO__.commitHash})`;
+        document.title = `mchat2 v${__BUILD_INFO__.version} (${__BUILD_INFO__.commitHash})`;
       }
     })();
   }
