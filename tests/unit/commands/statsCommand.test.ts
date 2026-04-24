@@ -239,3 +239,45 @@ describe("formatStats cumulative in/out tokens (#132)", () => {
     expect(out).toMatch(/\|\s*context tokens\s*\|/i);
   });
 });
+
+describe("formatStats TTFT formatting (#136)", () => {
+  it("renders sub-second TTFT in ms without a separator", () => {
+    const messages = [
+      msg(0, "user", "hi"),
+      msg(1, "assistant", "hello", "p1", {
+        ttftMs: 432,
+        streamMs: 1000,
+        outputTokens: 10,
+      }),
+    ];
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(CONV, messages, personas);
+    const row = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l))!;
+    expect(row).toMatch(/\|\s*432\s*ms\s*\|/);
+    expect(row).not.toMatch(/0\.4\s*s/);
+  });
+
+  it("renders multi-second TTFT in ms with a thousands separator", () => {
+    const messages = [
+      msg(0, "user", "hi"),
+      msg(1, "assistant", "hello", "p1", {
+        ttftMs: 1400,
+        streamMs: 2000,
+        outputTokens: 20,
+      }),
+    ];
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(CONV, messages, personas);
+    const row = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l))!;
+    expect(row).toMatch(/\|\s*1,400\s*ms\s*\|/);
+    expect(row).not.toMatch(/1\.4\s*s/);
+  });
+
+  it("keeps '—' when no TTFT has been recorded", () => {
+    const messages = [msg(0, "user", "hi")];
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(CONV, messages, personas);
+    const row = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l))!;
+    expect(row).toMatch(/—/);
+  });
+});
