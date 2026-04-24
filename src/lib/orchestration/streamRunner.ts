@@ -23,6 +23,7 @@ import { PROVIDER_REGISTRY, type ProviderMeta } from "../providers/registry";
 import * as messagesRepo from "../persistence/messages";
 import { withRetry, DEFAULT_RETRY, type RetryPolicy } from "./retryManager";
 import { buildOutboundRows, buildInboundRows } from "../tracing/traceWriter";
+import { logBuffer } from "../observability/logBuffer";
 
 // Consumer-side sink for the per-persona trace files (#40). The file-
 // backed implementation lives next to useSend; streamRunner is agnostic
@@ -177,6 +178,27 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   // Within ~5ms of the actual socket write; any gap is dwarfed by
   // network and model latency.
   streamOpenAt = Date.now();
+  // #129 — observability: one event per lifecycle transition.
+  const emit = (
+    event: Parameters<typeof logBuffer.push>[0]["event"],
+    extra: {
+      statusOrReason?: string | null;
+      elapsedMs?: number | null;
+      bytes?: number | null;
+    } = {},
+  ): void => {
+    logBuffer.push({
+      ts: Date.now(),
+      personaId: target.personaId ?? null,
+      provider: target.provider,
+      model: input.model,
+      event,
+      statusOrReason: extra.statusOrReason ?? null,
+      elapsedMs: extra.elapsedMs ?? null,
+      bytes: extra.bytes ?? null,
+    });
+  };
+  emit("open");
   try {
     for await (const e of withRetry(
       input.streamId,
@@ -194,28 +216,48 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
       }
       switch (e.type) {
         case "token":
-          if (firstTokenAt === null) firstTokenAt = Date.now();
+          if (firstTokenAt === null) {
+            firstTokenAt = Date.now();
+            emit("first-byte", {
+              elapsedMs: streamOpenAt !== null ? firstTokenAt - streamOpenAt : null,
+            });
+          }
           accumulated += e.text;
           break;
         case "usage":
           inputTokens = e.input;
           outputTokens = e.output;
           estimated = e.estimated;
+          emit("usage", {
+            statusOrReason: `in=${inputTokens} out=${outputTokens}${estimated ? " (est)" : ""}`,
+          });
           break;
         case "error":
           finalError = { message: e.message, transient: e.transient };
+          emit("error", {
+            statusOrReason: `${e.transient ? "transient" : "final"}: ${e.message}`,
+            bytes: accumulated.length,
+          });
           break;
         case "cancelled":
           cancelled = true;
+          emit("cancelled", { bytes: accumulated.length });
           break;
         case "retrying":
           // On a retry restart, reset stream-open to the new attempt
           // and drop any first-token captured from the earlier one.
+          emit("retrying", {
+            statusOrReason: `attempt ${e.attempt}/${e.max}: ${e.reason}`,
+          });
           streamOpenAt = Date.now();
           firstTokenAt = null;
           break;
         case "complete":
           completeAt = Date.now();
+          emit("complete", {
+            elapsedMs: streamOpenAt !== null ? completeAt - streamOpenAt : null,
+            bytes: accumulated.length,
+          });
           break;
       }
     }

@@ -12,6 +12,8 @@ import { formatHelp } from "@/lib/commands/help";
 import { formatPersonasInfo } from "@/lib/commands/personasInfo";
 import { formatStats } from "@/lib/commands/stats";
 import { formatExecutionOrder } from "@/lib/commands/executionOrder";
+import { logBuffer } from "@/lib/observability/logBuffer";
+import { formatLogSnapshot } from "@/lib/observability/format";
 import type { CommandContext, CommandResult } from "./types";
 
 export async function handleHelp(ctx: CommandContext): Promise<CommandResult | void> {
@@ -51,4 +53,19 @@ export async function handleVersion(ctx: CommandContext): Promise<CommandResult 
       ctx.conversation.id,
       `mchat2 v${__BUILD_INFO__.version} (${__BUILD_INFO__.commitDate})\ncommit ${__BUILD_INFO__.commitHash}\n${__BUILD_INFO__.commitMessage}`,
     );
+}
+
+export async function handleLog(
+  ctx: CommandContext,
+  payload: { limit: number; clear: boolean },
+): Promise<CommandResult | void> {
+  if (payload.clear) {
+    logBuffer.clear();
+    await useMessagesStore.getState().appendNotice(ctx.conversation.id, "log: cleared.");
+    return;
+  }
+  const snapshot = logBuffer.snapshot({ limit: payload.limit });
+  await useMessagesStore
+    .getState()
+    .appendNotice(ctx.conversation.id, formatLogSnapshot(snapshot, payload.limit));
 }

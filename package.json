@@ -1,6 +1,6 @@
 {
   "name": "mchat2",
-  "version": "1.28.1",
+  "version": "1.29.1",
   "private": true,
   "type": "module",
   "description": "Multi-provider LLM chat workbench",

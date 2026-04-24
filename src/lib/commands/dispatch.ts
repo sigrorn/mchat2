@@ -35,6 +35,7 @@ import {
   handleStats,
   handleOrder,
   handleVersion,
+  handleLog,
 } from "./handlers/info";
 import { handleAutocompact, handleCompact } from "./handlers/compaction";
 import { handleVacuum, handleLimitsize } from "./handlers/system";
@@ -88,6 +89,8 @@ export async function dispatchCommand(
       return handleOrder(ctx);
     case "version":
       return handleVersion(ctx);
+    case "log":
+      return handleLog(ctx, cmd.payload);
     case "select":
       return handleSelect(ctx, cmd.payload);
     case "selectAll":

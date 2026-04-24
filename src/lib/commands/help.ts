@@ -75,6 +75,9 @@ export function formatHelp(): string {
 | \`//stats\` | Show conversation token statistics |
 | \`//help\` | Show this help text |
 | \`//version\` | Show build version info |
+| \`//log\` | Show last 50 stream-lifecycle events (debug) |
+| \`//log N\` | Show last N events |
+| \`//log clear\` | Empty the event log |
 
 ## Maintenance
 

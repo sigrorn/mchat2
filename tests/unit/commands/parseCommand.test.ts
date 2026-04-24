@@ -222,4 +222,31 @@ describe("parseCommand", () => {
     expect(parseCommand("//autocompact 0%").kind).toBe("error");
     expect(parseCommand("//autocompact 101%").kind).toBe("error");
   });
+
+  it("//log → default limit 50, no clear", () => {
+    expect(parseCommand("//log")).toEqual({
+      kind: "log",
+      payload: { limit: 50, clear: false },
+    });
+  });
+
+  it("//log N → limit N", () => {
+    expect(parseCommand("//log 20")).toEqual({
+      kind: "log",
+      payload: { limit: 20, clear: false },
+    });
+  });
+
+  it("//log clear → clear flag", () => {
+    expect(parseCommand("//log clear")).toEqual({
+      kind: "log",
+      payload: { limit: 50, clear: true },
+    });
+  });
+
+  it("//log with invalid arg → error", () => {
+    expect(parseCommand("//log foo").kind).toBe("error");
+    expect(parseCommand("//log 0").kind).toBe("error");
+    expect(parseCommand("//log -1").kind).toBe("error");
+  });
 });

@@ -1,5 +1,5 @@
 // #129 — ring buffer that holds the last N stream-lifecycle events.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createLogBuffer, type LogEvent } from "@/lib/observability/logBuffer";
 
 function mkEvent(overrides: Partial<LogEvent> = {}): LogEvent {

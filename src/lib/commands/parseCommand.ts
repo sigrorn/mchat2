@@ -35,6 +35,7 @@ export type ParsedCommand =
   | { kind: "autocompact"; payload: { mode: "off" } }
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "version" }
+  | { kind: "log"; payload: { limit: number; clear: boolean } }
   | { kind: "error"; message: string };
 
 const LIMIT_HELP =
@@ -142,6 +143,19 @@ export function parseCommand(raw: string): ParsedCommand {
   if (verb === "version") {
     if (arg !== "") return { kind: "error", message: "version: this command takes no arguments." };
     return { kind: "version" };
+  }
+  if (verb === "log") {
+    // //log        → show last 50 events
+    // //log N      → show last N events
+    // //log clear  → empty the buffer
+    if (arg === "" || arg === "clear") {
+      return { kind: "log", payload: { limit: 50, clear: arg === "clear" } };
+    }
+    const n = Number.parseInt(arg, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      return { kind: "error", message: "log: argument must be a positive integer or 'clear'." };
+    }
+    return { kind: "log", payload: { limit: n, clear: false } };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {
