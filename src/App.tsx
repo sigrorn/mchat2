@@ -50,12 +50,24 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const loadConversations = useConversationsStore((s) => s.load);
   const loadFontScale = useUiStore((s) => s.loadFontScale);
+  const chatFontScale = useUiStore((s) => s.chatFontScale);
 
   useEffect(() => {
     bootOnce()
       .then(() => setReady(true))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [loadConversations, loadFontScale]);
+
+  // #135: apply the zoom level to the document root so every
+  // rem-based Tailwind size (chat bubbles, sidebar, composer)
+  // scales uniformly. PersonaPanel counter-scales with CSS zoom so
+  // it stays at baseline size.
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${chatFontScale * 100}%`;
+    return () => {
+      document.documentElement.style.fontSize = "";
+    };
+  }, [chatFontScale]);
 
   // #50: Ctrl+/-/0 zoom for chat + composer. Intercept at the window
   // level so focus inside the textarea doesn't swallow the chords, and

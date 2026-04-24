@@ -15,7 +15,6 @@ import { parseTargetModifiers } from "@/lib/commands/targetModifier";
 import { dispatchCommand } from "@/lib/commands/dispatch";
 import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
-import { useUiStore } from "@/stores/uiStore";
 import { buildPlaceholder } from "@/lib/ui/composerPlaceholder";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
@@ -28,7 +27,6 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const [hint, setHint] = useState<string | null>(null);
   const { send, retry } = useSend(conversation);
   const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
-  const fontScale = useUiStore((s) => s.chatFontScale);
   const cPersonas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
   const cSelection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
@@ -154,7 +152,6 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         rows={3}
         placeholder={placeholder}
         className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-        style={{ fontSize: `${fontScale * 100}%` }}
       />
       {hint ? <div className="mt-2 text-xs text-amber-700">{hint}</div> : null}
       <div className="mt-2 flex gap-2">

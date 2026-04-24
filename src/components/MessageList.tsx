@@ -23,7 +23,6 @@ import { classify } from "@/lib/rendering/codeBlocks";
 import { DiagramBlock } from "./DiagramBlock";
 import { formatCopyText } from "@/lib/rendering/copyWithPrefixes";
 import { useSend } from "@/hooks/useSend";
-import { useUiStore } from "@/stores/uiStore";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { areBubblePropsEqual, type BubbleProps } from "./messageBubbleMemo";
@@ -143,10 +142,8 @@ export function MessageList({
     return null;
   })();
 
-  // #50: chat-pane font scale (Ctrl+/-/0). Applied as inline fontSize
-  // so all descendant text (bubble headers, markdown body, notices)
-  // scales together via em-based sizing inside the styled elements.
-  const fontScale = useUiStore((s) => s.chatFontScale);
+  // #135: zoom is applied on the document root now, so descendants
+  // using rem-based sizing scale naturally. No inline fontSize here.
 
   // #53: when the find bar sets a new active match, scroll its bubble
   // into view. Also temporarily unpin tail-follow so the scroll sticks.
@@ -188,7 +185,6 @@ export function MessageList({
       onScroll={onScroll}
       onCopy={onCopy}
       className="flex-1 overflow-auto bg-neutral-100 px-4 py-3"
-      style={{ fontSize: `${fontScale * 100}%` }}
     >
       {items.map((item) => {
         if (item.kind === "row") {
