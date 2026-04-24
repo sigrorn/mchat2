@@ -6,7 +6,8 @@
 // Collaborators: persistence/settings.ts, settings/keys.ts.
 // ------------------------------------------------------------------
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "./focusTrap";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
 import {
   GLOBAL_SYSTEM_PROMPT_KEY,
@@ -75,6 +76,9 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
     }
   };
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, onClose);
+
   return (
     <div
       role="dialog"
@@ -83,6 +87,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         className="w-full max-w-2xl rounded-lg bg-white p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >

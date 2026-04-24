@@ -6,7 +6,8 @@
 // Collaborators: tauri/keychain.ts, providers/registry.ts.
 // ------------------------------------------------------------------
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "./focusTrap";
 import { ALL_PROVIDER_IDS, PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
@@ -67,12 +68,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
     }
   };
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, onClose);
+
   return (
     <div
+      role="dialog"
+      aria-label="API keys"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         className="w-[32rem] max-w-full rounded bg-white p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
