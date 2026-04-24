@@ -1,9 +1,12 @@
 // ------------------------------------------------------------------
 // Component: Stats formatter
-// Responsibility: Compute and format per-persona context size stats
-//                 as a markdown table. Columns (#122):
-//                   persona | user messages | tokens |
-//                   % of max context | avg TTFT | avg tok/s
+// Responsibility: Compute and format per-persona stats as a markdown
+//                 table. Columns (#122, #132):
+//                   persona | user messages | in tokens | out tokens |
+//                   context tokens | % of max | avg TTFT | avg tok/s
+//                 All persona-scoped counters reset at the compaction
+//                 floor (rows with index < compactionFloorIndex are
+//                 excluded from the sums).
 // Collaborators: components/Composer.tsx via lib/commands/dispatch.ts,
 //                context/builder.ts, personaTimings.ts.
 // ------------------------------------------------------------------
@@ -35,6 +38,30 @@ function countUserMessagesSinceCompaction(
   return count;
 }
 
+/**
+ * Sum inputTokens and outputTokens on `persona`'s assistant rows at
+ * or above the compaction floor. User rows and other personas'
+ * assistant rows are excluded. Rows with no usage recorded
+ * contribute zero (#132).
+ */
+function sumPersonaTokensSinceCompaction(
+  messages: readonly Message[],
+  conversation: Conversation,
+  persona: Persona,
+): { inTokens: number; outTokens: number } {
+  const floor = conversation.compactionFloorIndex ?? 0;
+  let inTokens = 0;
+  let outTokens = 0;
+  for (const m of messages) {
+    if (m.index < floor) continue;
+    if (m.role !== "assistant") continue;
+    if (m.personaId !== persona.id) continue;
+    inTokens += m.inputTokens;
+    outTokens += m.outputTokens;
+  }
+  return { inTokens, outTokens };
+}
+
 /** Format TTFT as "432ms" when < 1s, "1.4s" otherwise. */
 function formatTtft(ms: number | null): string {
   if (ms === null) return "—";
@@ -61,9 +88,11 @@ export function formatStats(
   const lines: string[] = [];
   lines.push("## Chat stats");
   lines.push("");
-  lines.push("| persona | user messages | tokens | % of max context | avg TTFT | avg tok/s |");
-  lines.push("|---|---:|---:|---:|---:|---:|");
-  lines.push(`| all messages |  | ${allTokens.toLocaleString()} |  |  |  |`);
+  lines.push(
+    "| persona | user messages | in tokens | out tokens | context tokens | % of max context | avg TTFT | avg tok/s |",
+  );
+  lines.push("|---|---:|---:|---:|---:|---:|---:|---:|");
+  lines.push(`| all messages |  |  |  | ${allTokens.toLocaleString()} |  |  |  |`);
 
   for (const p of personas) {
     const target = { provider: p.provider, personaId: p.id, key: p.id, displayName: p.name };
@@ -81,9 +110,10 @@ export function formatStats(
         ? `${((tokens / maxContext) * 100).toFixed(2)}%`
         : "unlimited";
     const userCount = countUserMessagesSinceCompaction(messages, conversation, p);
+    const usage = sumPersonaTokensSinceCompaction(messages, conversation, p);
     const timings = aggregatePersonaTimings(p, messages, floor);
     lines.push(
-      `| ${p.name} | ${userCount} | ${tokens.toLocaleString()} | ${pctLabel} | ${formatTtft(timings.avgTtftMs)} | ${formatTokensPerSec(timings.avgTokensPerSec)} |`,
+      `| ${p.name} | ${userCount} | ${usage.inTokens.toLocaleString()} | ${usage.outTokens.toLocaleString()} | ${tokens.toLocaleString()} | ${pctLabel} | ${formatTtft(timings.avgTtftMs)} | ${formatTokensPerSec(timings.avgTokensPerSec)} |`,
     );
   }
 

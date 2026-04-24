@@ -113,12 +113,14 @@ describe("formatStats columns with timings (#122)", () => {
 });
 
 describe("formatStats as markdown table (#119)", () => {
-  it("output contains a markdown table header with the four expected columns", () => {
+  it("output contains a markdown table header with the expected columns", () => {
     const messages = [msg(0, "user", "Hello")];
     const personas = [persona("p1", "claudio", "claude")];
     const out = formatStats(CONV, messages, personas);
-    // Header row lists the columns.
-    expect(out).toMatch(/\|\s*persona\s*\|\s*user messages\s*\|\s*tokens\s*\|\s*%\s+of max context\s*\|/i);
+    // Header row lists the columns (order matters).
+    expect(out).toMatch(
+      /\|\s*persona\s*\|\s*user messages\s*\|\s*in tokens\s*\|\s*out tokens\s*\|\s*context tokens\s*\|\s*%\s+of max context\s*\|/i,
+    );
     // Separator row present.
     expect(out).toMatch(/\|\s*-+\s*\|.*\|.*\|.*\|/);
   });
