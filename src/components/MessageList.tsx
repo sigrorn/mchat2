@@ -5,7 +5,7 @@
 //                 MessageBubble at a later pass.
 // ------------------------------------------------------------------
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
@@ -26,6 +26,7 @@ import { useSend } from "@/hooks/useSend";
 import { useUiStore } from "@/stores/uiStore";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { areBubblePropsEqual, type BubbleProps } from "./messageBubbleMemo";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -397,21 +398,14 @@ function renderBubbleBody(message: Message, excluded: boolean): JSX.Element {
   return <div className={`whitespace-pre-wrap text-sm leading-relaxed ${tone}`}>{body.text}</div>;
 }
 
-function MessageBubble({
+function MessageBubbleImpl({
   message,
   personas,
   userNumber,
   excluded,
   onRetry,
   onEdit,
-}: {
-  message: Message;
-  personas: readonly Persona[];
-  userNumber: number | null;
-  excluded: boolean;
-  onRetry?: () => void;
-  onEdit?: () => void;
-}): JSX.Element {
+}: BubbleProps): JSX.Element {
   // Notice rows (#8): UI-only info/error from in-app commands. Visually
   // distinct, italicized, never reach the LLM.
   if (message.role === "notice") {
@@ -511,3 +505,9 @@ function MessageBubble({
     </div>
   );
 }
+
+// #128: memoize so streaming a single row doesn't reconcile every
+// other bubble in a long conversation. Comparator ignores callback
+// identity (closures churn on every parent render) and compares only
+// props that affect the rendered output.
+const MessageBubble = memo(MessageBubbleImpl, areBubblePropsEqual);
