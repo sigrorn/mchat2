@@ -14,6 +14,7 @@ import { getSetting, setSetting } from "@/lib/persistence/settings";
 import { GENERAL_WORKING_DIR_KEY } from "@/lib/settings/keys";
 
 const FONT_SCALE_KEY = "ui.fontScale";
+const STREAM_RESPONSES_KEY = "ui.streamResponses";
 
 export interface FindState {
   open: boolean;
@@ -37,6 +38,12 @@ interface State {
   setWorkingDir: (dir: string) => Promise<void>;
   debugSession: DebugSession;
   toggleDebug: () => void;
+  // #131: user-facing stream/buffer toggle for response display.
+  // When false, tokens still accumulate but per-token UI patching is
+  // suppressed — bubble stays empty until the reply completes.
+  streamResponses: boolean;
+  loadStreamResponses: () => Promise<void>;
+  toggleStreamResponses: () => void;
   // #53: Ctrl+F find state. Not persisted — per-session only.
   find: FindState;
   openFind: () => void;
@@ -68,6 +75,17 @@ export const useUiStore = create<State>((set, get) => ({
     const trimmed = dir.trim();
     await setSetting(GENERAL_WORKING_DIR_KEY, trimmed);
     set({ workingDir: trimmed || null });
+  },
+  streamResponses: true,
+  async loadStreamResponses() {
+    const raw = await getSetting(STREAM_RESPONSES_KEY);
+    // Default is true (stream). Any stored "false" opts into buffering.
+    set({ streamResponses: raw === null ? true : raw !== "false" });
+  },
+  toggleStreamResponses() {
+    const next = !get().streamResponses;
+    set({ streamResponses: next });
+    void setSetting(STREAM_RESPONSES_KEY, next ? "true" : "false");
   },
   debugSession: { enabled: false, sessionTimestamp: null },
   toggleDebug() {

@@ -27,6 +27,8 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { selectionAfterResolve } from "./sendSelection";
 import { runOneTarget } from "./runOneTarget";
 import { postResponseCheck } from "./postResponseCheck";
+import { shouldBufferTokens } from "./shouldBufferTokens";
+import { useUiStore } from "@/stores/uiStore";
 
 export interface SendOptions {
   pinned?: boolean;
@@ -75,7 +77,11 @@ export function useSend(conversation: Conversation) {
       if (!plan) return { ok: false as const, reason: "no plan" };
 
       const multiTarget = plan.kind !== "single";
-      const bufferTokens = conversation.displayMode === "cols" && multiTarget;
+      const bufferTokens = shouldBufferTokens({
+        displayMode: conversation.displayMode,
+        multiTarget,
+        streamResponses: useUiStore.getState().streamResponses,
+      });
 
       const allTargets =
         plan.kind === "single"
@@ -226,7 +232,11 @@ export function useSend(conversation: Conversation) {
       if (!runPlan) return { ok: false as const, reason: "no plan" };
 
       const multiTarget = runPlan.kind !== "single";
-      const bufferTokens = conversation.displayMode === "cols" && multiTarget;
+      const bufferTokens = shouldBufferTokens({
+        displayMode: conversation.displayMode,
+        multiTarget,
+        streamResponses: useUiStore.getState().streamResponses,
+      });
 
       const allTargets =
         runPlan.kind === "single"

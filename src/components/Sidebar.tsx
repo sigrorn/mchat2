@@ -241,10 +241,34 @@ export function Sidebar(): JSX.Element {
       >
         Settings · API keys
       </button>
+      <StreamToggle />
       <DebugToggle />
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       {generalOpen ? <SettingsGeneralDialog onClose={() => setGeneralOpen(false)} /> : null}
     </aside>
+  );
+}
+
+function StreamToggle(): JSX.Element {
+  const streaming = useUiStore((s) => s.streamResponses);
+  const toggle = useUiStore((s) => s.toggleStreamResponses);
+  const label = streaming ? "Responses · STREAM" : "Responses · BUFFER";
+  return (
+    <button
+      onClick={toggle}
+      title={
+        streaming
+          ? "Tokens appear live as they arrive. Click to buffer full responses before showing."
+          : "Full responses appear once complete. Click to stream tokens live."
+      }
+      className={`mx-2 mt-1 rounded border px-3 py-1.5 text-xs ${
+        streaming
+          ? "border-neutral-300 text-neutral-700 hover:bg-neutral-100"
+          : "border-amber-600 text-amber-700 hover:bg-amber-50"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
