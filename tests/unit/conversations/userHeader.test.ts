@@ -48,4 +48,28 @@ describe("formatUserHeader", () => {
   it("renders explicit @-list rather than @all when targets named (#28)", () => {
     expect(formatUserHeader(5, ["p_alice"], personas)).toBe("[5] user \u2192 @Alice");
   });
+
+  it("renders @all shorthand when addressedTo covers every active persona (#130)", () => {
+    // Both personas addressed \u2192 @all.
+    expect(formatUserHeader(2, ["p_alice", "p_bob"], personas)).toBe("[2] user \u2192 @all");
+  });
+
+  it("@all shorthand is order-insensitive (#130)", () => {
+    expect(formatUserHeader(2, ["p_bob", "p_alice"], personas)).toBe("[2] user \u2192 @all");
+  });
+
+  it("does NOT use @all shorthand with a single persona and one target", () => {
+    const solo = [persona("p_alice", "Alice")];
+    // When there's only one active persona, listing them explicitly would
+    // technically be "all" \u2014 but "@all" reads oddly for a single name,
+    // and the user typed the @-prefix, so keep the explicit form.
+    // (This is the pre-existing behavior; just documenting it.)
+    expect(formatUserHeader(1, ["p_alice"], solo)).toBe("[1] user \u2192 @Alice");
+  });
+
+  it("pinTarget overrides @all shorthand (#130)", () => {
+    expect(formatUserHeader(7, ["p_alice", "p_bob"], personas, "p_alice")).toBe(
+      "[7] user \u2192 @Alice",
+    );
+  });
 });
