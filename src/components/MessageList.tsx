@@ -27,6 +27,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { areBubblePropsEqual, type BubbleProps } from "./messageBubbleMemo";
+import { shouldSubmit } from "./composerKeys";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -290,7 +291,9 @@ function EditReplayEditor({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+          // #134 — same submit policy as the composer: Enter submits,
+          // Shift-Enter inserts a newline, Ctrl/Cmd-Enter also submit.
+          if (shouldSubmit(e)) {
             e.preventDefault();
             void onCommit(value);
           } else if (e.key === "Escape") {
@@ -306,7 +309,7 @@ function EditReplayEditor({
           onClick={() => void onCommit(value)}
           className="rounded bg-neutral-900 px-2 py-0.5 text-xs text-white hover:bg-neutral-700"
         >
-          Replay (Ctrl+Enter)
+          Replay (Enter)
         </button>
         <button
           onClick={onCancel}
