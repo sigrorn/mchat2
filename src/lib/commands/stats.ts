@@ -62,11 +62,14 @@ function sumPersonaTokensSinceCompaction(
   return { inTokens, outTokens };
 }
 
-/** Format TTFT as "432ms" when < 1s, "1.4s" otherwise. */
+/**
+ * Format TTFT as milliseconds with a thousands separator (#136).
+ * Mixed ms/s units broke visual comparability — "432ms" read as
+ * larger than "1.4s" at a glance.
+ */
 function formatTtft(ms: number | null): string {
   if (ms === null) return "—";
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms).toLocaleString("en-US")} ms`;
 }
 
 /** Format throughput as an integer "45 tok/s". */
