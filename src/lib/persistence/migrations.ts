@@ -188,10 +188,27 @@ export async function runMigrations(): Promise<number> {
   for (let i = current; i < MIGRATIONS.length; i++) {
     const stmts = MIGRATIONS[i];
     if (!stmts) continue;
-    for (const stmt of stmts) {
-      await sql.execute(stmt);
+    // #125: wrap each version bump in a transaction so a mid-migration
+    // failure rolls back to the prior user_version instead of leaving
+    // the DB in a half-altered state. user_version itself is set inside
+    // the transaction so it's atomic with the schema change.
+    await sql.execute("BEGIN IMMEDIATE");
+    try {
+      for (const stmt of stmts) {
+        await sql.execute(stmt);
+      }
+      await sql.execute(`PRAGMA user_version = ${i + 1}`);
+      await sql.execute("COMMIT");
+    } catch (err) {
+      try {
+        await sql.execute("ROLLBACK");
+      } catch {
+        // Silent — if ROLLBACK itself fails there's nothing we can
+        // recover; surface the original error below.
+      }
+      await sql.execute("PRAGMA foreign_keys = ON");
+      throw err;
     }
-    await sql.execute(`PRAGMA user_version = ${i + 1}`);
     applied++;
   }
   await sql.execute("PRAGMA foreign_keys = ON");
