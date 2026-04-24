@@ -27,6 +27,26 @@ interface MenuPos {
 }
 
 export function Sidebar(): JSX.Element {
+  const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const toggle = useUiStore((s) => s.toggleSidebar);
+  if (collapsed) {
+    return (
+      <aside className="flex w-5 flex-col items-center border-r border-neutral-200 bg-neutral-50">
+        <button
+          onClick={toggle}
+          title="Expand conversations panel"
+          aria-label="Expand conversations panel"
+          className="mt-2 text-sm text-neutral-500 hover:text-neutral-900"
+        >
+          ›
+        </button>
+      </aside>
+    );
+  }
+  return <SidebarExpanded onCollapse={toggle} />;
+}
+
+function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [generalOpen, setGeneralOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -125,7 +145,17 @@ export function Sidebar(): JSX.Element {
 
   return (
     <aside className="flex w-64 flex-col border-r border-neutral-200 bg-neutral-50">
-      <div className="m-2 flex gap-2">
+      <div className="flex justify-end px-2 pt-1">
+        <button
+          onClick={onCollapse}
+          title="Collapse conversations panel"
+          aria-label="Collapse conversations panel"
+          className="text-sm text-neutral-400 hover:text-neutral-900"
+        >
+          ‹
+        </button>
+      </div>
+      <div className="m-2 mt-1 flex gap-2">
         <button
           onClick={onNew}
           className="flex-1 rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700"

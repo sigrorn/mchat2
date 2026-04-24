@@ -12,9 +12,12 @@ import { DEFAULT_SCALE } from "@/lib/ui/fontScale";
 import { buildSessionTimestamp } from "@/lib/tracing/traceFilename";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
 import { GENERAL_WORKING_DIR_KEY } from "@/lib/settings/keys";
+import { parseBoolSetting } from "@/lib/settings/parseBool";
 
 const FONT_SCALE_KEY = "ui.fontScale";
 const STREAM_RESPONSES_KEY = "ui.streamResponses";
+const SIDEBAR_COLLAPSED_KEY = "ui.sidebarCollapsed";
+const PERSONA_PANEL_COLLAPSED_KEY = "ui.personaPanelCollapsed";
 
 export interface FindState {
   open: boolean;
@@ -44,6 +47,14 @@ interface State {
   streamResponses: boolean;
   loadStreamResponses: () => Promise<void>;
   toggleStreamResponses: () => void;
+  // #133: collapse/expand the left Sidebar and right PersonaPanel.
+  // Persisted across launches as ui.sidebarCollapsed /
+  // ui.personaPanelCollapsed. Both default to false (expanded).
+  sidebarCollapsed: boolean;
+  personaPanelCollapsed: boolean;
+  loadPanelVisibility: () => Promise<void>;
+  toggleSidebar: () => void;
+  togglePersonaPanel: () => void;
   // #53: Ctrl+F find state. Not persisted — per-session only.
   find: FindState;
   openFind: () => void;
@@ -79,13 +90,34 @@ export const useUiStore = create<State>((set, get) => ({
   streamResponses: true,
   async loadStreamResponses() {
     const raw = await getSetting(STREAM_RESPONSES_KEY);
-    // Default is true (stream). Any stored "false" opts into buffering.
-    set({ streamResponses: raw === null ? true : raw !== "false" });
+    set({ streamResponses: parseBoolSetting(raw, true) });
   },
   toggleStreamResponses() {
     const next = !get().streamResponses;
     set({ streamResponses: next });
     void setSetting(STREAM_RESPONSES_KEY, next ? "true" : "false");
+  },
+  sidebarCollapsed: false,
+  personaPanelCollapsed: false,
+  async loadPanelVisibility() {
+    const [sidebar, persona] = await Promise.all([
+      getSetting(SIDEBAR_COLLAPSED_KEY),
+      getSetting(PERSONA_PANEL_COLLAPSED_KEY),
+    ]);
+    set({
+      sidebarCollapsed: parseBoolSetting(sidebar, false),
+      personaPanelCollapsed: parseBoolSetting(persona, false),
+    });
+  },
+  toggleSidebar() {
+    const next = !get().sidebarCollapsed;
+    set({ sidebarCollapsed: next });
+    void setSetting(SIDEBAR_COLLAPSED_KEY, next ? "true" : "false");
+  },
+  togglePersonaPanel() {
+    const next = !get().personaPanelCollapsed;
+    set({ personaPanelCollapsed: next });
+    void setSetting(PERSONA_PANEL_COLLAPSED_KEY, next ? "true" : "false");
   },
   debugSession: { enabled: false, sessionTimestamp: null },
   toggleDebug() {

@@ -32,6 +32,7 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore, type StreamStatus } from "@/stores/sendStore";
+import { useUiStore } from "@/stores/uiStore";
 
 const EMPTY_STATUS: Readonly<Record<string, StreamStatus>> = Object.freeze({});
 
@@ -54,6 +55,32 @@ const EMPTY_SEL: readonly string[] = Object.freeze([]);
 const EMPTY_MESSAGES: readonly import("@/lib/types").Message[] = Object.freeze([]);
 
 export function PersonaPanel({ conversation }: { conversation: Conversation }): JSX.Element {
+  const collapsed = useUiStore((s) => s.personaPanelCollapsed);
+  const toggleCollapse = useUiStore((s) => s.togglePersonaPanel);
+  if (collapsed) {
+    return (
+      <aside className="flex w-5 flex-col items-center border-l border-neutral-200 bg-neutral-50">
+        <button
+          onClick={toggleCollapse}
+          title="Expand personas panel"
+          aria-label="Expand personas panel"
+          className="mt-2 text-sm text-neutral-500 hover:text-neutral-900"
+        >
+          ‹
+        </button>
+      </aside>
+    );
+  }
+  return <PersonaPanelExpanded conversation={conversation} onCollapse={toggleCollapse} />;
+}
+
+function PersonaPanelExpanded({
+  conversation,
+  onCollapse,
+}: {
+  conversation: Conversation;
+  onCollapse: () => void;
+}): JSX.Element {
   const personas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
   const selection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
@@ -71,8 +98,16 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
 
   return (
     <aside className="flex w-72 flex-col border-l border-neutral-200 bg-neutral-50">
-      <header className="border-b border-neutral-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-        Personas
+      <header className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+        <span>Personas</span>
+        <button
+          onClick={onCollapse}
+          title="Collapse personas panel"
+          aria-label="Collapse personas panel"
+          className="text-sm font-normal normal-case text-neutral-400 hover:text-neutral-900"
+        >
+          ›
+        </button>
       </header>
       <CreateForm
         conversationId={conversation.id}

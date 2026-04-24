@@ -27,6 +27,7 @@ function bootOnce(): Promise<void> {
       await useUiStore.getState().loadFontScale();
       await useUiStore.getState().loadWorkingDir();
       await useUiStore.getState().loadStreamResponses();
+      await useUiStore.getState().loadPanelVisibility();
       // #107/#121: set window title with issue-based version and the
       // commit timestamp. Runs after Tauri init so the user-visible
       // title matches the installed bundle's version (bumped per
