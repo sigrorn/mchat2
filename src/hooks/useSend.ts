@@ -54,11 +54,11 @@ export function useSend(conversation: Conversation) {
         usePersonasStore.getState().setSelection(conversation.id, nextSelection);
       }
 
-      const addressedTo = opts.pinned
-        ? resolved.targets.map((t) => t.key)
-        : resolved.mode === "targeted"
-          ? resolved.targets.map((t) => t.key)
-          : [];
+      // #130: always persist the resolved target list. Implicit sends
+      // used to store [] here, which made assistant replies' audience
+      // empty and broke cols-mode grouping. userHeader keeps the
+      // "@all" shorthand when the list covers every active persona.
+      const addressedTo = resolved.targets.map((t) => t.key);
 
       await useMessagesStore.getState().sendUserMessage({
         conversationId: conversation.id,
@@ -202,7 +202,8 @@ export function useSend(conversation: Conversation) {
         return { ok: false as const, reason: "no targets" };
       }
 
-      const addressedTo = resolved.mode === "targeted" ? resolved.targets.map((t) => t.key) : [];
+      // #130: always persist the resolved target list on the user row.
+      const addressedTo = resolved.targets.map((t) => t.key);
       const plan = planReplay(history, messageId, resolved.strippedText, addressedTo);
       if (!plan.ok) return { ok: false as const, reason: plan.reason };
 
