@@ -172,3 +172,68 @@ describe("formatStats as markdown table (#119)", () => {
     expect(claudioRow).toMatch(/\d+(\.\d+)?%/);
   });
 });
+
+describe("formatStats cumulative in/out tokens (#132)", () => {
+  it("header includes 'in tokens' and 'out tokens' columns", () => {
+    const out = formatStats(CONV, [], [persona("p1", "claudio", "claude")]);
+    expect(out).toMatch(/\|\s*in tokens\s*\|/i);
+    expect(out).toMatch(/\|\s*out tokens\s*\|/i);
+  });
+
+  it("sums inputTokens and outputTokens on the persona's assistant rows", () => {
+    const messages = [
+      msg(0, "user", "hi"),
+      msg(1, "assistant", "hello", "p1", { inputTokens: 100, outputTokens: 20 }),
+      msg(2, "user", "again"),
+      msg(3, "assistant", "there", "p1", { inputTokens: 150, outputTokens: 30 }),
+    ];
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(CONV, messages, personas);
+    const row = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l))!;
+    // 100 + 150 = 250 in, 20 + 30 = 50 out.
+    expect(row).toMatch(/\|\s*250\s*\|\s*50\s*\|/);
+  });
+
+  it("excludes rows below compactionFloorIndex", () => {
+    const messages = [
+      msg(0, "user", "pre-compact"),
+      msg(1, "assistant", "pre", "p1", { inputTokens: 99, outputTokens: 99 }),
+      msg(2, "user", "post"),
+      msg(3, "assistant", "post-reply", "p1", { inputTokens: 7, outputTokens: 3 }),
+    ];
+    const conv = { ...CONV, compactionFloorIndex: 2 };
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(conv, messages, personas);
+    const row = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l))!;
+    // Only msg 3 counts.
+    expect(row).toMatch(/\|\s*7\s*\|\s*3\s*\|/);
+    expect(row).not.toMatch(/99/);
+  });
+
+  it("excludes assistant rows belonging to other personas", () => {
+    const messages = [
+      msg(0, "user", "hi"),
+      msg(1, "assistant", "from p1", "p1", { inputTokens: 10, outputTokens: 20 }),
+      msg(2, "assistant", "from p2", "p2", { inputTokens: 777, outputTokens: 888 }),
+    ];
+    const personas = [persona("p1", "claudio", "claude"), persona("p2", "misty", "openai")];
+    const out = formatStats(CONV, messages, personas);
+    const claudio = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l))!;
+    const misty = out.split("\n").find((l) => /\|\s*misty\s*\|/.test(l))!;
+    expect(claudio).toMatch(/\|\s*10\s*\|\s*20\s*\|/);
+    expect(misty).toMatch(/\|\s*777\s*\|\s*888\s*\|/);
+  });
+
+  it("shows 0 when no usage has been recorded", () => {
+    const messages = [msg(0, "user", "hi")];
+    const personas = [persona("p1", "claudio", "claude")];
+    const out = formatStats(CONV, messages, personas);
+    const row = out.split("\n").find((l) => /\|\s*claudio\s*\|/.test(l))!;
+    expect(row).toMatch(/\|\s*0\s*\|\s*0\s*\|/);
+  });
+
+  it("renames the context-size column to 'context tokens'", () => {
+    const out = formatStats(CONV, [], [persona("p1", "claudio", "claude")]);
+    expect(out).toMatch(/\|\s*context tokens\s*\|/i);
+  });
+});
