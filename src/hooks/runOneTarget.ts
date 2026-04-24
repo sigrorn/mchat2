@@ -16,13 +16,8 @@ import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { resolveExtraConfig } from "@/lib/providers/extraConfig";
 import { keychain } from "@/lib/tauri/keychain";
 import { getSetting } from "@/lib/persistence/settings";
-import {
-  GLOBAL_SYSTEM_PROMPT_KEY,
-  IDLE_TIMEOUT_MS_KEY,
-  DEFAULT_IDLE_TIMEOUT_MS,
-  MAX_RETRY_ATTEMPTS_KEY,
-  DEFAULT_MAX_RETRY_ATTEMPTS,
-} from "@/lib/settings/keys";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
+import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/settings/registry";
 import { DEFAULT_RETRY } from "@/lib/orchestration/retryManager";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
 import * as messagesRepo from "@/lib/persistence/messages";
@@ -85,8 +80,8 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
     : null;
   const extraConfig = (await resolveExtraConfig(target.provider, persona ?? null)) ?? {};
   const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-  const idleTimeoutMs = parseIdleTimeoutMs(await getSetting(IDLE_TIMEOUT_MS_KEY));
-  const maxAttempts = parseMaxAttempts(await getSetting(MAX_RETRY_ATTEMPTS_KEY));
+  const idleTimeoutMs = await idleTimeoutSetting.get();
+  const maxAttempts = await maxRetryAttempts.get();
   const retryPolicy = { ...DEFAULT_RETRY, maxAttempts };
 
   const placeholder = await placeholderPromise;
@@ -177,16 +172,3 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
   }
 }
 
-function parseIdleTimeoutMs(raw: string | null): number {
-  if (raw === null || raw === "") return DEFAULT_IDLE_TIMEOUT_MS;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) return DEFAULT_IDLE_TIMEOUT_MS;
-  return n;
-}
-
-function parseMaxAttempts(raw: string | null): number {
-  if (raw === null || raw === "") return DEFAULT_MAX_RETRY_ATTEMPTS;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_RETRY_ATTEMPTS;
-  return n;
-}

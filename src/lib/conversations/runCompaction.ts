@@ -20,11 +20,8 @@ import { modelForTarget } from "../orchestration/streamRunner";
 import { resolveExtraConfig } from "../providers/extraConfig";
 import { keychain } from "../tauri/keychain";
 import { getSetting } from "../persistence/settings";
-import {
-  GLOBAL_SYSTEM_PROMPT_KEY,
-  IDLE_TIMEOUT_MS_KEY,
-  DEFAULT_IDLE_TIMEOUT_MS,
-} from "../settings/keys";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "../settings/keys";
+import { idleTimeoutMs as idleTimeoutSetting } from "../settings/registry";
 import * as messagesRepo from "../persistence/messages";
 import { computeCompactionCutoff } from "./compactionCutoff";
 
@@ -105,8 +102,7 @@ export async function runCompaction(
   const preservedMessages = history.filter((m) => m.index >= cutoff);
 
   const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-  const idleTimeoutRaw = await getSetting(IDLE_TIMEOUT_MS_KEY);
-  const idleTimeoutMs = parseIdleTimeout(idleTimeoutRaw);
+  const idleTimeoutMs = await idleTimeoutSetting.get();
 
   // Build per-persona context for summarization (only pre-cutoff part).
   // Also compute preserved-token totals per persona (so the report can
@@ -326,13 +322,6 @@ export async function runCompaction(
     tightestMaxTokens,
     nothingToDo: false,
   };
-}
-
-function parseIdleTimeout(raw: string | null): number {
-  if (raw === null || raw === "") return DEFAULT_IDLE_TIMEOUT_MS;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) return DEFAULT_IDLE_TIMEOUT_MS;
-  return n;
 }
 
 /**
