@@ -12,7 +12,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useUiStore } from "@/stores/uiStore";
 import { findMatches } from "@/lib/ui/findMatches";
-import { computeUserMsgNav, type UserMsgPos } from "@/lib/ui/userMessageNav";
+import { computeScrollTarget, computeUserMsgNav, type UserMsgPos } from "@/lib/ui/userMessageNav";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 import { PersonaPanel } from "./PersonaPanel";
@@ -109,7 +109,8 @@ export function ChatView(): JSX.Element {
     if (!el) return;
     const target = el.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
     if (!target) return;
-    el.scrollTo({ top: target.offsetTop, behavior: "smooth" });
+    const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
+    el.scrollTo({ top: computeScrollTarget(target.offsetTop, paddingTop), behavior: "smooth" });
   }, []);
 
   const scrollToBottom = useCallback((): void => {
@@ -164,7 +165,7 @@ export function ChatView(): JSX.Element {
               disabled={nav.upDisabled}
               title="Scroll to previous user command (Ctrl+Shift+Up)"
               aria-label="Scroll to previous user command"
-              className="rounded border border-neutral-300 px-1.5 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-300 disabled:hover:bg-transparent"
+              className="rounded border border-current px-1.5 py-0.5 text-xs hover:bg-neutral-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
             >
               ▲
             </button>
@@ -174,7 +175,7 @@ export function ChatView(): JSX.Element {
               disabled={nav.downDisabled}
               title="Scroll to next user command (Ctrl+Shift+Down)"
               aria-label="Scroll to next user command"
-              className="rounded border border-neutral-300 px-1.5 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-300 disabled:hover:bg-transparent"
+              className="rounded border border-current px-1.5 py-0.5 text-xs hover:bg-neutral-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
             >
               ▼
             </button>

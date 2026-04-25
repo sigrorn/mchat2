@@ -67,3 +67,11 @@ export function computeUserMsgNav(inputs: NavInputs, epsilon = 1): NavState {
     downDisabled: nextId === null && !nextIsBottom,
   };
 }
+
+// Translate a target bubble's offsetTop into a scrollTop that keeps the
+// container's natural top padding visible above the bubble — otherwise
+// the bubble's header line ends up flush with the chat header and looks
+// truncated.
+export function computeScrollTarget(targetOffsetTop: number, paddingTop: number): number {
+  return Math.max(0, targetOffsetTop - paddingTop);
+}
