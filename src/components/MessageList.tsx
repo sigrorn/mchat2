@@ -36,6 +36,7 @@ export function MessageList({
   conversationId,
   activeMatchMessageId = null,
   scrollContainerRef,
+  pinnedRef: pinnedRefProp,
   onScroll: onScrollProp,
 }: {
   conversationId: string;
@@ -43,13 +44,19 @@ export function MessageList({
   // #137: when the parent (ChatView) needs the scroll container — for
   // the header's prev/next user-message arrows — it forwards a ref.
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  // #137: parent can also share the tail-pin flag so a programmatic
+  // scroll initiated from outside (the header arrows) can mark the
+  // container unpinned before the scroll, preventing the layout
+  // effect below from yanking back to the bottom.
+  pinnedRef?: React.MutableRefObject<boolean>;
   onScroll?: () => void;
 }): JSX.Element {
   const messages = useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
   const personas = usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
   const internalRef = useRef<HTMLDivElement>(null);
   const containerRef = scrollContainerRef ?? internalRef;
-  const pinnedRef = useRef(true);
+  const internalPinnedRef = useRef(true);
+  const pinnedRef = pinnedRefProp ?? internalPinnedRef;
 
   // Re-check pin status on every user-driven scroll. Cheap and avoids
   // the trap where we mistake an auto-scroll for a manual one.

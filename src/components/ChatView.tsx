@@ -85,6 +85,13 @@ export function ChatView(): JSX.Element {
   // current scroll metrics and to scroll programmatically when the
   // arrow buttons or Ctrl+Shift+Up/Down fire.
   const scrollRef = useRef<HTMLDivElement>(null);
+  // #137: shared with MessageList so we can mark the container
+  // unpinned before a programmatic scroll. Without this, when the
+  // user is exactly at the bottom (pinnedRef=true) and presses ▲,
+  // MessageList's tail-pin layout effect yanks back to the bottom
+  // before the smooth scroll can pull us out of the 8px pin
+  // threshold.
+  const pinnedRef = useRef(true);
   const [metrics, setMetrics] = useState<NavMetrics>(EMPTY_METRICS);
 
   // #137: which persona the arrows scope to. null = navigate user
@@ -166,6 +173,12 @@ export function ChatView(): JSX.Element {
     if (!el) return;
     const target = el.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
     if (!target) return;
+    // Mark unpinned BEFORE the smooth scroll so MessageList's tail-pin
+    // layout effect doesn't yank us back to the bottom on the first
+    // re-render. Without this, ▲ from the very bottom is a no-op when
+    // the target is on-screen (smooth scroll never escapes the pin's
+    // 8px threshold before being yanked).
+    pinnedRef.current = false;
     const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
     el.scrollTo({ top: computeScrollTarget(relativeTop(target, el), paddingTop), behavior: "smooth" });
   }, []);
@@ -243,6 +256,7 @@ export function ChatView(): JSX.Element {
           conversationId={conversation.id}
           activeMatchMessageId={activeMatch?.messageId ?? null}
           scrollContainerRef={scrollRef}
+          pinnedRef={pinnedRef}
           onScroll={refreshMetrics}
         />
         <div className="flex border-t border-neutral-200">
