@@ -10,7 +10,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import type { Message, Persona } from "@/lib/types";
-import { isPinnedToBottom } from "./scrollPin";
+import { isPinnedToBottom, shouldFollowTail } from "./scrollPin";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { isExcludedByLimit } from "@/lib/context/excluded";
 import { useConversationsStore } from "@/stores/conversationsStore";
@@ -73,11 +73,19 @@ export function MessageList({
 
   // Layout effect runs synchronously after DOM mutation, before paint —
   // critical for the no-jump experience: the user never sees an
-  // intermediate frame where new content is below the fold.
+  // intermediate frame where new content is below the fold. Yanks only
+  // when scrollHeight actually grew (new content appended). Other
+  // re-renders — metrics state during a programmatic scroll, font-zoom
+  // changes, etc. — leave the scroll position alone, otherwise the
+  // pin's 8px threshold traps any scroll initiated near the bottom.
+  const prevScrollHeightRef = useRef(0);
   useLayoutEffect(() => {
     const el = containerRef.current;
-    if (!el || !pinnedRef.current) return;
-    el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    if (shouldFollowTail(prevScrollHeightRef.current, el.scrollHeight, pinnedRef.current)) {
+      el.scrollTop = el.scrollHeight;
+    }
+    prevScrollHeightRef.current = el.scrollHeight;
   });
 
   const userNumbers = userNumberByIndex(messages);

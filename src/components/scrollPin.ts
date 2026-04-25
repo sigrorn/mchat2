@@ -18,3 +18,19 @@ export function isPinnedToBottom(m: ScrollMetrics, threshold = 8): boolean {
   const distanceFromBottom = m.scrollHeight - (m.scrollTop + m.clientHeight);
   return distanceFromBottom <= threshold;
 }
+
+// Should the tail-follow layout effect yank scrollTop to the bottom?
+// The original "always when pinned" rule fights any programmatic scroll
+// that starts near the bottom: onScroll re-asserts pinnedRef during the
+// first frames within the 8px threshold, and the yank cancels the
+// scroll. The corrected rule fires only when scrollHeight actually
+// grew — that's the case the tail-follow was designed for (streaming
+// new tokens, new message rows). Re-renders triggered by metrics or
+// other state updates leave the scroll position alone.
+export function shouldFollowTail(
+  prevScrollHeight: number,
+  currentScrollHeight: number,
+  isPinned: boolean,
+): boolean {
+  return isPinned && currentScrollHeight > prevScrollHeight;
+}
