@@ -472,6 +472,7 @@ function MessageBubbleImpl({
       data-pinned={message.pinned ? "true" : undefined}
       data-message-id={message.id}
       data-msg-role={message.role}
+      data-persona-id={message.personaId ?? undefined}
       className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >

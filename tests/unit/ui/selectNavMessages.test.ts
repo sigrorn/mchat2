@@ -21,6 +21,9 @@ const mk = (overrides: Partial<Message>): Message => ({
   index: 0,
   errorMessage: null,
   errorTransient: false,
+  inputTokens: 0,
+  outputTokens: 0,
+  usageEstimated: false,
   ...overrides,
 });
 

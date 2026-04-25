@@ -1,10 +1,15 @@
 // ------------------------------------------------------------------
 // Component: User-message navigation helper
-// Responsibility: Pure mapping from current scroll position + user
-//                 message offsets to the next up/down arrow targets
+// Responsibility: Pure mapping from current scroll position + a list
+//                 of message offsets to the next up/down arrow targets
 //                 and disabled-state used by the chat header (#137).
-// Collaborators: components/ChatView.tsx (header buttons + shortcuts).
+//                 Also picks which messages the arrows navigate based
+//                 on whether a persona is selected for navigation.
+// Collaborators: components/ChatView.tsx (header buttons + shortcuts),
+//                components/PersonaPanel.tsx (nav-persona toggle).
 // ------------------------------------------------------------------
+
+import type { Message } from "@/lib/types";
 
 export interface UserMsgPos {
   id: string;
@@ -83,4 +88,33 @@ export function computeUserMsgNav(inputs: NavInputs, epsilon = 1): NavState {
 // truncated.
 export function computeScrollTarget(targetOffsetTop: number, paddingTop: number): number {
   return Math.max(0, targetOffsetTop - paddingTop);
+}
+
+// Pick the IDs the up/down arrows should navigate between. With no
+// persona selected, that's every user message; with one selected, it's
+// every assistant message authored by that persona. Notice rows are
+// always excluded (they are UI-only and not navigable as commands).
+export function selectNavMessageIds(
+  messages: readonly Message[],
+  navPersonaId: string | null,
+): string[] {
+  if (navPersonaId === null) {
+    return messages.filter((m) => m.role === "user").map((m) => m.id);
+  }
+  return messages
+    .filter((m) => m.role === "assistant" && m.personaId === navPersonaId)
+    .map((m) => m.id);
+}
+
+// Tooltip text for the chat-header arrows. Reflects whether a persona
+// is selected for navigation so the user understands what each press
+// will scroll to.
+export function navTooltipText(
+  direction: "prev" | "next",
+  personaName: string | null,
+): string {
+  const word = direction === "prev" ? "previous" : "next";
+  const shortcut = direction === "prev" ? "Ctrl+Shift+Up" : "Ctrl+Shift+Down";
+  const subject = personaName ? `message from ${personaName}` : `user command`;
+  return `Scroll to ${word} ${subject} (${shortcut})`;
 }

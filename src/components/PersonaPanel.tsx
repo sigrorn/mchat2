@@ -54,7 +54,17 @@ const EMPTY_SEL: readonly string[] = Object.freeze([]);
 
 const EMPTY_MESSAGES: readonly import("@/lib/types").Message[] = Object.freeze([]);
 
-export function PersonaPanel({ conversation }: { conversation: Conversation }): JSX.Element {
+export function PersonaPanel({
+  conversation,
+  navPersonaId = null,
+  onSelectNavPersona,
+}: {
+  conversation: Conversation;
+  // #137 nav-scope: which persona the chat-header arrows are scoped
+  // to. Independent of the send-target checkboxes.
+  navPersonaId?: string | null;
+  onSelectNavPersona?: (id: string) => void;
+}): JSX.Element {
   const collapsed = useUiStore((s) => s.personaPanelCollapsed);
   const toggleCollapse = useUiStore((s) => s.togglePersonaPanel);
   const fontScale = useUiStore((s) => s.chatFontScale);
@@ -85,6 +95,8 @@ export function PersonaPanel({ conversation }: { conversation: Conversation }): 
       conversation={conversation}
       onCollapse={toggleCollapse}
       counterScaleStyle={counterScaleStyle}
+      navPersonaId={navPersonaId}
+      onSelectNavPersona={onSelectNavPersona}
     />
   );
 }
@@ -93,10 +105,14 @@ function PersonaPanelExpanded({
   conversation,
   onCollapse,
   counterScaleStyle,
+  navPersonaId,
+  onSelectNavPersona,
 }: {
   conversation: Conversation;
   onCollapse: () => void;
   counterScaleStyle: React.CSSProperties;
+  navPersonaId: string | null;
+  onSelectNavPersona: ((id: string) => void) | undefined;
 }): JSX.Element {
   const personas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
   const selection =
@@ -153,6 +169,8 @@ function PersonaPanelExpanded({
             key={p.id}
             persona={p}
             selected={selection.includes(p.id)}
+            navSelected={navPersonaId === p.id}
+            onSelectNav={onSelectNavPersona ? () => onSelectNavPersona(p.id) : undefined}
             cost={costs[p.id]}
             conversationId={conversation.id}
             onToggle={() => toggle(p.id)}
@@ -207,6 +225,8 @@ function PersonaPanelExpanded({
 function PersonaRow({
   persona,
   selected,
+  navSelected,
+  onSelectNav,
   cost,
   conversationId,
   onToggle,
@@ -216,6 +236,8 @@ function PersonaRow({
 }: {
   persona: Persona;
   selected: boolean;
+  navSelected: boolean;
+  onSelectNav: (() => void) | undefined;
   cost: CostResult | undefined;
   conversationId: string;
   onToggle: () => void;
@@ -293,8 +315,9 @@ function PersonaRow({
   );
   const bg = statusBgClass(status);
 
+  const navRing = navSelected ? "ring-2 ring-inset ring-blue-400" : "";
   return (
-    <li className={`border-b border-neutral-200 px-3 py-2 transition-colors ${bg}`}>
+    <li className={`border-b border-neutral-200 px-3 py-2 transition-colors ${bg} ${navRing}`}>
       <div className="flex items-start gap-2">
         <input
           type="checkbox"
@@ -307,7 +330,19 @@ function PersonaRow({
           className="mt-1 inline-block h-3 w-3 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <div className="flex-1">
+        <div
+          className={`flex-1 ${onSelectNav ? "cursor-pointer select-none" : ""}`}
+          onClick={onSelectNav}
+          role={onSelectNav ? "button" : undefined}
+          aria-pressed={onSelectNav ? navSelected : undefined}
+          title={
+            onSelectNav
+              ? navSelected
+                ? "Click to scope chat-header arrows back to user commands"
+                : `Click to scope chat-header arrows to ${persona.name}'s messages`
+              : undefined
+          }
+        >
           <div className="flex items-baseline justify-between gap-2">
             <div className="text-sm font-medium text-neutral-900">{persona.name}</div>
             <div
