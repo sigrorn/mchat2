@@ -1,6 +1,6 @@
 // User-message navigation arrows — issue #137.
 import { describe, it, expect } from "vitest";
-import { computeUserMsgNav } from "@/lib/ui/userMessageNav";
+import { computeScrollTarget, computeUserMsgNav } from "@/lib/ui/userMessageNav";
 
 const u = (id: string, offsetTop: number) => ({ id, offsetTop });
 
@@ -121,6 +121,19 @@ describe("computeUserMsgNav", () => {
     });
     expect(r.prevId).toBe("m2");
     expect(r.nextId).toBe("m3");
+  });
+
+  it("computeScrollTarget subtracts the container's top padding so the bubble's natural margin stays visible", () => {
+    // Bubble at offsetTop=200 inside a container with padding-top=12.
+    // Without the fix the scroll top would be 200 and the 12px of padding
+    // above the bubble would be hidden — making it look glued to the
+    // chat header.
+    expect(computeScrollTarget(200, 12)).toBe(188);
+  });
+
+  it("computeScrollTarget never returns a negative scrollTop", () => {
+    expect(computeScrollTarget(5, 12)).toBe(0);
+    expect(computeScrollTarget(0, 12)).toBe(0);
   });
 
   it("at bottom + only one user message above: up reachable, down disabled", () => {
