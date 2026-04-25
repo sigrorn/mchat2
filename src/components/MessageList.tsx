@@ -5,7 +5,7 @@
 //                 MessageBubble at a later pass.
 // ------------------------------------------------------------------
 
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
@@ -35,13 +35,20 @@ const EMPTY: readonly Message[] = Object.freeze([]);
 export function MessageList({
   conversationId,
   activeMatchMessageId = null,
+  scrollContainerRef,
+  onScroll: onScrollProp,
 }: {
   conversationId: string;
   activeMatchMessageId?: string | null;
+  // #137: when the parent (ChatView) needs the scroll container — for
+  // the header's prev/next user-message arrows — it forwards a ref.
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  onScroll?: () => void;
 }): JSX.Element {
   const messages = useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
   const personas = usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
-  const containerRef = useRef<HTMLDivElement>(null);
+  const internalRef = useRef<HTMLDivElement>(null);
+  const containerRef = scrollContainerRef ?? internalRef;
   const pinnedRef = useRef(true);
 
   // Re-check pin status on every user-driven scroll. Cheap and avoids
@@ -54,6 +61,7 @@ export function MessageList({
       clientHeight: el.clientHeight,
       scrollHeight: el.scrollHeight,
     });
+    onScrollProp?.();
   };
 
   // Layout effect runs synchronously after DOM mutation, before paint —
@@ -463,6 +471,7 @@ function MessageBubbleImpl({
       data-excluded={excluded ? "true" : undefined}
       data-pinned={message.pinned ? "true" : undefined}
       data-message-id={message.id}
+      data-msg-role={message.role}
       className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
