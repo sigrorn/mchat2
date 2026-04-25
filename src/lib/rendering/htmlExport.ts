@@ -9,6 +9,7 @@ import type { Conversation, Message, Persona } from "../types";
 import { PROVIDER_COLORS, PROVIDER_DISPLAY_NAMES } from "../providers/derived";
 import { renderMarkdownToHtml, escapeHtml } from "./markdown";
 import { redact } from "../security/redact";
+import { formatUserHeader } from "../conversations/userHeader";
 
 export interface HtmlExportInput {
   conversation: Conversation;
@@ -28,7 +29,7 @@ export function exportToHtml(input: HtmlExportInput): string {
   const body = messages
     .map((m) => {
       const safe = redact({ text: m.content, knownSecrets });
-      const label = labelFor(m, personaById);
+      const label = labelFor(m, personaById, personas);
       const color = colorFor(m, personaById);
       const rendered = renderMarkdownToHtml(safe);
       return `<section class="msg ${m.role}" style="border-left-color:${escapeHtml(color)}">
@@ -37,6 +38,8 @@ export function exportToHtml(input: HtmlExportInput): string {
       </section>`;
     })
     .join("\n");
+
+  const personasSection = renderPersonasSection(personas, conversation, knownSecrets);
 
   const title = escapeHtml(conversation.title);
   return `<!doctype html>
@@ -47,10 +50,17 @@ export function exportToHtml(input: HtmlExportInput): string {
 <style>
 body{font-family:system-ui,sans-serif;max-width:900px;margin:auto;padding:1.5rem;color:#111}
 h1{font-size:1.5rem}
+h2{font-size:1.1rem;margin-top:1.5rem}
 .meta{color:#666;font-size:.85rem;margin-bottom:1.5rem}
 .msg{border-left:4px solid #aaa;padding:.75rem 1rem;margin-bottom:1rem;background:#fafafa;border-radius:4px}
 .msg header{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.25rem}
 .msg.user{background:#f0f4ff}
+.personas{margin-bottom:1.5rem}
+.persona{border-left:4px solid #aaa;padding:.5rem 1rem;margin-bottom:.75rem;background:#fafafa;border-radius:4px}
+.persona header{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.25rem}
+.persona .system-prompt{margin:0;font-size:.85rem;white-space:pre-wrap}
+.persona .system-prompt-empty{margin:0;font-size:.85rem;color:#888;font-style:italic}
+.persona .source{font-size:.7rem;color:#888;font-weight:normal;text-transform:none;letter-spacing:0;margin-left:.5rem}
 pre{background:#f3f4f6;padding:.5rem .75rem;border-radius:4px;overflow-x:auto}
 code{font-family:ui-monospace,SFMono-Regular,monospace}
 </style>
@@ -58,17 +68,53 @@ code{font-family:ui-monospace,SFMono-Regular,monospace}
 <body>
 <h1>${title}</h1>
 <div class="meta">Exported ${escapeHtml(generatedAt)} · ${messages.length} messages</div>
-${body}
+${personasSection}${body}
 </body>
 </html>`;
 }
 
-function labelFor(m: Message, personaById: Map<string, Persona>): string {
-  if (m.role === "user") return "User";
+function labelFor(
+  m: Message,
+  personaById: Map<string, Persona>,
+  personas: readonly Persona[],
+): string {
+  if (m.role === "user") {
+    return formatUserHeader(null, m.addressedTo, personas, m.pinTarget);
+  }
   if (m.role === "system") return "System";
   const persona = m.personaId ? personaById.get(m.personaId) : null;
   const name = persona?.name ?? (m.provider ? PROVIDER_DISPLAY_NAMES[m.provider] : "Assistant");
   return `${name}${m.model ? ` · ${m.model}` : ""}`;
+}
+
+function renderPersonasSection(
+  personas: readonly Persona[],
+  conversation: Conversation,
+  knownSecrets: readonly string[],
+): string {
+  if (personas.length === 0) return "";
+  const items = personas
+    .map((p) => {
+      const provider = PROVIDER_DISPLAY_NAMES[p.provider] ?? p.provider;
+      const headerParts = [p.name, provider];
+      if (p.modelOverride) headerParts.push(p.modelOverride);
+      const head = headerParts.map(escapeHtml).join(" · ");
+      const override = p.systemPromptOverride;
+      const effective = override ?? conversation.systemPrompt;
+      const source =
+        override !== null
+          ? "(persona override)"
+          : conversation.systemPrompt
+            ? "(conversation-level)"
+            : null;
+      const sourceTag = source ? `<span class="source">${escapeHtml(source)}</span>` : "";
+      const promptHtml = effective
+        ? `<pre class="system-prompt">${escapeHtml(redact({ text: effective, knownSecrets: [...knownSecrets] }))}</pre>`
+        : `<p class="system-prompt-empty">no system prompt</p>`;
+      return `<div class="persona"><header>${head}${sourceTag}</header>${promptHtml}</div>`;
+    })
+    .join("\n");
+  return `<section class="personas"><h2>Personas</h2>\n${items}\n</section>\n`;
 }
 
 function colorFor(m: Message, personaById: Map<string, Persona>): string {

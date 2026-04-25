@@ -4,10 +4,8 @@ import { makeMessage } from "@/lib/persistence/messages";
 import type { Conversation, Persona } from "@/lib/types";
 
 const persona = (overrides: Partial<Persona> & { id: string; name: string }): Persona => ({
-  id: overrides.id,
   conversationId: "c_1",
   provider: "mock",
-  name: overrides.name,
   nameSlug: overrides.name.toLowerCase(),
   systemPromptOverride: null,
   modelOverride: null,
