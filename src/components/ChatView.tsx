@@ -27,6 +27,7 @@ interface NavMetrics {
   scrollHeight: number;
   clientHeight: number;
   userMessages: UserMsgPos[];
+  paddingTop: number;
 }
 
 const EMPTY_METRICS: NavMetrics = {
@@ -34,7 +35,17 @@ const EMPTY_METRICS: NavMetrics = {
   scrollHeight: 0,
   clientHeight: 0,
   userMessages: [],
+  paddingTop: 0,
 };
+
+// Offset of `child` within `container`'s scroll origin, robust to
+// offsetParent (the scroll container often isn't positioned, so
+// child.offsetTop alone reports a misleading value).
+function relativeTop(child: HTMLElement, container: HTMLElement): number {
+  return (
+    child.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
+  );
+}
 
 export function ChatView(): JSX.Element {
   const currentId = useConversationsStore((s) => s.currentId);
@@ -79,13 +90,15 @@ export function ChatView(): JSX.Element {
     const userMessages: UserMsgPos[] = [];
     userBubbles.forEach((b) => {
       const id = b.dataset.messageId;
-      if (id) userMessages.push({ id, offsetTop: b.offsetTop });
+      if (id) userMessages.push({ id, offsetTop: relativeTop(b, el) });
     });
+    const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
     setMetrics({
       scrollTop: el.scrollTop,
       scrollHeight: el.scrollHeight,
       clientHeight: el.clientHeight,
       userMessages,
+      paddingTop,
     });
   }, []);
 
@@ -102,7 +115,17 @@ export function ChatView(): JSX.Element {
     return () => ro.disconnect();
   }, [refreshMetrics, messages]);
 
-  const nav = useMemo(() => computeUserMsgNav(metrics), [metrics]);
+  const nav = useMemo(
+    () =>
+      computeUserMsgNav({
+        scrollTop: metrics.scrollTop,
+        scrollHeight: metrics.scrollHeight,
+        clientHeight: metrics.clientHeight,
+        userMessages: metrics.userMessages,
+        viewportTopOffset: metrics.paddingTop,
+      }),
+    [metrics],
+  );
 
   const scrollToUser = useCallback((id: string): void => {
     const el = scrollRef.current;
@@ -110,7 +133,7 @@ export function ChatView(): JSX.Element {
     const target = el.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
     if (!target) return;
     const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
-    el.scrollTo({ top: computeScrollTarget(target.offsetTop, paddingTop), behavior: "smooth" });
+    el.scrollTo({ top: computeScrollTarget(relativeTop(target, el), paddingTop), behavior: "smooth" });
   }, []);
 
   const scrollToBottom = useCallback((): void => {

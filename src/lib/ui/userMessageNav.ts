@@ -16,6 +16,13 @@ export interface NavInputs {
   scrollHeight: number;
   clientHeight: number;
   userMessages: readonly UserMsgPos[];
+  // Distance between scrollTop and the visual top the user perceives
+  // as the start of content (typically the container's padding-top).
+  // The helper uses (scrollTop + viewportTopOffset) as the reference
+  // for "above"/"below" so that, when we deliberately scroll to
+  // (bubble.offsetTop - viewportTopOffset) to keep padding visible,
+  // the bubble itself is not picked as the next target.
+  viewportTopOffset?: number;
 }
 
 export interface NavState {
@@ -28,6 +35,7 @@ export interface NavState {
 
 export function computeUserMsgNav(inputs: NavInputs, epsilon = 1): NavState {
   const { scrollTop, scrollHeight, clientHeight, userMessages } = inputs;
+  const viewportTopOffset = inputs.viewportTopOffset ?? 0;
   if (userMessages.length === 0) {
     return {
       prevId: null,
@@ -39,16 +47,17 @@ export function computeUserMsgNav(inputs: NavInputs, epsilon = 1): NavState {
   }
   const sorted = [...userMessages].sort((a, b) => a.offsetTop - b.offsetTop);
   const atBottom = scrollHeight - (scrollTop + clientHeight) <= epsilon;
+  const ref = scrollTop + viewportTopOffset;
 
   let prevId: string | null = null;
   for (const m of sorted) {
-    if (m.offsetTop < scrollTop - epsilon) prevId = m.id;
+    if (m.offsetTop < ref - epsilon) prevId = m.id;
     else break;
   }
 
   let nextId: string | null = null;
   for (const m of sorted) {
-    if (m.offsetTop > scrollTop + epsilon) {
+    if (m.offsetTop > ref + epsilon) {
       nextId = m.id;
       break;
     }
