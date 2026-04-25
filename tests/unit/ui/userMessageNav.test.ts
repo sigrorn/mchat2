@@ -123,6 +123,39 @@ describe("computeUserMsgNav", () => {
     expect(r.nextId).toBe("m3");
   });
 
+  it("viewportTopOffset shifts the prev/next reference: when scrolled to (offsetTop - paddingTop), the current bubble is neither prev nor next", () => {
+    // Padding-aware case: container has padding-top=12, helper landed
+    // the bubble at scrollTop = 700 - 12 = 688. With viewportTopOffset=12,
+    // the reference becomes 700 — exactly at the bubble. Prev = m1, Next
+    // = m3. Without viewportTopOffset (0), Next would mistakenly be m2.
+    const r = computeUserMsgNav({
+      scrollTop: 688,
+      scrollHeight: 3000,
+      clientHeight: 500,
+      userMessages: [u("m1", 100), u("m2", 700), u("m3", 1500)],
+      viewportTopOffset: 12,
+    });
+    expect(r.prevId).toBe("m1");
+    expect(r.nextId).toBe("m3");
+  });
+
+  it("viewportTopOffset defaults to 0 (legacy callers unchanged)", () => {
+    const a = computeUserMsgNav({
+      scrollTop: 500,
+      scrollHeight: 3000,
+      clientHeight: 500,
+      userMessages: [u("m1", 100), u("m2", 700)],
+    });
+    const b = computeUserMsgNav({
+      scrollTop: 500,
+      scrollHeight: 3000,
+      clientHeight: 500,
+      userMessages: [u("m1", 100), u("m2", 700)],
+      viewportTopOffset: 0,
+    });
+    expect(a).toEqual(b);
+  });
+
   it("computeScrollTarget subtracts the container's top padding so the bubble's natural margin stays visible", () => {
     // Bubble at offsetTop=200 inside a container with padding-top=12.
     // Without the fix the scroll top would be 200 and the 12px of padding
