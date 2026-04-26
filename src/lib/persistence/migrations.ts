@@ -175,14 +175,18 @@ async function removeBackup(path: string): Promise<void> {
 
 // Runs pending migrations against the open DB. Uses SQLite user_version
 // instead of a table to keep the schema self-describing.
-export async function runMigrations(): Promise<number> {
+//
+// `upTo` (test-only) caps migrations applied so a test can seed legacy
+// data at an intermediate version before the new migration runs.
+export async function runMigrations(upTo?: number): Promise<number> {
   // FK checks are OFF during migrations so table rebuilds (e.g. v8's
   // persona FK removal) can DROP+RENAME without cascading. Turned ON
   // after all migrations complete for normal app runtime.
   await sql.execute("PRAGMA foreign_keys = OFF");
   const rows = await sql.select<{ user_version: number }>("PRAGMA user_version");
   const current = rows[0]?.user_version ?? 0;
-  if (current >= MIGRATIONS.length) {
+  const target = upTo ?? MIGRATIONS.length;
+  if (current >= target) {
     await sql.execute("PRAGMA foreign_keys = ON");
     return 0;
   }
@@ -191,7 +195,7 @@ export async function runMigrations(): Promise<number> {
   const backupPath = await backupBeforeMigration(current);
 
   let applied = 0;
-  for (let i = current; i < MIGRATIONS.length; i++) {
+  for (let i = current; i < target; i++) {
     const stmts = MIGRATIONS[i];
     if (!stmts) continue;
     // #125: wrap each version bump in a transaction so a mid-migration
