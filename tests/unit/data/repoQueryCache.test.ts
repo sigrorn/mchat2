@@ -78,6 +78,40 @@ describe("repoQueryCache", () => {
     expect(calls).toBe(4);
   });
 
+  it("update(key, fn) replaces the cached value in place and notifies subscribers", async () => {
+    const cache = createRepoQueryCache();
+    await cache.fetch(["x"], async () => 1);
+    let notified = 0;
+    const unsub = cache.subscribe(["x"], () => notified++);
+    cache.update(["x"], (v) => (v as number) + 10);
+    expect(notified).toBe(1);
+    // Subsequent fetch returns the updated value without re-running fn.
+    let calls = 0;
+    const value = await cache.fetch(["x"], async () => {
+      calls++;
+      return -1;
+    });
+    expect(value).toBe(11);
+    expect(calls).toBe(0);
+    unsub();
+  });
+
+  it("update on a non-cached key is a no-op (no insertion)", async () => {
+    const cache = createRepoQueryCache();
+    cache.update(["never-fetched"], () => 42);
+    let calls = 0;
+    const value = await cache.fetch(["never-fetched"], async () => {
+      calls++;
+      return 7;
+    });
+    // The fetch produces 7 because update on an absent key did NOT
+    // insert a stub entry. (Avoids accidentally caching the wrong
+    // shape — updaters typically have a (T)=>T signature that can't
+    // produce a value from undefined safely.)
+    expect(value).toBe(7);
+    expect(calls).toBe(1);
+  });
+
   it("propagates the underlying promise rejection without caching it", async () => {
     const cache = createRepoQueryCache();
     let calls = 0;
