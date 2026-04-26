@@ -15,10 +15,13 @@ import { __setImpl as setLc } from "../tauri/lifecycle";
 import { makeSqljsAdapter } from "./sqljsAdapter";
 
 // --- in-memory SQL ---------------------------------------------------
-// Powered by sql.js (real SQLite-via-WASM) as of #159. Schema is
-// established by App.tsx's bootOnce -> runMigrations(); we just
-// install the empty adapter here.
-async function memSql(): Promise<void> {
+// Powered by sql.js (real SQLite-via-WASM) as of #159 — replaced a
+// 200-line hand-matched regex mock that lagged the schema (#145).
+// Schema is established by App.tsx's bootOnce -> runMigrations()
+// against this empty adapter; both vite-dev and Playwright go
+// through the same path, so the test environment matches production
+// SQLite semantics.
+async function installSqljsShim(): Promise<void> {
   const handle = await makeSqljsAdapter();
   setSql(handle.impl);
 }
@@ -74,7 +77,7 @@ async function installMockAdapters(): Promise<void> {
 }
 
 export async function installBrowserMocks(): Promise<void> {
-  await memSql();
+  await installSqljsShim();
   memKeychain();
   memFs();
   memLifecycle();

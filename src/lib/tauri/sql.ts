@@ -3,9 +3,24 @@
 // Responsibility: Thin wrapper over @tauri-apps/plugin-sql. Exposes
 //                 execute/select and a single open handle. All
 //                 repositories share the same Database instance.
-// Collaborators: persistence/*, tests inject a mock via __setImpl.
+// Collaborators: persistence/*, tests inject a sql.js-backed impl via
+//                __setImpl (see lib/testing/sqljsAdapter).
 // ------------------------------------------------------------------
 
+/**
+ * Minimal SQLite client surface. Implementations must:
+ *
+ * - Bind positional `?` parameters in `params` order.
+ * - Return rows as plain objects keyed by column name (so
+ *   `select<T>` is structurally typed against T).
+ * - Report `lastInsertId` as the rowid of the most recent INSERT,
+ *   or `null` for non-INSERT executes.
+ * - Report `rowsAffected` as the number of rows changed by the most
+ *   recent statement (UPDATE / DELETE / INSERT).
+ *
+ * The production impl is plugin-sql; tests use the sql.js adapter
+ * from lib/testing/sqljsAdapter.
+ */
 export interface SqlImpl {
   execute(
     sql: string,
