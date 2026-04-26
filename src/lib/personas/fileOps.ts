@@ -13,12 +13,10 @@ import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
 import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
-import { useUiStore } from "../../stores/uiStore";
 import type { Persona } from "../types";
 
-function prefixWorkingDir(filename: string): string {
-  const dir = useUiStore.getState().workingDir;
-  return dir ? `${dir}/${filename}` : filename;
+function prefixWorkingDir(filename: string, workingDir: string | null): string {
+  return workingDir ? `${workingDir}/${filename}` : filename;
 }
 
 export type ExportOutcome = { ok: true; path: string } | { ok: false; reason: "cancelled" };
@@ -26,9 +24,10 @@ export type ExportOutcome = { ok: true; path: string } | { ok: false; reason: "c
 export async function exportPersonasToFile(
   conversationTitle: string,
   personas: readonly Persona[],
+  workingDir: string | null,
 ): Promise<ExportOutcome> {
   const json = serializePersonas(personas);
-  const defaultPath = prefixWorkingDir(defaultExportFilename(conversationTitle));
+  const defaultPath = prefixWorkingDir(defaultExportFilename(conversationTitle), workingDir);
   const chosen = await fs.saveDialog({
     defaultPath,
     filters: [{ name: "JSON", extensions: ["json"] }],
@@ -46,10 +45,10 @@ export type ImportOutcome =
 export async function importPersonasFromFile(
   conversationId: string,
   currentMessageIndex: number,
+  workingDir: string | null,
 ): Promise<ImportOutcome> {
-  const dir = useUiStore.getState().workingDir;
   const chosen = await fs.openDialog({
-    ...(dir ? { defaultPath: dir } : {}),
+    ...(workingDir ? { defaultPath: workingDir } : {}),
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!chosen) return { ok: false, reason: "cancelled" };

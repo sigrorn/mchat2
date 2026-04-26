@@ -9,11 +9,9 @@ import { fs } from "../tauri/filesystem";
 import { serializeSnapshot, compressSnapshot, decompressSnapshot, parseSnapshot } from "./snapshot";
 import type { Conversation, Message, Persona } from "../types";
 import type { SnapshotEnvelope } from "./snapshot";
-import { useUiStore } from "../../stores/uiStore";
 
-function prefixWorkingDir(filename: string): string {
-  const dir = useUiStore.getState().workingDir;
-  return dir ? `${dir}/${filename}` : filename;
+function prefixWorkingDir(filename: string, workingDir: string | null): string {
+  return workingDir ? `${workingDir}/${filename}` : filename;
 }
 
 function snapshotFilename(title: string): string {
@@ -33,10 +31,11 @@ export async function exportSnapshot(
   conversation: Conversation,
   personas: readonly Persona[],
   messages: readonly Message[],
+  workingDir: string | null,
 ): Promise<SnapshotExportOutcome> {
   const json = serializeSnapshot(conversation, personas, messages);
   const compressed = await compressSnapshot(json);
-  const defaultPath = prefixWorkingDir(snapshotFilename(conversation.title));
+  const defaultPath = prefixWorkingDir(snapshotFilename(conversation.title), workingDir);
   const chosen = await fs.saveDialog({
     defaultPath,
     filters: [{ name: "mchat snapshot", extensions: ["mchat.json.gz"] }],

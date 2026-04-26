@@ -12,12 +12,10 @@ import { exportToMarkdown } from "../rendering/markdownExport";
 import { fs } from "../tauri/filesystem";
 import { keychain } from "../tauri/keychain";
 import { slugify } from "../personas/slug";
-import { useUiStore } from "../../stores/uiStore";
 import type { Conversation, Message, Persona } from "../types";
 
-function prefixWorkingDir(filename: string): string {
-  const dir = useUiStore.getState().workingDir;
-  return dir ? `${dir}/${filename}` : filename;
+function prefixWorkingDir(filename: string, workingDir: string | null): string {
+  return workingDir ? `${workingDir}/${filename}` : filename;
 }
 
 export interface ExportInput {
@@ -26,6 +24,10 @@ export interface ExportInput {
   personas: readonly Persona[];
   // ISO timestamp; injected so unit tests are deterministic.
   generatedAt: string;
+  // #155: working directory injected by the caller; was previously
+  // read from useUiStore.getState().workingDir, which violated the
+  // lib→stores boundary.
+  workingDir: string | null;
 }
 
 export type ExportResult = { ok: true; path: string } | { ok: false; reason: "cancelled" };
@@ -41,6 +43,7 @@ export async function exportConversationToHtml(input: ExportInput): Promise<Expo
   });
   const defaultPath = prefixWorkingDir(
     defaultExportFilename(input.conversation.title, input.generatedAt),
+    input.workingDir,
   );
   const chosen = await fs.saveDialog({
     defaultPath,
@@ -61,6 +64,7 @@ export async function exportConversationToMarkdown(input: ExportInput): Promise<
   });
   const defaultPath = prefixWorkingDir(
     defaultExportFilename(input.conversation.title, input.generatedAt).replace(/\.html$/, ".md"),
+    input.workingDir,
   );
   const chosen = await fs.saveDialog({
     defaultPath,

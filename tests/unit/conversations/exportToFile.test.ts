@@ -78,6 +78,7 @@ describe("exportConversationToHtml", () => {
       messages,
       personas,
       generatedAt: "2026-04-15T00:00:00.000Z",
+      workingDir: null,
     });
     expect(r.ok).toBe(true);
     expect(writes).toHaveLength(1);
@@ -94,6 +95,7 @@ describe("exportConversationToHtml", () => {
       messages,
       personas,
       generatedAt: "2026-04-15T00:00:00.000Z",
+      workingDir: null,
     });
     expect(r.ok).toBe(false);
     expect(writes).toHaveLength(0);
@@ -114,6 +116,7 @@ describe("exportConversationToHtml", () => {
       messages: localMessages,
       personas,
       generatedAt: "2026-04-15T00:00:00.000Z",
+      workingDir: null,
     });
     expect(writes[0]?.content).not.toContain("sk-ant-secretvalueXYZ");
     expect(writes[0]?.content).not.toContain("sk-openaisecretXYZ");

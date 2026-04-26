@@ -76,20 +76,9 @@ export default [
       ],
     },
   },
-  // Exempt existing violators from the lib→stores ban. The store
-  // coupling here is the work scoped by #144. New files must NOT be
-  // added to this list — pass store actions in via callbacks instead.
-  {
-    files: [
-      "src/lib/commands/dispatch.ts",
-      "src/lib/commands/handlers/**/*.{ts,tsx}",
-      "src/lib/conversations/exportToFile.ts",
-      "src/lib/conversations/snapshotFileOps.ts",
-      "src/lib/personas/fileOps.ts",
-    ],
-    rules: {
-      "no-restricted-imports": "off",
-    },
-  },
+  // (#155) The temporary override block that exempted dispatch.ts,
+  // handlers/**, and the fileOps trio from no-restricted-imports has
+  // been removed — all those files now take store actions via deps
+  // (#148, #149, #151–#154) or function parameters (#155).
   prettier,
 ];

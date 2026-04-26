@@ -95,14 +95,20 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
   const exportHtml = async (id: string): Promise<void> => {
     const data = await getExportData(id);
     if (!data) return;
-    const r = await exportConversationToHtml(data);
+    const r = await exportConversationToHtml({
+      ...data,
+      workingDir: useUiStore.getState().workingDir,
+    });
     if (r.ok) await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
   };
 
   const exportMarkdown = async (id: string): Promise<void> => {
     const data = await getExportData(id);
     if (!data) return;
-    const r = await exportConversationToMarkdown(data);
+    const r = await exportConversationToMarkdown({
+      ...data,
+      workingDir: useUiStore.getState().workingDir,
+    });
     if (r.ok) await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
   };
 
@@ -110,7 +116,12 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
     const data = await getExportData(id);
     if (!data) return;
     const { exportSnapshot } = await import("@/lib/conversations/snapshotFileOps");
-    const r = await exportSnapshot(data.conversation, data.personas, data.messages);
+    const r = await exportSnapshot(
+      data.conversation,
+      data.personas,
+      data.messages,
+      useUiStore.getState().workingDir,
+    );
     if (r.ok) await useMessagesStore.getState().appendNotice(id, `snapshot saved to ${r.path}.`);
   };
 

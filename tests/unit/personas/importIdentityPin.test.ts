@@ -108,7 +108,7 @@ afterEach(() => {
 describe("importPersonasFromFile identity pins (#36)", () => {
   it("appends both identity pins per imported persona (#38)", async () => {
     const { messageInserts, personas } = makeStubs();
-    const r = await importPersonasFromFile("c_1", 0);
+    const r = await importPersonasFromFile("c_1", 0, null);
     if (!r.ok) throw new Error("import failed: " + ("message" in r ? r.message : r.reason));
     expect(personas).toHaveLength(2);
     const identityPins = messageInserts.filter((m) => m.pinned === 1 && m.pin_target);

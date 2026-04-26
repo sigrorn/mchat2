@@ -622,7 +622,11 @@ function CreateForm({
   };
 
   const onExport = async (): Promise<void> => {
-    const r = await exportPersonasToFile(conversationTitle, personas);
+    const r = await exportPersonasToFile(
+      conversationTitle,
+      personas,
+      useUiStore.getState().workingDir,
+    );
     if (r.ok) {
       await useMessagesStore
         .getState()
@@ -631,7 +635,11 @@ function CreateForm({
   };
   const onImport = async (): Promise<void> => {
     const history = useMessagesStore.getState().byConversation[conversationId] ?? [];
-    const r = await importPersonasFromFile(conversationId, history.length);
+    const r = await importPersonasFromFile(
+      conversationId,
+      history.length,
+      useUiStore.getState().workingDir,
+    );
     if (r.ok === false) {
       if (r.reason === "error") {
         await useMessagesStore
