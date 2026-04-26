@@ -10,6 +10,20 @@ import { create } from "zustand";
 import type { Persona } from "@/lib/types";
 import * as repo from "@/lib/persistence/personas";
 import { useConversationsStore } from "./conversationsStore";
+import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
+
+// #185: dual-write helpers — keep the data-layer cache synced with
+// Zustand mutations so consumers reading via useRepoQuery see the
+// same state. Mirrors the pattern established for messagesStore in
+// #184.
+const personasQueryKey = (conversationId: string): readonly unknown[] =>
+  ["personas", conversationId];
+function cacheUpdate(conversationId: string, fn: (list: Persona[]) => Persona[]): void {
+  getRepoQueryCache().update<Persona[]>(personasQueryKey(conversationId), fn);
+}
+function cacheSet(conversationId: string, list: Persona[]): void {
+  getRepoQueryCache().set<Persona[]>(personasQueryKey(conversationId), list);
+}
 
 interface State {
   byConversation: Record<string, Persona[]>;
@@ -31,6 +45,7 @@ export const usePersonasStore = create<State>((set, get) => ({
     set({
       byConversation: { ...get().byConversation, [conversationId]: list },
     });
+    cacheSet(conversationId, list);
     const conv = useConversationsStore
       .getState()
       .conversations.find((c) => c.id === conversationId);
@@ -79,6 +94,10 @@ export const usePersonasStore = create<State>((set, get) => ({
     set({
       byConversation: { ...get().byConversation, [p.conversationId]: next },
     });
+    cacheUpdate(p.conversationId, (list) => {
+      const i = list.findIndex((x) => x.id === p.id);
+      return i === -1 ? [...list, p] : list.map((x) => (x.id === p.id ? p : x));
+    });
   },
   remove(p) {
     const existing = get().byConversation[p.conversationId] ?? [];
@@ -88,5 +107,6 @@ export const usePersonasStore = create<State>((set, get) => ({
         [p.conversationId]: existing.filter((x) => x.id !== p.id),
       },
     });
+    cacheUpdate(p.conversationId, (list) => list.filter((x) => x.id !== p.id));
   },
 }));

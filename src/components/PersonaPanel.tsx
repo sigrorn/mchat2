@@ -28,6 +28,8 @@ import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { buildMatrixFromDefaults } from "@/lib/personas/service";
 import { usePersonasStore } from "@/stores/personasStore";
+import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import * as personasRepo from "@/lib/persistence/personas";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore, type StreamStatus } from "@/stores/sendStore";
@@ -113,7 +115,16 @@ function PersonaPanelExpanded({
   navPersonaId: string | null;
   onSelectNavPersona: ((id: string) => void) | undefined;
 }): JSX.Element {
-  const personas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
+  // #185: read persona list through useRepoQuery; personasStore
+  // dual-writes the cache on load/upsert/remove. byConversation
+  // remains as a same-conversation fallback for first paint and as
+  // a backstop for un-migrated readers.
+  const personasQuery = useRepoQuery<Persona[]>(
+    ["personas", conversation.id],
+    () => personasRepo.listPersonas(conversation.id),
+  );
+  const storePersonas = usePersonasStore((s) => s.byConversation[conversation.id]);
+  const personas = personasQuery.data ?? storePersonas ?? EMPTY_PERSONAS;
   const selection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
   const messages = useMessagesStore((s) => s.byConversation[conversation.id]) ?? EMPTY_MESSAGES;
