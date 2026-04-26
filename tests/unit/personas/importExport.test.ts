@@ -75,11 +75,19 @@ describe("parsePersonasImport", () => {
     expect(r.personas[0]?.name).toBe("Alice");
   });
 
-  it("rejects entries missing required fields", () => {
+  it("soft-fails on entries missing required fields (#165)", () => {
+    // Per-entry validation now drops bad personas instead of failing
+    // the whole import — keeps a partly-corrupt file usable.
     const r = parsePersonasImport(
-      JSON.stringify({ version: 1, personas: [{ provider: "claude" }] }),
+      JSON.stringify({
+        version: 1,
+        personas: [{ provider: "claude" }, { name: "Alice", provider: "claude" }],
+      }),
     );
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.personas).toHaveLength(1);
+    expect(r.personas[0]?.name).toBe("Alice");
   });
 });
 
