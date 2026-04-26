@@ -16,8 +16,13 @@ import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { PROVIDER_COLORS, formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
 import { formatTokenLimit, type ModelInfo } from "@/lib/providers/models";
+import { useOpenAICompatPresets } from "./useOpenAICompatPresets";
 
-const SELECTABLE_PROVIDER_IDS = userSelectableProviderIds(import.meta.env.DEV);
+// Native providers, minus the openai_compat meta-provider — that one
+// is fanned out into per-preset entries below.
+const SELECTABLE_PROVIDER_IDS = userSelectableProviderIds(import.meta.env.DEV).filter(
+  (id) => id !== "openai_compat",
+);
 
 export interface PersonaFormFieldsProps {
   // Field values + setters owned by the parent.
@@ -35,6 +40,11 @@ export interface PersonaFormFieldsProps {
   onVisDefsChange: (v: Record<string, "y" | "n">) => void;
   seenByEdits: Record<string, "y" | "n">;
   onSeenByEditsChange: (v: Record<string, "y" | "n">) => void;
+  // #171: when provider === "openai_compat", which preset the persona
+  // resolves to. Null otherwise. Parent owns persistence; this child
+  // just fires the callback when the dropdown selection switches.
+  openaiCompatPreset?: Persona["openaiCompatPreset"];
+  onOpenaiCompatPresetChange?: (v: Persona["openaiCompatPreset"]) => void;
 
   // Personas to show in the visibility grids (already filtered to
   // exclude self in the Edit case, the full list in the Create case).
@@ -84,9 +94,59 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
     namePlaceholder,
     promptPlaceholder,
     promptRows = 3,
+    openaiCompatPreset,
+    onOpenaiCompatPresetChange,
   } = props;
 
-  const hostingTag = formatHostingTag(PROVIDER_REGISTRY[provider].hostingCountry);
+  const openaiCompatPresets = useOpenAICompatPresets();
+
+  // The dropdown's value space is unified: native provider ids plus
+  // `openai_compat:builtin:<id>` and `openai_compat:custom:<name>`
+  // for each configurable preset.
+  const dropdownValue =
+    provider === "openai_compat" && openaiCompatPreset
+      ? openaiCompatPreset.kind === "builtin"
+        ? `openai_compat:builtin:${openaiCompatPreset.id}`
+        : `openai_compat:custom:${openaiCompatPreset.name}`
+      : provider;
+
+  const onProviderSelect = (value: string): void => {
+    if (value.startsWith("openai_compat:builtin:")) {
+      onProviderChange("openai_compat");
+      onOpenaiCompatPresetChange?.({
+        kind: "builtin",
+        id: value.slice("openai_compat:builtin:".length),
+      });
+      onModelChange("");
+      return;
+    }
+    if (value.startsWith("openai_compat:custom:")) {
+      onProviderChange("openai_compat");
+      onOpenaiCompatPresetChange?.({
+        kind: "custom",
+        name: value.slice("openai_compat:custom:".length),
+      });
+      onModelChange("");
+      return;
+    }
+    onProviderChange(value as ProviderId);
+    onOpenaiCompatPresetChange?.(null);
+    onModelChange("");
+  };
+
+  // Hosting tag for the model picker — for openai_compat we look up
+  // the preset's country, not the (placeholder) registry entry.
+  const hostingCountryForTag =
+    provider === "openai_compat" && openaiCompatPreset
+      ? openaiCompatPresets.find(
+          (p) =>
+            p.ref.kind === openaiCompatPreset.kind &&
+            (p.ref.kind === "builtin"
+              ? p.ref.id === (openaiCompatPreset as { kind: "builtin"; id: string }).id
+              : p.ref.name === (openaiCompatPreset as { kind: "custom"; name: string }).name),
+        )?.hostingCountry ?? null
+      : PROVIDER_REGISTRY[provider].hostingCountry;
+  const hostingTag = formatHostingTag(hostingCountryForTag);
 
   return (
     <>
@@ -102,11 +162,8 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
       </Field>
       <Field label="Provider">
         <select
-          value={provider}
-          onChange={(e) => {
-            onProviderChange(e.target.value as ProviderId);
-            onModelChange("");
-          }}
+          value={dropdownValue}
+          onChange={(e) => onProviderSelect(e.target.value)}
           className="w-full rounded border border-neutral-300 px-2 py-1"
         >
           {SELECTABLE_PROVIDER_IDS.map((id) => {
@@ -114,6 +171,31 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
             return (
               <option key={id} value={id}>
                 {tag ? `${tag} ${PROVIDER_REGISTRY[id].displayName}` : PROVIDER_REGISTRY[id].displayName}
+              </option>
+            );
+          })}
+          {openaiCompatPresets.length > 0 ? (
+            <option disabled>──────────────</option>
+          ) : null}
+          {openaiCompatPresets.map((p) => {
+            const value =
+              p.ref.kind === "builtin"
+                ? `openai_compat:builtin:${p.ref.id}`
+                : `openai_compat:custom:${p.ref.name}`;
+            const tag = formatHostingTag(p.hostingCountry);
+            const label = tag ? `${tag} ${p.displayName}` : p.displayName;
+            return (
+              <option
+                key={value}
+                value={value}
+                disabled={!p.configured}
+                title={
+                  p.configured
+                    ? undefined
+                    : "Not yet configured — open Settings · Providers to set the API key"
+                }
+              >
+                {p.configured ? label : `${label} (not configured)`}
               </option>
             );
           })}

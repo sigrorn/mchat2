@@ -74,8 +74,19 @@ export async function runOneTarget(
     audience,
   });
 
-  const apiKey = await deps.getApiKey(target.provider);
+  const baseApiKey = await deps.getApiKey(target.provider);
   const extraConfig = (await deps.resolveExtraConfig(target.provider, persona ?? null)) ?? {};
+  // #140 → #171: openai_compat's API key lives in a per-preset
+  // keychain slot, not in the registry-keyed slot deps.getApiKey
+  // looks up. The resolver returns the right key under
+  // `_resolvedApiKey`; use that when present and strip it before
+  // the bag reaches the adapter.
+  let apiKey = baseApiKey;
+  if (target.provider === "openai_compat" && "_resolvedApiKey" in extraConfig) {
+    const resolved = (extraConfig as { _resolvedApiKey?: unknown })._resolvedApiKey;
+    apiKey = typeof resolved === "string" ? resolved : null;
+    delete (extraConfig as Record<string, unknown>)._resolvedApiKey;
+  }
   const globalSystemPrompt = await deps.getGlobalSystemPrompt();
   const idleTimeoutMs = await deps.getIdleTimeoutMs();
   const maxAttempts = await deps.getMaxRetryAttempts();

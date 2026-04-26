@@ -36,7 +36,7 @@ function persona(): Persona {
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {},
+    visibilityDefaults: {}, openaiCompatPreset: null,
   };
 }
 

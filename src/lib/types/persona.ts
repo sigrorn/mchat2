@@ -42,6 +42,13 @@ export interface Persona {
   // Absent = use conversation default. Cross-editing keeps all
   // personas in the same conversation consistent.
   visibilityDefaults: Record<string, "y" | "n">;
+  // #140 → #171: when provider === "openai_compat", points at the
+  // configured preset whose URL template + headers + key the
+  // adapter resolves at call time. Null for every other provider.
+  openaiCompatPreset:
+    | { kind: "builtin"; id: string }
+    | { kind: "custom"; name: string }
+    | null;
 }
 
 // How the user's send intent was resolved.

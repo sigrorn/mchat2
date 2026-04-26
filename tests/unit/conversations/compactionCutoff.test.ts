@@ -37,7 +37,7 @@ function persona(id: string, overrides: Partial<Persona> = {}): Persona {
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {},
+    visibilityDefaults: {}, openaiCompatPreset: null,
     ...overrides,
   };
 }

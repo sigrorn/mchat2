@@ -14,7 +14,7 @@ const validEntry = {
   modelOverride: null,
   colorOverride: null,
   apertusProductId: null,
-  visibilityDefaults: {},
+  visibilityDefaults: {}, openaiCompatPreset: null,
   runsAfter: [],
 };
 

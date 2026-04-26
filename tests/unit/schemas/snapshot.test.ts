@@ -79,7 +79,7 @@ describe("parseSnapshot (zod-backed, #165)", () => {
           modelOverride: null,
           colorOverride: null,
           apertusProductId: null,
-          visibilityDefaults: {},
+          visibilityDefaults: {}, openaiCompatPreset: null,
           runsAfter: [],
           sortOrder: 0,
           createdAtMessageIndex: 0,

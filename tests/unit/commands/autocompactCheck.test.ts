@@ -41,7 +41,7 @@ const PERSONA_128K: Persona = {
   runsAfter: [],
   deletedAt: null,
   apertusProductId: null,
-  visibilityDefaults: {},
+  visibilityDefaults: {}, openaiCompatPreset: null,
 };
 
 const PERSONA_200K: Persona = {

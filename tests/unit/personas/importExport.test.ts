@@ -23,7 +23,7 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     runsAfter: over.runsAfter ?? [],
     deletedAt: over.deletedAt ?? null,
     apertusProductId: over.apertusProductId ?? null,
-    visibilityDefaults: over.visibilityDefaults ?? {},
+    visibilityDefaults: over.visibilityDefaults ?? {}, openaiCompatPreset: null,
   };
 }
 

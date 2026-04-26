@@ -139,6 +139,12 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE messages ADD COLUMN ttft_ms INTEGER`,
     `ALTER TABLE messages ADD COLUMN stream_ms INTEGER`,
   ],
+  // 13 — openai_compat preset reference on personas (#140 → #171).
+  // JSON-encoded {kind:"builtin"|"custom", id?:string, name?:string}.
+  // Null when the persona uses a native provider. Existing personas
+  // (Apertus included) stay null and continue using their native
+  // adapter; the new openai_compat path is purely additive.
+  [`ALTER TABLE personas ADD COLUMN openai_compat_preset TEXT`],
 ];
 
 // #98: backup the DB file before running migrations.

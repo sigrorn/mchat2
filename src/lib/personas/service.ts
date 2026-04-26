@@ -43,6 +43,9 @@ export interface CreatePersonaInput {
   currentMessageIndex: number;
   sortOrder?: number;
   apertusProductId?: string | null;
+  // #171: which openai-compat preset this persona resolves to.
+  // Required when provider === "openai_compat", null otherwise.
+  openaiCompatPreset?: Persona["openaiCompatPreset"];
 }
 
 export async function createPersona(input: CreatePersonaInput): Promise<Persona> {
@@ -87,6 +90,7 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     deletedAt: null,
     apertusProductId: input.apertusProductId?.trim() || null,
     visibilityDefaults: visDefaults,
+    openaiCompatPreset: input.openaiCompatPreset ?? null,
   });
 }
 
@@ -104,6 +108,7 @@ export interface UpdatePersonaInput {
   runsAfter?: PersonaId[];
   sortOrder?: number;
   apertusProductId?: string | null;
+  openaiCompatPreset?: Persona["openaiCompatPreset"];
 }
 
 export async function updatePersona(input: UpdatePersonaInput): Promise<Persona> {
@@ -169,6 +174,10 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     runsAfter: input.runsAfter !== undefined ? input.runsAfter : current.runsAfter,
     sortOrder: input.sortOrder ?? current.sortOrder,
     apertusProductId,
+    openaiCompatPreset:
+      input.openaiCompatPreset !== undefined
+        ? input.openaiCompatPreset
+        : current.openaiCompatPreset,
   };
   await repo.updatePersona(next);
 

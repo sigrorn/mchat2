@@ -104,8 +104,10 @@ describe("runMigrations", () => {
   });
 
   it("does not issue COMMIT after a failed migration", async () => {
+    // Match against the latest migration's signature column (#171
+    // landed `openai_compat_preset` as the last migration so far).
     const mock = makeMockSql(MIGRATIONS.length - 1, {
-      failOn: (q) => /ADD COLUMN ttft_ms/i.test(q),
+      failOn: (q) => /ADD COLUMN openai_compat_preset/i.test(q),
     });
     await expect(runMigrations()).rejects.toThrow();
     // After the failure, no further BEGIN/COMMIT pairs should appear.

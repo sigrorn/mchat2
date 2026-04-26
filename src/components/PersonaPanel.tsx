@@ -15,6 +15,7 @@ import { computePersonaCosts, formatPersonaCost } from "@/lib/pricing/personaCos
 import type { CostResult } from "@/lib/pricing/estimator";
 import { useModelOptions, modelOptionsFromPricing } from "./useModelOptions";
 import { PersonaFormFields } from "./PersonaFormFields";
+import { useOpenAICompatPresets } from "./useOpenAICompatPresets";
 import {
   createPersona,
   deletePersona,
@@ -249,6 +250,7 @@ function PersonaRow({
     seenByEdits?: Record<string, "y" | "n">;
     runsAfter?: string[];
     apertusProductId?: string | null;
+    openaiCompatPreset?: Persona["openaiCompatPreset"];
   }) => Promise<void>;
   onDelete: () => Promise<void>;
   allPersonas: readonly Persona[];
@@ -256,6 +258,9 @@ function PersonaRow({
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(persona.name);
   const [provider, setProvider] = useState<ProviderId>(persona.provider);
+  const [openaiCompatPreset, setOpenaiCompatPreset] = useState<Persona["openaiCompatPreset"]>(
+    persona.openaiCompatPreset,
+  );
   const [prompt, setPrompt] = useState(persona.systemPromptOverride ?? "");
   const [model, setModel] = useState(persona.modelOverride ?? "");
   const [runsAfter, setRunsAfter] = useState<string[]>(persona.runsAfter);
@@ -275,6 +280,7 @@ function PersonaRow({
         colorOverride,
         visibilityDefaults: visDefs,
         runsAfter,
+        openaiCompatPreset: provider === "openai_compat" ? openaiCompatPreset : null,
       };
       if (Object.keys(seenByEdits).length > 0) patch.seenByEdits = seenByEdits;
       await onSave(patch);
@@ -333,11 +339,11 @@ function PersonaRow({
             </div>
           </div>
           <div className="text-xs text-neutral-600">
-            {/* #141: hosting-country tag prefixes the persona's provider id */}
-            {(() => {
-              const tag = formatHostingTag(PROVIDER_REGISTRY[persona.provider].hostingCountry);
-              return tag ? `${tag} ${persona.provider}` : persona.provider;
-            })()}
+            {/* #141 hosting tag + provider/preset label.
+                #171: openai_compat personas show their preset
+                display name (and per-preset hosting country) instead
+                of the generic "openai_compat" placeholder. */}
+            <PersonaProviderLabel persona={persona} />
             {persona.modelOverride ? ` · ${persona.modelOverride}` : ""}
             {persona.runsAfter.length > 0
               ? ` · after ${persona.runsAfter.map((id) => labelFor(id, allPersonas)).join(", ")}`
@@ -358,6 +364,8 @@ function PersonaRow({
             onNameChange={setName}
             provider={provider}
             onProviderChange={setProvider}
+            openaiCompatPreset={openaiCompatPreset}
+            onOpenaiCompatPresetChange={setOpenaiCompatPreset}
             model={model}
             onModelChange={setModel}
             prompt={prompt}
@@ -432,6 +440,7 @@ function CreateForm({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [provider, setProvider] = useState<ProviderId>(DEFAULT_NEW_PROVIDER);
+  const [openaiCompatPreset, setOpenaiCompatPreset] = useState<Persona["openaiCompatPreset"]>(null);
   const [model, setModel] = useState("");
   const [prompt, setPrompt] = useState("");
   const [scope, setScope] = useState<"inherit" | "new">("inherit");
@@ -457,6 +466,9 @@ function CreateForm({
         ...(prompt ? { systemPromptOverride: prompt } : {}),
         ...(colorOverride ? { colorOverride } : {}),
         visibilityDefaults: visDefs,
+        ...(provider === "openai_compat" && openaiCompatPreset
+          ? { openaiCompatPreset }
+          : {}),
       });
       // #94: apply "seen by" edits to existing personas.
       if (Object.keys(seenByEdits).length > 0) {
@@ -474,6 +486,7 @@ function CreateForm({
       setColorOverride(null);
       setVisDefs({});
       setSeenByEdits({});
+      setOpenaiCompatPreset(null);
       setOpen(false);
     } catch (e) {
       setError(e instanceof PersonaValidationError ? e.message : (e as Error).message);
@@ -550,6 +563,8 @@ function CreateForm({
         onNameChange={setName}
         provider={provider}
         onProviderChange={setProvider}
+        openaiCompatPreset={openaiCompatPreset}
+        onOpenaiCompatPresetChange={setOpenaiCompatPreset}
         model={model}
         onModelChange={setModel}
         prompt={prompt}
@@ -613,5 +628,28 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function labelFor(id: string, all: readonly Persona[]): string {
   return all.find((p) => p.id === id)?.name ?? id;
+}
+
+// #171: render the persona's provider/preset label with its hosting
+// tag. For openai_compat personas, look up the preset and use its
+// display name + country; for everything else the registry holds the
+// truth.
+function PersonaProviderLabel({ persona }: { persona: Persona }): JSX.Element {
+  const presets = useOpenAICompatPresets();
+  if (persona.provider === "openai_compat" && persona.openaiCompatPreset) {
+    const ref = persona.openaiCompatPreset;
+    const match = presets.find(
+      (p) =>
+        p.ref.kind === ref.kind &&
+        (p.ref.kind === "builtin"
+          ? p.ref.id === (ref as { kind: "builtin"; id: string }).id
+          : p.ref.name === (ref as { kind: "custom"; name: string }).name),
+    );
+    const tag = formatHostingTag(match?.hostingCountry ?? null);
+    const label = match?.displayName ?? "openai-compat";
+    return <>{tag ? `${tag} ${label}` : label}</>;
+  }
+  const tag = formatHostingTag(PROVIDER_REGISTRY[persona.provider].hostingCountry);
+  return <>{tag ? `${tag} ${persona.provider}` : persona.provider}</>;
 }
 

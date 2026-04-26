@@ -18,7 +18,7 @@ function persona(id: string, runsAfter: string[] = [], sortOrder = 0): Persona {
     runsAfter,
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {},
+    visibilityDefaults: {}, openaiCompatPreset: null,
   };
 }
 
