@@ -23,6 +23,23 @@ export interface RepoQueryCache {
    */
   invalidate: (keyPrefix: QueryKey) => void;
   /**
+   * In-place update of the cached value for `key`. No-op if `key` is
+   * not currently cached (avoids inserting wrong-shape stubs from
+   * partial updaters). Notifies matching subscribers.
+   *
+   * Used by streaming patches that don't want to trigger a full
+   * refetch — e.g. patching one message's content during token
+   * streaming.
+   */
+  update: <T>(key: QueryKey, fn: (current: T) => T) => void;
+  /**
+   * Direct write to the cache. Used when the caller has already
+   * fetched the value through another channel (e.g. a Zustand store
+   * that loaded the same data) and wants the cache to mirror it
+   * without re-issuing the query.
+   */
+  set: <T>(key: QueryKey, value: T) => void;
+  /**
    * Subscribe to invalidate events for keys matching `keyPrefix`. The
    * React hook uses this to trigger re-renders. Returns an unsubscribe.
    */
@@ -50,6 +67,14 @@ export function createRepoQueryCache(): RepoQueryCache {
   const keys = new Map<string, QueryKey>();
   const listeners: Array<{ prefix: QueryKey; listener: () => void }> = [];
 
+  function notifyKey(key: QueryKey): void {
+    for (const { prefix, listener } of listeners) {
+      if (keyMatchesPrefix(key, prefix) || keyMatchesPrefix(prefix, key)) {
+        listener();
+      }
+    }
+  }
+
   return {
     async fetch<T>(key: QueryKey, fn: () => Promise<T>): Promise<T> {
       const k = serializeKey(key);
@@ -69,6 +94,19 @@ export function createRepoQueryCache(): RepoQueryCache {
       inFlight.set(k, promise);
       return promise;
     },
+    update<T>(key: QueryKey, fn: (current: T) => T) {
+      const k = serializeKey(key);
+      if (!resolved.has(k)) return;
+      const next = fn(resolved.get(k) as T);
+      resolved.set(k, next);
+      notifyKey(key);
+    },
+    set<T>(key: QueryKey, value: T) {
+      const k = serializeKey(key);
+      resolved.set(k, value);
+      keys.set(k, key);
+      notifyKey(key);
+    },
     invalidate(keyPrefix) {
       for (const [k, queryKey] of keys.entries()) {
         if (keyMatchesPrefix(queryKey, keyPrefix)) {
@@ -76,18 +114,11 @@ export function createRepoQueryCache(): RepoQueryCache {
           keys.delete(k);
         }
       }
-      for (const { prefix, listener } of listeners) {
-        // A listener fires when its subscription prefix overlaps the
-        // invalidate prefix in either direction — invalidating
-        // ['messages'] should wake a listener subscribed to
-        // ['messages', 'c_1'], and vice versa.
-        if (
-          keyMatchesPrefix(prefix, keyPrefix) ||
-          keyMatchesPrefix(keyPrefix, prefix)
-        ) {
-          listener();
-        }
-      }
+      // A listener fires when its subscription prefix overlaps the
+      // invalidate prefix in either direction — invalidating
+      // ['messages'] should wake a listener subscribed to
+      // ['messages', 'c_1'], and vice versa.
+      notifyKey(keyPrefix);
     },
     subscribe(keyPrefix, listener) {
       const entry = { prefix: keyPrefix, listener };

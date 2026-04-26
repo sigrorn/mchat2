@@ -28,6 +28,8 @@ import { useSend } from "@/hooks/useSend";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { filterSupersededMessages } from "@/lib/orchestration/filterSupersededMessages";
+import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import * as messagesRepo from "@/lib/persistence/messages";
 import { MessageBubble } from "./MessageBubble";
 import { EditReplayEditor } from "./EditReplayEditor";
 import { useScrollPin } from "./useScrollPin";
@@ -69,7 +71,17 @@ export function MessageList({
   pinnedRef?: React.MutableRefObject<boolean>;
   onScroll?: () => void;
 }): JSX.Element {
-  const rawMessages = useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
+  // #184: read messages through useRepoQuery; the messagesStore
+  // dual-writes the cache on every mutation, so streaming patches
+  // flow through here without re-fetching. byConversation stays as
+  // a same-conversation fallback for the first paint before the
+  // cache is populated (e.g. cold mount of the data-layer).
+  const queryResult = useRepoQuery<Message[]>(
+    ["messages", conversationId],
+    () => messagesRepo.listMessages(conversationId),
+  );
+  const storeMessages = useMessagesStore((s) => s.byConversation[conversationId]);
+  const rawMessages = queryResult.data ?? storeMessages ?? EMPTY;
   const supersededIds =
     useMessagesStore((s) => s.supersededByConversation[conversationId]) ?? EMPTY_SUPERSEDED;
   // #180: drop assistant rows whose Attempt has been superseded by a

@@ -10,6 +10,20 @@ import { create } from "zustand";
 import type { Message } from "@/lib/types";
 import * as repo from "@/lib/persistence/messages";
 import { listSupersededMessageIds } from "@/lib/persistence/runs";
+import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
+
+// #184: dual-write helpers — keep the data-layer cache in sync with
+// Zustand mutations so consumers reading via useRepoQuery see the
+// same state. Today both layers are populated; once readers fully
+// migrate, byConversation can be dropped.
+const messagesQueryKey = (conversationId: string): readonly unknown[] =>
+  ["messages", conversationId];
+function cacheUpdate(conversationId: string, fn: (msgs: Message[]) => Message[]): void {
+  getRepoQueryCache().update<Message[]>(messagesQueryKey(conversationId), fn);
+}
+function cacheSet(conversationId: string, list: Message[]): void {
+  getRepoQueryCache().set<Message[]>(messagesQueryKey(conversationId), list);
+}
 
 interface State {
   byConversation: Record<string, Message[]>;
@@ -79,6 +93,10 @@ export const useMessagesStore = create<State>((set, get) => ({
         [conversationId]: superseded,
       },
     });
+    // Mirror the freshly-loaded list directly into the data-layer
+    // cache so useRepoQuery consumers see it without a second
+    // listMessages round-trip.
+    cacheSet(conversationId, list);
   },
   append(m) {
     const existing = get().byConversation[m.conversationId] ?? [];
@@ -88,6 +106,7 @@ export const useMessagesStore = create<State>((set, get) => ({
         [m.conversationId]: [...existing, m],
       },
     });
+    cacheUpdate(m.conversationId, (msgs) => [...msgs, m]);
   },
   patchContent(conversationId, messageId, content) {
     const existing = get().byConversation[conversationId] ?? [];
@@ -97,6 +116,9 @@ export const useMessagesStore = create<State>((set, get) => ({
         [conversationId]: existing.map((m) => (m.id === messageId ? { ...m, content } : m)),
       },
     });
+    cacheUpdate(conversationId, (msgs) =>
+      msgs.map((m) => (m.id === messageId ? { ...m, content } : m)),
+    );
   },
   patchError(conversationId, messageId, errorMessage, errorTransient) {
     const existing = get().byConversation[conversationId] ?? [];
@@ -108,6 +130,9 @@ export const useMessagesStore = create<State>((set, get) => ({
         ),
       },
     });
+    cacheUpdate(conversationId, (msgs) =>
+      msgs.map((m) => (m.id === messageId ? { ...m, errorMessage, errorTransient } : m)),
+    );
   },
   async sendUserMessage({ conversationId, content, addressedTo, pinned = false }) {
     const m = await repo.appendMessage({
@@ -146,6 +171,9 @@ export const useMessagesStore = create<State>((set, get) => ({
         [conversationId]: existing.map((m) => (m.id === messageId ? { ...m, pinned } : m)),
       },
     });
+    cacheUpdate(conversationId, (msgs) =>
+      msgs.map((m) => (m.id === messageId ? { ...m, pinned } : m)),
+    );
   },
   async appendNotice(conversationId, content) {
     const m = await repo.appendMessage({
