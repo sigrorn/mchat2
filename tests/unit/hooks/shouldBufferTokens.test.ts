@@ -2,7 +2,7 @@
 // streaming (content still accumulates; only the live per-token UI
 // patching is silenced). Pure helper so the matrix is unit-testable.
 import { describe, it, expect } from "vitest";
-import { shouldBufferTokens } from "@/hooks/shouldBufferTokens";
+import { shouldBufferTokens } from "@/lib/app/shouldBufferTokens";
 
 describe("shouldBufferTokens", () => {
   it("lines + single target + stream mode → stream", () => {

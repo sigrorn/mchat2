@@ -24,10 +24,10 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
-import { selectionAfterResolve } from "./sendSelection";
+import { selectionAfterResolve } from "@/lib/app/sendSelection";
 import { runOneTarget } from "./runOneTarget";
 import { postResponseCheck } from "./postResponseCheck";
-import { shouldBufferTokens } from "./shouldBufferTokens";
+import { shouldBufferTokens } from "@/lib/app/shouldBufferTokens";
 import { useUiStore } from "@/stores/uiStore";
 
 export interface SendOptions {

@@ -2,7 +2,7 @@
 // selection, so a follow-up implicit send hits the same targets.
 // Issue #7.
 import { describe, it, expect } from "vitest";
-import { selectionAfterResolve } from "@/hooks/sendSelection";
+import { selectionAfterResolve } from "@/lib/app/sendSelection";
 import type { ResolveResult } from "@/lib/personas/resolver";
 
 function resolved(over: Partial<ResolveResult>): ResolveResult {
