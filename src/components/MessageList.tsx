@@ -27,12 +27,14 @@ import { formatCopyText } from "@/lib/rendering/copyWithPrefixes";
 import { useSend } from "@/hooks/useSend";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { filterSupersededMessages } from "@/lib/orchestration/filterSupersededMessages";
 import { MessageBubble } from "./MessageBubble";
 import { EditReplayEditor } from "./EditReplayEditor";
 import { useScrollPin } from "./useScrollPin";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 const EMPTY: readonly Message[] = Object.freeze([]);
+const EMPTY_SUPERSEDED: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
 
 // Estimated row height, used by the virtualizer until each row's real
 // height is measured. Chat bubbles vary widely (1-line user messages
@@ -67,7 +69,17 @@ export function MessageList({
   pinnedRef?: React.MutableRefObject<boolean>;
   onScroll?: () => void;
 }): JSX.Element {
-  const messages = useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
+  const rawMessages = useMessagesStore((s) => s.byConversation[conversationId]) ?? EMPTY;
+  const supersededIds =
+    useMessagesStore((s) => s.supersededByConversation[conversationId]) ?? EMPTY_SUPERSEDED;
+  // #180: drop assistant rows whose Attempt has been superseded by a
+  // later one. Today this is a no-op (retry/replay still delete prior
+  // rows; supersededIds is empty); the filter is in place so the moment
+  // those deletions stop, the UI hides the old rows automatically.
+  const messages = useMemo(
+    () => filterSupersededMessages(rawMessages, supersededIds),
+    [rawMessages, supersededIds],
+  );
   const personas = usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
   const internalRef = useRef<HTMLDivElement>(null);
   const containerRef = scrollContainerRef ?? internalRef;

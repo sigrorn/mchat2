@@ -9,9 +9,15 @@
 import { create } from "zustand";
 import type { Message } from "@/lib/types";
 import * as repo from "@/lib/persistence/messages";
+import { listSupersededMessageIds } from "@/lib/persistence/runs";
 
 interface State {
   byConversation: Record<string, Message[]>;
+  // #180: per-conversation set of message ids whose Attempt has been
+  // superseded. Refreshed on every `load`. Today this is empty for
+  // every conversation because retry/replay still delete prior rows;
+  // wired in so the moment that flips, the UI hides them automatically.
+  supersededByConversation: Record<string, ReadonlySet<string>>;
   // UI-only: which user-row is currently in edit/replay mode (#44 + #47).
   // Per-conversation so switching chats doesn't reopen a stale editor.
   editingByConversation: Record<string, string | null>;
@@ -40,6 +46,7 @@ interface State {
 
 export const useMessagesStore = create<State>((set, get) => ({
   byConversation: {},
+  supersededByConversation: {},
   editingByConversation: {},
   replayQueue: {},
   setReplayQueue(conversationId, queue) {
@@ -61,8 +68,17 @@ export const useMessagesStore = create<State>((set, get) => ({
     });
   },
   async load(conversationId) {
-    const list = await repo.listMessages(conversationId);
-    set({ byConversation: { ...get().byConversation, [conversationId]: list } });
+    const [list, superseded] = await Promise.all([
+      repo.listMessages(conversationId),
+      listSupersededMessageIds(conversationId),
+    ]);
+    set({
+      byConversation: { ...get().byConversation, [conversationId]: list },
+      supersededByConversation: {
+        ...get().supersededByConversation,
+        [conversationId]: superseded,
+      },
+    });
   },
   append(m) {
     const existing = get().byConversation[m.conversationId] ?? [];
