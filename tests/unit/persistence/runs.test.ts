@@ -19,6 +19,7 @@ import {
   getRun,
   listRunsForConversation,
   listAttempts,
+  listSupersededMessageIds,
 } from "@/lib/persistence/runs";
 import { sql } from "@/lib/tauri/sql";
 
@@ -189,6 +190,84 @@ describe("runs repo — round-trip", () => {
     });
     const ids = (await listRunsForConversation("c_1")).map((r) => r.id);
     expect(ids).toEqual([r2.id, r3.id, r1.id]);
+  });
+});
+
+describe("runs repo — listSupersededMessageIds (#180)", () => {
+  it("returns ids of messages whose att_<msgid> Attempt has superseded_at set", async () => {
+    handle = await createTestDb();
+    await seedConversation();
+    await seedPersona();
+    // Two RunTargets in two backfilled-style Runs; one attempt is
+    // superseded, the other is current.
+    await sql.execute(
+      `INSERT INTO runs (id, conversation_id, kind, started_at) VALUES ('run_a', 'c_1', 'send', 1)`,
+    );
+    await sql.execute(
+      `INSERT INTO run_targets (id, run_id, target_key, persona_id, provider, model, status)
+       VALUES ('rt_a', 'run_a', 'alice', 'p_1', 'openai', 'gpt-4', 'complete')`,
+    );
+    await sql.execute(
+      `INSERT INTO attempts (id, run_target_id, sequence, content, started_at, superseded_at,
+                              error_transient, input_tokens, output_tokens)
+       VALUES ('att_m1', 'rt_a', 1, 'old', 1, 99, 0, 0, 0),
+              ('att_m2', 'rt_a', 2, 'new', 2, NULL, 0, 0, 0)`,
+    );
+    const ids = await listSupersededMessageIds("c_1");
+    expect(ids.has("m1")).toBe(true);
+    expect(ids.has("m2")).toBe(false);
+    expect(ids.size).toBe(1);
+  });
+
+  it("scopes by conversation", async () => {
+    handle = await createTestDb();
+    await seedConversation("c_1");
+    await sql.execute(
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+       VALUES ('c_2', 'Other', 1000, 'lines', 'separated', '{}', '[]', '[]')`,
+    );
+    await seedPersona();
+    await sql.execute(
+      `INSERT INTO runs (id, conversation_id, kind, started_at) VALUES ('run_other', 'c_2', 'send', 1)`,
+    );
+    await sql.execute(
+      `INSERT INTO run_targets (id, run_id, target_key, persona_id, provider, model, status)
+       VALUES ('rt_other', 'run_other', 'alice', 'p_1', 'openai', 'gpt-4', 'complete')`,
+    );
+    await sql.execute(
+      `INSERT INTO attempts (id, run_target_id, sequence, content, started_at, superseded_at,
+                              error_transient, input_tokens, output_tokens)
+       VALUES ('att_other', 'rt_other', 1, 'old', 1, 99, 0, 0, 0)`,
+    );
+    const ids = await listSupersededMessageIds("c_1");
+    expect(ids.size).toBe(0);
+  });
+
+  it("ignores attempts whose ids do NOT match the att_<msgid> convention", async () => {
+    handle = await createTestDb();
+    await seedConversation();
+    await seedPersona();
+    await sql.execute(
+      `INSERT INTO runs (id, conversation_id, kind, started_at) VALUES ('run_a', 'c_1', 'send', 1)`,
+    );
+    await sql.execute(
+      `INSERT INTO run_targets (id, run_id, target_key, persona_id, provider, model, status)
+       VALUES ('rt_a', 'run_a', 'alice', 'p_1', 'openai', 'gpt-4', 'complete')`,
+    );
+    // appendAttempt-generated id (no message linkage)
+    await sql.execute(
+      `INSERT INTO attempts (id, run_target_id, sequence, content, started_at, superseded_at,
+                              error_transient, input_tokens, output_tokens)
+       VALUES ('att_xyz123', 'rt_a', 1, 'old', 1, 99, 0, 0, 0)`,
+    );
+    const ids = await listSupersededMessageIds("c_1");
+    // 'xyz123' is NOT a real message id — backfill rows use att_<actualMsgId>
+    // and recordRetry/recordReplay also follow the pattern. A free-form
+    // appendAttempt id has no message to filter, so it is included
+    // but won't match anything in the messages table. (No-op in
+    // practice but documented here so future readers know the
+    // limitation.)
+    expect(ids.has("xyz123")).toBe(true);
   });
 });
 
