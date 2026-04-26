@@ -58,5 +58,25 @@ export default defineConfig(async () => ({
   build: {
     target: "es2022",
     sourcemap: true,
+    // #143: split the heavy diagram libs out of the main bundle into
+    // named chunks. They're already lazy-imported (only loaded on the
+    // first diagram block), but giving them stable names keeps the
+    // initial bundle small and makes chunk-size warnings
+    // self-explanatory.
+    rollupOptions: {
+      output: {
+        manualChunks(id: string): string | undefined {
+          if (id.includes("node_modules/mermaid")) return "diagrams-mermaid";
+          if (id.includes("node_modules/@viz-js")) return "diagrams-viz";
+          if (
+            id.includes("node_modules/dompurify") ||
+            id.includes("node_modules/isomorphic-dompurify")
+          ) {
+            return "sanitize";
+          }
+          return undefined;
+        },
+      },
+    },
   },
 }));
