@@ -16,6 +16,10 @@ import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { PROVIDER_COLORS, formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
 import { formatTokenLimit, type ModelInfo } from "@/lib/providers/models";
+import {
+  applyVisibilityPreset,
+  type VisibilityRole,
+} from "@/lib/personas/visibilityPresets";
 import { useOpenAICompatPresets } from "./useOpenAICompatPresets";
 
 // Native providers, minus the openai_compat meta-provider — that one
@@ -245,6 +249,41 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
       {siblings.length > 0 && (
         <Field label="Visibility">
           <div className="space-y-2">
+            {/* #173: shortcut presets that bulk-set the checkboxes
+                below. Pure form-state edits — no auto-save. The user
+                can fine-tune individual cells afterwards. */}
+            <div className="flex flex-wrap gap-1">
+              <PresetButton
+                role="speaker"
+                siblings={siblings}
+                onApply={(r) => {
+                  onVisDefsChange(r.visDefs);
+                  onSeenByEditsChange(r.seenByEdits);
+                }}
+              >
+                Speaker
+              </PresetButton>
+              <PresetButton
+                role="participant"
+                siblings={siblings}
+                onApply={(r) => {
+                  onVisDefsChange(r.visDefs);
+                  onSeenByEditsChange(r.seenByEdits);
+                }}
+              >
+                Participant
+              </PresetButton>
+              <PresetButton
+                role="observer"
+                siblings={siblings}
+                onApply={(r) => {
+                  onVisDefsChange(r.visDefs);
+                  onSeenByEditsChange(r.seenByEdits);
+                }}
+              >
+                Observer
+              </PresetButton>
+            </div>
             <div>
               <span className="text-neutral-500">Can see responses from:</span>
               <div className="mt-1 flex flex-wrap gap-2">
@@ -323,5 +362,34 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <div className="text-neutral-500">{label}</div>
       <div className="mt-1">{children}</div>
     </div>
+  );
+}
+
+function PresetButton({
+  role,
+  siblings,
+  onApply,
+  children,
+}: {
+  role: VisibilityRole;
+  siblings: readonly Persona[];
+  onApply: (r: ReturnType<typeof applyVisibilityPreset>) => void;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={() => onApply(applyVisibilityPreset(role, siblings))}
+      className="rounded border border-neutral-300 px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100"
+      title={
+        role === "speaker"
+          ? "Sees no other persona's replies; everyone hears this one."
+          : role === "participant"
+            ? "Sees everyone, seen by everyone (default)."
+            : "Sees everyone, contributes invisibly."
+      }
+    >
+      {children}
+    </button>
   );
 }
