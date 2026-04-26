@@ -8,6 +8,22 @@
 import { create } from "zustand";
 import type { AutocompactThreshold, Conversation } from "@/lib/types";
 import * as repo from "@/lib/persistence/conversations";
+import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
+
+// #186: dual-write helpers for the data layer. Conversations is a
+// flat list keyed by ['conversations']. Mirrors the patterns from
+// #184 / #185.
+const CONVERSATIONS_KEY: readonly unknown[] = ["conversations"];
+function cacheUpdate(fn: (list: Conversation[]) => Conversation[]): void {
+  getRepoQueryCache().update<Conversation[]>(CONVERSATIONS_KEY, fn);
+}
+function cacheSet(list: Conversation[]): void {
+  getRepoQueryCache().set<Conversation[]>(CONVERSATIONS_KEY, list);
+}
+// Most mutations boil down to "replace the row with the same id".
+function replaceById(c: Conversation): (list: Conversation[]) => Conversation[] {
+  return (list) => list.map((x) => (x.id === c.id ? c : x));
+}
 
 interface State {
   conversations: Conversation[];
@@ -41,6 +57,7 @@ export const useConversationsStore = create<State>((set, get) => ({
   async load() {
     const list = await repo.listConversations();
     set({ conversations: list, loaded: true });
+    cacheSet(list);
   },
   select(id) {
     set({ currentId: id });
@@ -48,6 +65,7 @@ export const useConversationsStore = create<State>((set, get) => ({
   async create(init) {
     const c = await repo.createConversation(init);
     set({ conversations: [c, ...get().conversations], currentId: c.id });
+    cacheUpdate((list) => [c, ...list]);
     return c;
   },
   async update(c) {
@@ -55,6 +73,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === c.id ? c : x)),
     });
+    cacheUpdate(replaceById(c));
   },
   async setDisplayMode(id, mode) {
     const current = get().conversations.find((c) => c.id === id);
@@ -64,6 +83,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setVisibilityMatrix(id, matrix) {
     const current = get().conversations.find((c) => c.id === id);
@@ -73,6 +93,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setVisibilityPreset(id, mode, personaIds) {
     const current = get().conversations.find((c) => c.id === id);
@@ -88,6 +109,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setLimitSize(id, limitSizeTokens) {
     const current = get().conversations.find((c) => c.id === id);
@@ -97,6 +119,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setSelectedPersonas(id, keys) {
     const current = get().conversations.find((c) => c.id === id);
@@ -106,6 +129,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setCompactionFloor(id, floorIndex) {
     const current = get().conversations.find((c) => c.id === id);
@@ -115,6 +139,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setAutocompact(id, threshold) {
     const current = get().conversations.find((c) => c.id === id);
@@ -129,6 +154,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setContextWarningsFired(id, fired) {
     const current = get().conversations.find((c) => c.id === id);
@@ -138,6 +164,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async setLimit(id, limitMarkIndex) {
     const current = get().conversations.find((c) => c.id === id);
@@ -147,6 +174,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async rename(id, title) {
     const trimmed = title.trim();
@@ -158,6 +186,7 @@ export const useConversationsStore = create<State>((set, get) => ({
     set({
       conversations: get().conversations.map((x) => (x.id === id ? next : x)),
     });
+    cacheUpdate(replaceById(next));
   },
   async remove(id) {
     await repo.deleteConversation(id);
@@ -165,5 +194,6 @@ export const useConversationsStore = create<State>((set, get) => ({
       conversations: get().conversations.filter((x) => x.id !== id),
       currentId: get().currentId === id ? null : get().currentId,
     });
+    cacheUpdate((list) => list.filter((x) => x.id !== id));
   },
 }));

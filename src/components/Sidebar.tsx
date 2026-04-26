@@ -12,6 +12,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import * as conversationsRepo from "@/lib/persistence/conversations";
+import type { Conversation } from "@/lib/types";
 import { keychain } from "@/lib/tauri/keychain";
 import { ContextMenu } from "./ContextMenu";
 import { useMessagesStore } from "@/stores/messagesStore";
@@ -48,7 +51,14 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuPos | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const conversations = useConversationsStore((s) => s.conversations);
+  // #186: read conversations through useRepoQuery; conversationsStore
+  // dual-writes the cache. The store is fallback for first paint.
+  const conversationsQuery = useRepoQuery<Conversation[]>(
+    ["conversations"],
+    () => conversationsRepo.listConversations(),
+  );
+  const storeConversations = useConversationsStore((s) => s.conversations);
+  const conversations = conversationsQuery.data ?? storeConversations;
   const currentId = useConversationsStore((s) => s.currentId);
   const select = useConversationsStore((s) => s.select);
   const create = useConversationsStore((s) => s.create);
