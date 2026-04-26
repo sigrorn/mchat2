@@ -1,7 +1,7 @@
 # 007 — Typed SQL via Kysely (pilot)
 
 Date: 2026-04-27
-Status: Pilot (#188 → #189)
+Status: Accepted; migrating remaining repos opportunistically (#188 → #189 → #190 → #191)
 
 ## Decision
 
