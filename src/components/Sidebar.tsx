@@ -1,24 +1,22 @@
 // ------------------------------------------------------------------
 // Component: Sidebar
-// Responsibility: Conversation list + new-conversation button. Pure
-//                 presentation — drives the conversationsStore.
+// Responsibility: Layout shell that hosts the conversation list and
+//                 footer (settings + toggles). Extracted under #167 —
+//                 export handlers moved to useConversationExports;
+//                 settings/toggles moved to SidebarFooter; the inline
+//                 rename input lives in RenameEditor.
+// Collaborators: SidebarFooter, useConversationExports, ContextMenu,
+//                conversationsStore, uiStore.
 // ------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
 import { useConversationsStore } from "@/stores/conversationsStore";
-import { SettingsDialog } from "./SettingsDialog";
-import { SettingsGeneralDialog } from "./SettingsGeneralDialog";
 import { useUiStore } from "@/stores/uiStore";
 import { keychain } from "@/lib/tauri/keychain";
 import { ContextMenu } from "./ContextMenu";
-import {
-  exportConversationToHtml,
-  exportConversationToMarkdown,
-} from "@/lib/conversations/exportToFile";
-import * as messagesRepo from "@/lib/persistence/messages";
-import * as personasRepo from "@/lib/persistence/personas";
 import { useMessagesStore } from "@/stores/messagesStore";
-import { usePersonasStore } from "@/stores/personasStore";
+import { SidebarFooter } from "./SidebarFooter";
+import { useConversationExports } from "./useConversationExports";
 
 interface MenuPos {
   id: string;
@@ -47,8 +45,6 @@ export function Sidebar(): JSX.Element {
 }
 
 function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Element {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [generalOpen, setGeneralOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuPos | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -58,6 +54,7 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
   const create = useConversationsStore((s) => s.create);
   const rename = useConversationsStore((s) => s.rename);
   const removeConv = useConversationsStore((s) => s.remove);
+  const exports = useConversationExports();
 
   const onNew = async (): Promise<void> => {
     const conv = await create({
@@ -82,78 +79,6 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
     await useMessagesStore.getState().appendNotice(conv.id, msg);
   };
 
-  const getExportData = async (id: string) => {
-    const conv = conversations.find((c) => c.id === id);
-    if (!conv) return null;
-    const [messages, personas] = await Promise.all([
-      messagesRepo.listMessages(id),
-      personasRepo.listPersonas(id, true),
-    ]);
-    return { conversation: conv, messages, personas, generatedAt: new Date().toISOString() };
-  };
-
-  const exportHtml = async (id: string): Promise<void> => {
-    const data = await getExportData(id);
-    if (!data) return;
-    const r = await exportConversationToHtml({
-      ...data,
-      workingDir: useUiStore.getState().workingDir,
-    });
-    if (r.ok) await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
-  };
-
-  const exportMarkdown = async (id: string): Promise<void> => {
-    const data = await getExportData(id);
-    if (!data) return;
-    const r = await exportConversationToMarkdown({
-      ...data,
-      workingDir: useUiStore.getState().workingDir,
-    });
-    if (r.ok) await useMessagesStore.getState().appendNotice(id, `exported to ${r.path}.`);
-  };
-
-  const takeSnapshot = async (id: string): Promise<void> => {
-    const data = await getExportData(id);
-    if (!data) return;
-    const { exportSnapshot } = await import("@/lib/conversations/snapshotFileOps");
-    const r = await exportSnapshot(
-      data.conversation,
-      data.personas,
-      data.messages,
-      useUiStore.getState().workingDir,
-    );
-    if (r.ok) await useMessagesStore.getState().appendNotice(id, `snapshot saved to ${r.path}.`);
-  };
-
-  const onImportSnapshot = async (): Promise<void> => {
-    const { importSnapshotFile } = await import("@/lib/conversations/snapshotFileOps");
-    const { importSnapshot } = await import("@/lib/conversations/snapshotImport");
-    const file = await importSnapshotFile();
-    if (!file.ok) {
-      if (file.reason === "error") {
-        // Could show error, but for now just silently return
-      }
-      return;
-    }
-    const result = await importSnapshot(file.snapshot);
-    await useConversationsStore.getState().load();
-    select(result.conversation.id);
-    await usePersonasStore.getState().load(result.conversation.id);
-    await useMessagesStore.getState().load(result.conversation.id);
-    if (result.missingKeys.length > 0) {
-      await useMessagesStore
-        .getState()
-        .appendNotice(
-          result.conversation.id,
-          `imported. Missing API keys for: ${result.missingKeys.join(", ")}. Edit these personas to assign a valid provider before sending.`,
-        );
-    } else {
-      await useMessagesStore
-        .getState()
-        .appendNotice(result.conversation.id, "snapshot imported successfully.");
-    }
-  };
-
   return (
     <aside className="flex w-64 flex-col border-r border-neutral-200 bg-neutral-50">
       <div className="flex justify-end px-2 pt-1">
@@ -174,7 +99,7 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
           New conversation
         </button>
         <button
-          onClick={() => void onImportSnapshot()}
+          onClick={() => void exports.importSnapshot()}
           className="rounded border border-neutral-300 px-2 py-2 text-xs text-neutral-700 hover:bg-neutral-100"
           title="Import snapshot"
         >
@@ -240,28 +165,13 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
           ariaLabel="Conversation actions"
           onClose={() => setMenu(null)}
           items={[
-            {
-              label: "Rename",
-              onSelect: () => setEditingId(menu.id),
-            },
-            {
-              label: "Export to HTML",
-              onSelect: () => {
-                void exportHtml(menu.id);
-              },
-            },
+            { label: "Rename", onSelect: () => setEditingId(menu.id) },
+            { label: "Export to HTML", onSelect: () => void exports.exportHtml(menu.id) },
             {
               label: "Export to Markdown",
-              onSelect: () => {
-                void exportMarkdown(menu.id);
-              },
+              onSelect: () => void exports.exportMarkdown(menu.id),
             },
-            {
-              label: "Take snapshot",
-              onSelect: () => {
-                void takeSnapshot(menu.id);
-              },
-            },
+            { label: "Take snapshot", onSelect: () => void exports.takeSnapshot(menu.id) },
             {
               label: "Delete",
               destructive: true,
@@ -270,73 +180,8 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
           ]}
         />
       ) : null}
-      <button
-        onClick={() => setGeneralOpen(true)}
-        className="mx-2 mt-2 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
-      >
-        Settings · General
-      </button>
-      <button
-        onClick={() => setSettingsOpen(true)}
-        className="mx-2 mt-1 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
-      >
-        Settings · API keys
-      </button>
-      <StreamToggle />
-      <DebugToggle />
-      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
-      {generalOpen ? <SettingsGeneralDialog onClose={() => setGeneralOpen(false)} /> : null}
+      <SidebarFooter />
     </aside>
-  );
-}
-
-function StreamToggle(): JSX.Element {
-  const streaming = useUiStore((s) => s.streamResponses);
-  const toggle = useUiStore((s) => s.toggleStreamResponses);
-  const label = streaming ? "Responses · STREAM" : "Responses · BUFFER";
-  return (
-    <button
-      onClick={toggle}
-      title={
-        streaming
-          ? "Tokens appear live as they arrive. Click to buffer full responses before showing."
-          : "Full responses appear once complete. Click to stream tokens live."
-      }
-      className={`mx-2 mt-1 rounded border px-3 py-1.5 text-xs ${
-        streaming
-          ? "border-neutral-300 text-neutral-700 hover:bg-neutral-100"
-          : "border-amber-600 text-amber-700 hover:bg-amber-50"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function DebugToggle(): JSX.Element {
-  const workingDir = useUiStore((s) => s.workingDir);
-  const debug = useUiStore((s) => s.debugSession);
-  const toggle = useUiStore((s) => s.toggleDebug);
-  const disabled = !workingDir;
-  const label = disabled
-    ? "Debug · (set working directory first)"
-    : debug.enabled
-      ? `Debug · ON (${debug.sessionTimestamp})`
-      : "Debug · OFF";
-  return (
-    <button
-      onClick={toggle}
-      disabled={disabled}
-      className={`mx-2 mb-2 mt-1 rounded border px-3 py-1.5 text-xs ${
-        debug.enabled
-          ? "border-green-600 text-green-700 hover:bg-green-50"
-          : disabled
-            ? "border-neutral-200 text-neutral-400"
-            : "border-neutral-300 text-neutral-700 hover:bg-neutral-100"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 
