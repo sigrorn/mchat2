@@ -110,4 +110,7 @@ export type RetryMessageDeps = RunOneTargetDeps &
   PersonasReadDeps &
   Pick<MessagesWriteDeps, "reloadMessages">;
 
-export type ReplayMessageDeps = SendMessageDeps;
+// Replay does NOT auto-title or fire postResponseCheck — it just
+// re-runs an already-titled conversation past the edited message —
+// so deps stay narrower than SendMessageDeps.
+export type ReplayMessageDeps = RunPlannedSendDeps & PersonasReadDeps & PersonasWriteDeps;

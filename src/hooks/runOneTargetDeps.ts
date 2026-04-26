@@ -9,7 +9,12 @@
 //                stores/sendStore, stores/uiStore.
 // ------------------------------------------------------------------
 
-import type { RetryMessageDeps, RunOneTargetDeps, RunPlannedSendDeps } from "@/lib/app/deps";
+import type {
+  ReplayMessageDeps,
+  RetryMessageDeps,
+  RunOneTargetDeps,
+  RunPlannedSendDeps,
+} from "@/lib/app/deps";
 import type { Persona } from "@/lib/types";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
@@ -52,6 +57,21 @@ export function makeRunPlannedSendDeps(): RunPlannedSendDeps {
   return {
     ...makeRunOneTargetDeps(),
     reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
+  };
+}
+
+// Replay needs runPlannedSend's deps plus persona reads and
+// setSelection (no auto-title, no postResponseCheck — narrower than
+// SendMessage).
+export function makeReplayMessageDeps(): ReplayMessageDeps {
+  return {
+    ...makeRunPlannedSendDeps(),
+    getPersonas: (conversationId) =>
+      usePersonasStore.getState().byConversation[conversationId] ?? EMPTY_PERSONAS,
+    getSelection: (conversationId) =>
+      usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
+    setSelection: (conversationId, selection) =>
+      usePersonasStore.getState().setSelection(conversationId, [...selection]),
   };
 }
 
