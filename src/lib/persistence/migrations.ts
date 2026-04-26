@@ -232,6 +232,44 @@ export const MIGRATIONS: string[][] = [
          FROM conversations c, json_each(c.selected_personas) j
          JOIN personas p ON p.id = j.value AND p.conversation_id = c.id`,
   ],
+  // 16 — Normalize visibility (#192 → #194). Combines
+  // conversations.visibility_matrix (id-keyed JSON of observer→sources)
+  // with personas.visibility_defaults (slug-keyed JSON of other→y/n)
+  // into a single relational table. The legacy JSON columns stay
+  // populated as a dual-write safety net; the read path's switch is
+  // deferred to a follow-up.
+  [
+    `CREATE TABLE persona_visibility (
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      observer_slug   TEXT NOT NULL,
+      source_slug     TEXT NOT NULL,
+      visible         INTEGER NOT NULL,
+      PRIMARY KEY (conversation_id, observer_slug, source_slug)
+    )`,
+    // Backfill order matters: defaults first, matrix on top. SQLite
+    // INSERT OR REPLACE on the composite PK means the matrix-derived
+    // row supersedes the defaults-derived row when both exist.
+    //
+    // Step 1: visibility_defaults — each persona's view of who they
+    // can see. Slug-keyed JSON, so observer is the persona's own
+    // name_slug, source is the JSON key, visible is 1 for 'y' and
+    // 0 for 'n'.
+    `INSERT INTO persona_visibility (conversation_id, observer_slug, source_slug, visible)
+       SELECT p.conversation_id, p.name_slug, j.key,
+              CASE WHEN j.value = 'y' THEN 1 ELSE 0 END
+         FROM personas p, json_each(p.visibility_defaults) j`,
+    // Step 2: visibility_matrix — id-keyed observer to id-array of
+    // sources. Translate ids to slugs via the personas table for both
+    // sides. visible=1 because matrix entries are explicit allow-rows.
+    `INSERT OR REPLACE INTO persona_visibility (conversation_id, observer_slug, source_slug, visible)
+       SELECT c.id, observer.name_slug, source.name_slug, 1
+         FROM conversations c, json_each(c.visibility_matrix) outer_j,
+              json_each(outer_j.value) inner_j
+         JOIN personas observer ON observer.id = outer_j.key
+                              AND observer.conversation_id = c.id
+         JOIN personas source ON source.id = inner_j.value
+                            AND source.conversation_id = c.id`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

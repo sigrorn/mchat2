@@ -127,6 +127,16 @@ export interface ConversationPersonasSelectedTable {
   persona_id: string;
 }
 
+// #194: relational form of conversations.visibility_matrix +
+// personas.visibility_defaults. The legacy JSON columns stay
+// populated; the read-path switch is deferred to a follow-up issue.
+export interface PersonaVisibilityTable {
+  conversation_id: string;
+  observer_slug: string;
+  source_slug: string;
+  visible: number; // 0/1
+}
+
 export interface Database {
   conversations: ConversationsTable;
   personas: PersonasTable;
@@ -136,6 +146,7 @@ export interface Database {
   run_targets: RunTargetsTable;
   attempts: AttemptsTable;
   conversation_personas_selected: ConversationPersonasSelectedTable;
+  persona_visibility: PersonaVisibilityTable;
 }
 
 // Re-export for callers that need the Generated marker (auto-incremented

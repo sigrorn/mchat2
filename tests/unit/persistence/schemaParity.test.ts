@@ -101,6 +101,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "superseded_at",
   ],
   conversation_personas_selected: ["conversation_id", "persona_id"],
+  persona_visibility: ["conversation_id", "observer_slug", "source_slug", "visible"],
 };
 
 describe("schema.ts agrees with migrations on column lists", () => {
