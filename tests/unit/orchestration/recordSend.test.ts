@@ -23,11 +23,20 @@ async function seedConversation(id = "c_1"): Promise<void> {
     [id],
   );
 }
+async function seedPersona(id: string, slug: string): Promise<void> {
+  await sql.execute(
+    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
+     VALUES (?, 'c_1', 'openai', ?, ?, 0, 0, '[]', '{}')`,
+    [id, slug, slug],
+  );
+}
 
 describe("recordSend", () => {
   it("opens a single kind=send Run with one RunTarget per assistant message", async () => {
     handle = await createTestDb();
     await seedConversation();
+    await seedPersona("p_alice", "alice");
+    await seedPersona("p_bob", "bob");
     await recordSend({
       conversationId: "c_1",
       now: 5000,
@@ -92,6 +101,7 @@ describe("recordSend", () => {
   it("works for a single-target send (one RunTarget)", async () => {
     handle = await createTestDb();
     await seedConversation();
+    await seedPersona("p_alice", "alice");
     await recordSend({
       conversationId: "c_1",
       now: 5000,
