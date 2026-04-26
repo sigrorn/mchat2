@@ -38,3 +38,20 @@ export type StreamEvent =
   | { type: "cancelled"; streamId: string };
 
 export type StreamEventType = StreamEvent["type"];
+
+// Per-target lifecycle phase observed by the UI:
+//   queued     — pending in plan, no events yet
+//   streaming  — runStream entered, tokens flowing or buffering
+//   retrying   — runStream backing off after a transient error
+//   compacting — compaction summarizer running for this persona (#123)
+export type StreamStatus = "queued" | "streaming" | "retrying" | "compacting";
+
+// Tracking record for an in-flight stream. controller.abort() cancels
+// the underlying SSE / fetch when the user switches conversations or
+// hits stop.
+export interface ActiveStream {
+  streamId: string;
+  controller: AbortController;
+  target: string; // persona key
+  startedAt: number;
+}

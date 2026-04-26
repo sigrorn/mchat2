@@ -8,20 +8,13 @@
 // ------------------------------------------------------------------
 
 import { create } from "zustand";
+import type { ActiveStream, StreamStatus } from "@/lib/types/stream";
 
-export interface ActiveStream {
-  streamId: string;
-  controller: AbortController;
-  target: string; // persona key
-  startedAt: number;
-}
-
-// Per-persona inflight state for the PersonaPanel row colouring (#31).
-//   queued     — DAG dependency hasn't run yet; adapter not contacted
-//   streaming  — adapter open, tokens / usage flowing
-//   retrying   — last attempt failed transiently; runner is retrying
-//   compacting — compaction summarizer running for this persona (#123)
-export type StreamStatus = "queued" | "streaming" | "retrying" | "compacting";
+// Re-export so existing importers ({ ActiveStream, StreamStatus } from
+// "@/stores/sendStore") keep working. The canonical home is
+// src/lib/types/stream.ts so use-case code under src/lib/app can
+// reference these without violating the lib→stores boundary (#142).
+export type { ActiveStream, StreamStatus };
 
 interface State {
   runIdByConversation: Record<string, number>;
