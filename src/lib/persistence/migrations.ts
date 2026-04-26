@@ -210,6 +210,28 @@ export const MIGRATIONS: string[][] = [
          FROM messages m
         WHERE m.role = 'assistant' AND m.persona_id IS NOT NULL`,
   ],
+  // 15 — Normalize selected_personas → junction table (#192 → #193).
+  // The old conversations.selected_personas JSON column stays for
+  // now; reads/writes move to the junction. A future cleanup can
+  // drop the column once we've confirmed nothing else reads it.
+  [
+    `CREATE TABLE conversation_personas_selected (
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      persona_id      TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+      PRIMARY KEY (conversation_id, persona_id)
+    )`,
+    `CREATE INDEX idx_conv_personas_selected_persona
+       ON conversation_personas_selected(persona_id)`,
+    // Backfill: parse the JSON string in selected_personas via SQLite's
+    // json_each, INSERT one row per element. The JOIN against personas
+    // by (id, conversation_id) skips ids that don't resolve to a real
+    // persona row in the same conversation — defensive against
+    // half-stale JSON data.
+    `INSERT INTO conversation_personas_selected (conversation_id, persona_id)
+       SELECT c.id, p.id
+         FROM conversations c, json_each(c.selected_personas) j
+         JOIN personas p ON p.id = j.value AND p.conversation_id = c.id`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

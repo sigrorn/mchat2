@@ -15,10 +15,12 @@ import {
   parseVisibilityMatrix,
   parseAutocompactThreshold,
   parseContextWarningsFired,
-  parseSelectedPersonas,
 } from "../schemas/conversationJsonColumns";
 
-function rowToConversation(r: ConversationsTable): Conversation {
+// #193: selectedPersonas now comes from the conversation_personas_selected
+// junction, not the legacy JSON column. The column stays populated as a
+// dual-write so any rollback can still read it.
+function rowToConversation(r: ConversationsTable, selectedPersonas: string[]): Conversation {
   return {
     id: r.id,
     title: r.title,
@@ -30,11 +32,41 @@ function rowToConversation(r: ConversationsTable): Conversation {
     visibilityMode: r.visibility_mode === "joined" ? "joined" : "separated",
     visibilityMatrix: parseVisibilityMatrix(r.visibility_matrix),
     limitSizeTokens: r.limit_size_tokens,
-    selectedPersonas: parseSelectedPersonas(r.selected_personas),
+    selectedPersonas,
     compactionFloorIndex: r.compaction_floor_index,
     autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold),
     contextWarningsFired: parseContextWarningsFired(r.context_warnings_fired),
   };
+}
+
+async function loadSelectedPersonasMap(
+  conversationIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (conversationIds.length === 0) return out;
+  const rows = await db
+    .selectFrom("conversation_personas_selected")
+    .select(["conversation_id", "persona_id"])
+    .where("conversation_id", "in", conversationIds)
+    .execute();
+  for (const id of conversationIds) out.set(id, []);
+  for (const r of rows) out.get(r.conversation_id)?.push(r.persona_id);
+  return out;
+}
+
+async function writeSelectedPersonas(
+  conversationId: string,
+  personaIds: readonly string[],
+): Promise<void> {
+  await db
+    .deleteFrom("conversation_personas_selected")
+    .where("conversation_id", "=", conversationId)
+    .execute();
+  if (personaIds.length === 0) return;
+  await db
+    .insertInto("conversation_personas_selected")
+    .values(personaIds.map((pid) => ({ conversation_id: conversationId, persona_id: pid })))
+    .execute();
 }
 
 function conversationToRow(conv: Conversation): ConversationsTable {
@@ -64,7 +96,8 @@ export async function listConversations(): Promise<Conversation[]> {
     .selectAll()
     .orderBy("created_at", "desc")
     .execute();
-  return rows.map(rowToConversation);
+  const selectedMap = await loadSelectedPersonasMap(rows.map((r) => r.id));
+  return rows.map((r) => rowToConversation(r, selectedMap.get(r.id) ?? []));
 }
 
 export async function getConversation(id: string): Promise<Conversation | null> {
@@ -73,7 +106,9 @@ export async function getConversation(id: string): Promise<Conversation | null> 
     .selectAll()
     .where("id", "=", id)
     .executeTakeFirst();
-  return row ? rowToConversation(row) : null;
+  if (!row) return null;
+  const map = await loadSelectedPersonasMap([id]);
+  return rowToConversation(row, map.get(id) ?? []);
 }
 
 export async function createConversation(
@@ -85,6 +120,7 @@ export async function createConversation(
     createdAt: partial.createdAt ?? Date.now(),
   };
   await db.insertInto("conversations").values(conversationToRow(conv)).execute();
+  await writeSelectedPersonas(conv.id, conv.selectedPersonas);
   return conv;
 }
 
@@ -104,6 +140,8 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       visibility_mode: row.visibility_mode,
       visibility_matrix: row.visibility_matrix,
       limit_size_tokens: row.limit_size_tokens,
+      // #193: selected_personas JSON column stays as a dual-write
+      // for rollback safety; reads come from the junction.
       selected_personas: row.selected_personas,
       compaction_floor_index: row.compaction_floor_index,
       autocompact_threshold: row.autocompact_threshold,
@@ -111,6 +149,7 @@ export async function updateConversation(conv: Conversation): Promise<void> {
     })
     .where("id", "=", conv.id)
     .execute();
+  await writeSelectedPersonas(conv.id, conv.selectedPersonas);
 }
 
 export async function deleteConversation(id: string): Promise<void> {

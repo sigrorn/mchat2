@@ -100,6 +100,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "stream_ms",
     "superseded_at",
   ],
+  conversation_personas_selected: ["conversation_id", "persona_id"],
 };
 
 describe("schema.ts agrees with migrations on column lists", () => {

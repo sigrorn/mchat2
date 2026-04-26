@@ -104,10 +104,10 @@ describe("runMigrations", () => {
   });
 
   it("does not issue COMMIT after a failed migration", async () => {
-    // Match against the latest migration's signature statement (#175
-    // added `CREATE TABLE runs` as part of the Run/Attempt schema).
+    // Match against the latest migration's signature statement (#193
+    // added `CREATE TABLE conversation_personas_selected`).
     const mock = makeMockSql(MIGRATIONS.length - 1, {
-      failOn: (q) => /CREATE TABLE runs/i.test(q),
+      failOn: (q) => /CREATE TABLE conversation_personas_selected/i.test(q),
     });
     await expect(runMigrations()).rejects.toThrow();
     // After the failure, no further BEGIN/COMMIT pairs should appear.

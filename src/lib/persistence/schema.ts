@@ -119,6 +119,14 @@ export interface AttemptsTable {
   superseded_at: number | null;
 }
 
+// #193: junction table replacing the JSON-encoded
+// conversations.selected_personas column. The legacy column stays in
+// place as a dual-write for rollback safety; reads happen here.
+export interface ConversationPersonasSelectedTable {
+  conversation_id: string;
+  persona_id: string;
+}
+
 export interface Database {
   conversations: ConversationsTable;
   personas: PersonasTable;
@@ -127,6 +135,7 @@ export interface Database {
   runs: RunsTable;
   run_targets: RunTargetsTable;
   attempts: AttemptsTable;
+  conversation_personas_selected: ConversationPersonasSelectedTable;
 }
 
 // Re-export for callers that need the Generated marker (auto-incremented
