@@ -39,10 +39,15 @@ function getBuildInfo(): string {
 }
 
 // Tauri-friendly Vite config.
-export default defineConfig(async () => ({
+export default defineConfig(async ({ command }) => ({
   plugins: [react()],
   define: {
     __BUILD_INFO__: getBuildInfo(),
+    // #166: dead-code-eliminate the browser-mock installer in prod
+    // builds. `vite dev` (Tauri or browser) and `vite preview`
+    // both run with command !== "build", so mocks load there as
+    // before; `npm run build` ships without the chunk.
+    __IS_DEV__: command !== "build",
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
