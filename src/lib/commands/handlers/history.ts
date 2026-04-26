@@ -11,6 +11,7 @@ import { resolveEditTarget } from "@/lib/conversations/resolveEditTarget";
 import { planPop } from "@/lib/conversations/popPlan";
 import { findFailedRowsInLastGroup } from "@/lib/orchestration/findFailedRowsInLastGroup";
 import * as messagesRepo from "@/lib/persistence/messages";
+import { transaction } from "@/lib/persistence/transaction";
 import type { CommandContext, CommandResult } from "./types";
 
 export async function handleLimit(
@@ -100,14 +101,19 @@ export async function handlePop(
       return { restoreText: rawInput };
     }
     const queue = userMsgs.map((m) => m.content);
-    await messagesRepo.deleteMessagesAfter(conversation.id, startIdx - 1);
+    // #164: delete + confirmation notice commit together. Otherwise a
+    // crash between them leaves the user staring at a truncated chat
+    // with no record that //pop ran.
+    await transaction(async () => {
+      await messagesRepo.deleteMessagesAfter(conversation.id, startIdx - 1);
+      await ctx.deps.appendNotice(
+        conversation.id,
+        `rewound to message ${payload.userNumber}. ${queue.length} user message${queue.length === 1 ? "" : "s"} to replay. Submit empty to skip.`,
+      );
+    });
     await ctx.deps.reloadMessages(conversation.id);
     const first = queue[0] ?? "";
     ctx.deps.setReplayQueue(conversation.id, queue.slice(1));
-    await ctx.deps.appendNotice(
-      conversation.id,
-      `rewound to message ${payload.userNumber}. ${queue.length} user message${queue.length === 1 ? "" : "s"} to replay. Submit empty to skip.`,
-    );
     return { restoreText: first };
   }
   // //pop (no arg) — drop the last user turn.
@@ -116,12 +122,15 @@ export async function handlePop(
     await ctx.deps.appendNotice(conversation.id, "pop: nothing to pop.");
     return { restoreText: rawInput };
   }
-  await messagesRepo.deleteMessagesAfter(conversation.id, plan.lastUserIndex - 1);
+  // #164: same atomicity rule as the //pop N branch.
+  await transaction(async () => {
+    await messagesRepo.deleteMessagesAfter(conversation.id, plan.lastUserIndex - 1);
+    await ctx.deps.appendNotice(
+      conversation.id,
+      `popped ${plan.deleteIds.length} message${plan.deleteIds.length === 1 ? "" : "s"}.`,
+    );
+  });
   await ctx.deps.reloadMessages(conversation.id);
-  await ctx.deps.appendNotice(
-    conversation.id,
-    `popped ${plan.deleteIds.length} message${plan.deleteIds.length === 1 ? "" : "s"}.`,
-  );
   return { restoreText: plan.restoredText };
 }
 

@@ -11,6 +11,7 @@ import { serializePersonas, parsePersonasImport, resolveImport } from "./importE
 import { createPersona, updatePersona } from "./service";
 import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
+import { transaction } from "../persistence/transaction";
 import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
 import type { Persona } from "../types";
@@ -57,51 +58,58 @@ export async function importPersonasFromFile(
   if (!parsed.ok) return { ok: false, reason: "error", message: parsed.error };
   const existing = await repo.listPersonas(conversationId);
   const resolved = resolveImport(existing, parsed.personas);
-  const created: Persona[] = [];
-  // Two-pass for runsAfter: first create everything without parent
-  // links, then patch them in once all ids exist.
-  for (const entry of resolved.toCreate) {
-    const p = await createPersona({
-      conversationId,
-      provider: entry.provider,
-      name: entry.name,
-      systemPromptOverride: entry.systemPromptOverride,
-      modelOverride: entry.modelOverride,
-      colorOverride: entry.colorOverride,
-      apertusProductId: entry.apertusProductId,
-      visibilityDefaults: entry.visibilityDefaults,
-      currentMessageIndex,
-    });
-    created.push(p);
-  }
-  // Build a name-slug → id map across existing live + freshly created.
-  const post = await repo.listPersonas(conversationId);
-  const idBySlug = new Map(
-    post.filter((p) => p.deletedAt === null).map((p) => [p.nameSlug, p.id] as const),
-  );
-  for (const entry of resolved.toCreate) {
-    if (entry.runsAfter.length === 0) continue;
-    const parentIds = entry.runsAfter
-      .map((name) => idBySlug.get(slugify(name)))
-      .filter((id): id is string => id !== undefined);
-    if (parentIds.length === 0) continue;
-    const p = post.find((x) => x.nameSlug === slugify(entry.name));
-    if (!p) continue;
-    await updatePersona({ id: p.id, runsAfter: parentIds });
-  }
-  // #36: every imported persona needs the same identity pin that
-  // CreateForm sets up — without it the LLM defaults to its provider
-  // identity ("My name is Claude") rather than the imported name.
-  const history = await messagesRepo.listMessages(conversationId);
-  for (const p of created) {
-    await ensureIdentityPin(conversationId, p, history, messagesRepo);
-  }
-  return {
-    ok: true,
-    created,
-    skipped: resolved.skipped,
-    visibilityWarnings: resolved.visibilityWarnings,
-  };
+  // #164: an N-persona import is the most write-heavy multi-step
+  // mutation we have — N creates, M runsAfter patches, K identity pins.
+  // A mid-import failure used to leave half-created personas with no
+  // pins and dangling runsAfter references; wrapping the whole sequence
+  // in a transaction makes the import either fully apply or not at all.
+  const { created, skipped, visibilityWarnings } = await transaction(async () => {
+    const created: Persona[] = [];
+    // Two-pass for runsAfter: first create everything without parent
+    // links, then patch them in once all ids exist.
+    for (const entry of resolved.toCreate) {
+      const p = await createPersona({
+        conversationId,
+        provider: entry.provider,
+        name: entry.name,
+        systemPromptOverride: entry.systemPromptOverride,
+        modelOverride: entry.modelOverride,
+        colorOverride: entry.colorOverride,
+        apertusProductId: entry.apertusProductId,
+        visibilityDefaults: entry.visibilityDefaults,
+        currentMessageIndex,
+      });
+      created.push(p);
+    }
+    // Build a name-slug → id map across existing live + freshly created.
+    const post = await repo.listPersonas(conversationId);
+    const idBySlug = new Map(
+      post.filter((p) => p.deletedAt === null).map((p) => [p.nameSlug, p.id] as const),
+    );
+    for (const entry of resolved.toCreate) {
+      if (entry.runsAfter.length === 0) continue;
+      const parentIds = entry.runsAfter
+        .map((name) => idBySlug.get(slugify(name)))
+        .filter((id): id is string => id !== undefined);
+      if (parentIds.length === 0) continue;
+      const p = post.find((x) => x.nameSlug === slugify(entry.name));
+      if (!p) continue;
+      await updatePersona({ id: p.id, runsAfter: parentIds });
+    }
+    // #36: every imported persona needs the same identity pin that
+    // CreateForm sets up — without it the LLM defaults to its provider
+    // identity ("My name is Claude") rather than the imported name.
+    const history = await messagesRepo.listMessages(conversationId);
+    for (const p of created) {
+      await ensureIdentityPin(conversationId, p, history, messagesRepo);
+    }
+    return {
+      created,
+      skipped: resolved.skipped,
+      visibilityWarnings: resolved.visibilityWarnings,
+    };
+  });
+  return { ok: true, created, skipped, visibilityWarnings };
 }
 
 export function defaultExportFilename(title: string): string {

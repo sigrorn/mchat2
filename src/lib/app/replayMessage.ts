@@ -16,6 +16,7 @@ import type { Conversation } from "@/lib/types";
 import { resolveTargets } from "@/lib/personas/resolver";
 import { planReplay } from "@/lib/conversations/replay";
 import * as messagesRepo from "@/lib/persistence/messages";
+import { transaction } from "@/lib/persistence/transaction";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import type { ReplayMessageDeps } from "./deps";
@@ -76,15 +77,20 @@ export async function replayMessage(
   const plan = planReplay([...history], messageId, resolved.strippedText, addressedTo);
   if (!plan.ok) return { ok: false, reason: plan.reason };
 
+  // #164: rewrite the user row and drop the trailing assistant rows in
+  // one transaction. A failure mid-way otherwise leaves the edit applied
+  // with the stale replies still attached.
   const edited = history.find((m) => m.id === messageId);
-  await messagesRepo.applyMessageMutation({
-    id: plan.update.id,
-    content: plan.update.content,
-    addressedTo: plan.update.addressedTo,
+  await transaction(async () => {
+    await messagesRepo.applyMessageMutation({
+      id: plan.update.id,
+      content: plan.update.content,
+      addressedTo: plan.update.addressedTo,
+    });
+    if (edited) {
+      await messagesRepo.deleteMessagesAfter(conversation.id, edited.index);
+    }
   });
-  if (edited) {
-    await messagesRepo.deleteMessagesAfter(conversation.id, edited.index);
-  }
   await deps.reloadMessages(conversation.id);
 
   if (resolved.mode !== "implicit") {

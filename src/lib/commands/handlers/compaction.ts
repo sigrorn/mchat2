@@ -11,6 +11,7 @@
 import type { AutocompactThreshold } from "@/lib/types";
 import { runCompaction, formatPersonaLine } from "@/lib/conversations/runCompaction";
 import { formatStats } from "@/lib/commands/stats";
+import { transaction } from "@/lib/persistence/transaction";
 import type { CommandContext, CommandResult } from "./types";
 
 export async function handleAutocompact(
@@ -102,8 +103,13 @@ export async function handleCompact(
     return;
   }
   await ctx.deps.reloadMessages(conversation.id);
-  await ctx.deps.setCompactionFloor(conversation.id, result.cutoff);
-  await ctx.deps.setLimit(conversation.id, result.cutoff);
+  // #164: floor and limit must move together. If only one of the two
+  // updates lands, autocompact and the limit-mark drift apart and the
+  // next compaction picks the wrong cutoff.
+  await transaction(async () => {
+    await ctx.deps.setCompactionFloor(conversation.id, result.cutoff);
+    await ctx.deps.setLimit(conversation.id, result.cutoff);
+  });
   const lines = [
     `compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,
   ];
