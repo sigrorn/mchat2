@@ -98,13 +98,13 @@ export type PostResponseCheckDeps = MessagesReadDeps &
   Pick<ConversationsWriteDeps, "setContextWarningsFired" | "setCompactionFloor" | "setLimit"> &
   Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus">;
 
-export type SendMessageDeps = MessagesReadDeps &
-  MessagesWriteDeps &
-  PersonasReadDeps &
+export type SendMessageDeps = RunPlannedSendDeps &
+  PostResponseCheckDeps &
   PersonasWriteDeps &
-  ConversationsWriteDeps &
-  SendStateDeps &
-  UiReadDeps;
+  Pick<MessagesWriteDeps, "appendUserMessage"> &
+  Pick<ConversationsWriteDeps, "rename">;
+
+export type RunPlannedSendDeps = RunOneTargetDeps & Pick<MessagesWriteDeps, "reloadMessages">;
 
 export type RetryMessageDeps = RunOneTargetDeps &
   PersonasReadDeps &

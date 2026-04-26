@@ -9,7 +9,7 @@
 //                stores/sendStore, stores/uiStore.
 // ------------------------------------------------------------------
 
-import type { RetryMessageDeps, RunOneTargetDeps } from "@/lib/app/deps";
+import type { RetryMessageDeps, RunOneTargetDeps, RunPlannedSendDeps } from "@/lib/app/deps";
 import type { Persona } from "@/lib/types";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
@@ -44,6 +44,14 @@ export function makeRunOneTargetDeps(): RunOneTargetDeps {
     getStreamResponses: () => useUiStore.getState().streamResponses,
     getDebugSession: () => useUiStore.getState().debugSession,
     getWorkingDir: () => useUiStore.getState().workingDir,
+  };
+}
+
+// runPlannedSend = RunOneTargetDeps + reloadMessages.
+export function makeRunPlannedSendDeps(): RunPlannedSendDeps {
+  return {
+    ...makeRunOneTargetDeps(),
+    reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
   };
 }
 

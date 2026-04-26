@@ -10,22 +10,16 @@
 import { useCallback } from "react";
 import type { Conversation, Message, Persona } from "@/lib/types";
 import { resolveTargets } from "@/lib/personas/resolver";
-import { modelForTarget } from "@/lib/orchestration/streamRunner";
 import { planReplay } from "@/lib/conversations/replay";
-import { generateTitle } from "@/lib/conversations/autoTitle";
 import * as messagesRepo from "@/lib/persistence/messages";
-import { adapterFor } from "@/lib/providers/registryOfAdapters";
-import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
-import { keychain } from "@/lib/tauri/keychain";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
-import { useConversationsStore } from "@/stores/conversationsStore";
 import { selectionAfterResolve } from "@/lib/app/sendSelection";
-import { postResponseCheck } from "@/lib/app/postResponseCheck";
 import { retryMessage } from "@/lib/app/retryMessage";
-import { runPlannedSend } from "./runPlannedSend";
-import { makeRetryMessageDeps } from "./runOneTargetDeps";
-import { makePostResponseCheckDeps } from "./postResponseCheckDeps";
+import { runPlannedSend } from "@/lib/app/runPlannedSend";
+import { sendMessage } from "@/lib/app/sendMessage";
+import { makeRetryMessageDeps, makeRunPlannedSendDeps } from "./runOneTargetDeps";
+import { makeSendMessageDeps } from "./sendMessageDeps";
 
 export interface SendOptions {
   pinned?: boolean;
@@ -34,76 +28,12 @@ export interface SendOptions {
 export function useSend(conversation: Conversation) {
   const send = useCallback(
     async (text: string, opts: SendOptions = {}) => {
-      const personas: Persona[] = usePersonasStore.getState().byConversation[conversation.id] ?? [];
-      const selection = usePersonasStore.getState().selectionByConversation[conversation.id] ?? [];
-
-      const resolved = resolveTargets({ text, personas, selection });
-      if (resolved.unknown.length > 0) {
-        return {
-          ok: false as const,
-          reason: `unknown target${resolved.unknown.length === 1 ? "" : "s"}: ${resolved.unknown.map((u) => `@${u}`).join(", ")}`,
-        };
-      }
-      if (resolved.targets.length === 0) return { ok: false as const, reason: "no targets" };
-
-      if (resolved.mode !== "implicit") {
-        const nextSelection = selectionAfterResolve(resolved, selection);
-        usePersonasStore.getState().setSelection(conversation.id, nextSelection);
-      }
-
-      // #130: always persist the resolved target list. Implicit sends
-      // used to store [] here, which made assistant replies' audience
-      // empty and broke cols-mode grouping. userHeader keeps the
-      // "@all" shorthand when the list covers every active persona.
-      const addressedTo = resolved.targets.map((t) => t.key);
-
-      await useMessagesStore.getState().sendUserMessage({
-        conversationId: conversation.id,
-        content: resolved.strippedText,
-        addressedTo,
-        pinned: opts.pinned ?? false,
+      const result = await sendMessage(makeSendMessageDeps(), {
+        conversation,
+        text,
+        ...(opts.pinned !== undefined ? { pinned: opts.pinned } : {}),
       });
-
-      const result = await runPlannedSend({ conversation, resolved, personas });
-      if (!result.ok) return { ok: false as const, reason: result.reason };
-
-      // #105: post-response autocompact / context warnings.
-      void postResponseCheck(makePostResponseCheckDeps(), conversation.id);
-
-      // #54: auto-title
-      if (conversation.title === "New conversation") {
-        const freshHistory = useMessagesStore.getState().byConversation[conversation.id] ?? [];
-        const firstUser = freshHistory.find((m) => m.role === "user" && !m.pinned);
-        const firstAssistant = freshHistory.find(
-          (m) => m.role === "assistant" && !m.errorMessage && m.content,
-        );
-        if (firstUser && firstAssistant) {
-          const titleTarget = result.allTargets[0];
-          if (titleTarget) {
-            void (async () => {
-              try {
-                const ak = PROVIDER_REGISTRY[titleTarget.provider].requiresKey
-                  ? await keychain.get(PROVIDER_REGISTRY[titleTarget.provider].keychainKey)
-                  : null;
-                const title = await generateTitle(
-                  adapterFor(titleTarget.provider),
-                  ak,
-                  modelForTarget(titleTarget, personas),
-                  firstUser.content,
-                  firstAssistant.content,
-                );
-                if (title) {
-                  await useConversationsStore.getState().rename(conversation.id, title);
-                }
-              } catch {
-                // Silent discard
-              }
-            })();
-          }
-        }
-      }
-
-      return { ok: true as const };
+      return result.ok ? { ok: true as const } : { ok: false as const, reason: result.reason };
     },
     [conversation],
   );
@@ -162,7 +92,11 @@ export function useSend(conversation: Conversation) {
         usePersonasStore.getState().setSelection(conversation.id, nextSelection);
       }
 
-      const result = await runPlannedSend({ conversation, resolved, personas });
+      const result = await runPlannedSend(makeRunPlannedSendDeps(), {
+        conversation,
+        resolved,
+        personas,
+      });
       if (!result.ok) return { ok: false as const, reason: result.reason };
       return { ok: true as const };
     },

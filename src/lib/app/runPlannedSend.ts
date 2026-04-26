@@ -1,12 +1,11 @@
 // ------------------------------------------------------------------
-// Component: runPlannedSend
+// Component: runPlannedSend (lib/app)
 // Responsibility: Run the plan/queue-status/run-targets/reload block
-//                 shared between send and replay (#150). Extracted to
-//                 kill the ~25 lines that were duplicated in useSend
-//                 between the two flows.
-// Collaborators: hooks/useSend.ts (sole consumer for now). Will move
-//                under src/lib/app/ once #148 lifts runOneTarget's
-//                store calls into deps.
+//                 shared between send and replay (#150). Originally
+//                 lived under src/hooks/; lifted here in #151 with
+//                 store calls routed through deps.
+// Collaborators: lib/app/runOneTarget, lib/orchestration/{sendPlanner,
+//                dagExecutor}, lib/app/shouldBufferTokens.
 // ------------------------------------------------------------------
 
 import type { Conversation, DagNode, Persona, PersonaTarget } from "@/lib/types";
@@ -14,25 +13,25 @@ import type { ResolveResult } from "@/lib/personas/resolver";
 import { planSend } from "@/lib/orchestration/sendPlanner";
 import { executeDag } from "@/lib/orchestration/dagExecutor";
 import type { StreamRunOutcome } from "@/lib/orchestration/streamRunner";
-import { runOneTarget } from "@/lib/app/runOneTarget";
-import { shouldBufferTokens } from "@/lib/app/shouldBufferTokens";
-import { useMessagesStore } from "@/stores/messagesStore";
-import { useSendStore } from "@/stores/sendStore";
-import { useUiStore } from "@/stores/uiStore";
-import { makeRunOneTargetDeps } from "./runOneTargetDeps";
+import { runOneTarget } from "./runOneTarget";
+import { shouldBufferTokens } from "./shouldBufferTokens";
+import type { RunPlannedSendDeps } from "./deps";
 
 export type RunPlannedSendResult =
   | { ok: true; allTargets: readonly PersonaTarget[] }
   | { ok: false; reason: string };
 
-export async function runPlannedSend(args: {
-  conversation: Conversation;
-  resolved: ResolveResult;
-  personas: readonly Persona[];
-}): Promise<RunPlannedSendResult> {
+export async function runPlannedSend(
+  deps: RunPlannedSendDeps,
+  args: {
+    conversation: Conversation;
+    resolved: ResolveResult;
+    personas: readonly Persona[];
+  },
+): Promise<RunPlannedSendResult> {
   const { conversation, resolved, personas } = args;
 
-  const runId = useSendStore.getState().nextRunId(conversation.id);
+  const runId = deps.nextRunId(conversation.id);
   const plan = planSend({
     mode: resolved.mode,
     targets: resolved.targets,
@@ -45,7 +44,7 @@ export async function runPlannedSend(args: {
   const bufferTokens = shouldBufferTokens({
     displayMode: conversation.displayMode,
     multiTarget,
-    streamResponses: useUiStore.getState().streamResponses,
+    streamResponses: deps.getStreamResponses(),
   });
 
   const allTargets: PersonaTarget[] =
@@ -55,10 +54,9 @@ export async function runPlannedSend(args: {
         ? [...plan.targets]
         : Array.from(plan.plan.nodes.values()).map((n) => n.target);
   for (const t of allTargets) {
-    useSendStore.getState().setTargetStatus(conversation.id, t.key, "queued");
+    deps.setTargetStatus(conversation.id, t.key, "queued");
   }
 
-  const deps = makeRunOneTargetDeps();
   const runOne = (target: PersonaTarget): Promise<StreamRunOutcome> =>
     runOneTarget(deps, {
       conversation,
@@ -77,13 +75,13 @@ export async function runPlannedSend(args: {
       plan: plan.plan,
       runNode: async (n: DagNode) => {
         const outcome = await runOne(n.target);
-        await useMessagesStore.getState().load(conversation.id);
+        await deps.reloadMessages(conversation.id);
         return outcome.kind;
       },
     });
   }
 
-  await useMessagesStore.getState().load(conversation.id);
+  await deps.reloadMessages(conversation.id);
 
   return { ok: true, allTargets };
 }
