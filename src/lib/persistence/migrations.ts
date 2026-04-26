@@ -145,6 +145,71 @@ export const MIGRATIONS: string[][] = [
   // (Apertus included) stay null and continue using their native
   // adapter; the new openai_compat path is purely additive.
   [`ALTER TABLE personas ADD COLUMN openai_compat_preset TEXT`],
+  // 14 — Run / RunTarget / Attempt state machine (#174 → #175).
+  // Hoists orchestration state out of the messages table and into a
+  // first-class model. Backfill creates 1 Run x 1 RunTarget x 1 Attempt
+  // per existing assistant message; orphaned rows (NULL persona_id)
+  // are skipped because they predate the persona requirement.
+  [
+    `CREATE TABLE runs (
+      id              TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      kind            TEXT NOT NULL,
+      started_at      INTEGER NOT NULL,
+      completed_at    INTEGER
+    )`,
+    `CREATE INDEX idx_runs_conv ON runs(conversation_id)`,
+    `CREATE TABLE run_targets (
+      id          TEXT PRIMARY KEY,
+      run_id      TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+      target_key  TEXT NOT NULL,
+      persona_id  TEXT REFERENCES personas(id) ON DELETE SET NULL,
+      provider    TEXT,
+      model       TEXT,
+      status      TEXT NOT NULL
+    )`,
+    `CREATE INDEX idx_run_targets_run ON run_targets(run_id)`,
+    `CREATE TABLE attempts (
+      id              TEXT PRIMARY KEY,
+      run_target_id   TEXT NOT NULL REFERENCES run_targets(id) ON DELETE CASCADE,
+      sequence        INTEGER NOT NULL,
+      content         TEXT NOT NULL,
+      started_at      INTEGER NOT NULL,
+      completed_at    INTEGER,
+      error_message   TEXT,
+      error_transient INTEGER NOT NULL DEFAULT 0,
+      input_tokens    INTEGER NOT NULL DEFAULT 0,
+      output_tokens   INTEGER NOT NULL DEFAULT 0,
+      ttft_ms         INTEGER,
+      stream_ms       INTEGER,
+      superseded_at   INTEGER
+    )`,
+    `CREATE INDEX idx_attempts_run_target ON attempts(run_target_id)`,
+    // Backfill: one Run per legacy assistant message. The message id is
+    // the seed for run/target/attempt ids so backfilled rows are
+    // round-trippable in tests.
+    `INSERT INTO runs (id, conversation_id, kind, started_at, completed_at)
+       SELECT 'run_' || m.id, m.conversation_id, 'send', m.created_at, m.created_at
+         FROM messages m
+        WHERE m.role = 'assistant' AND m.persona_id IS NOT NULL`,
+    `INSERT INTO run_targets (id, run_id, target_key, persona_id, provider, model, status)
+       SELECT 'rt_' || m.id, 'run_' || m.id,
+              COALESCE(p.name_slug, m.persona_id),
+              m.persona_id, m.provider, m.model,
+              CASE WHEN m.error_message IS NULL THEN 'complete' ELSE 'error' END
+         FROM messages m
+         LEFT JOIN personas p ON p.id = m.persona_id
+        WHERE m.role = 'assistant' AND m.persona_id IS NOT NULL`,
+    `INSERT INTO attempts (id, run_target_id, sequence, content, started_at,
+                           completed_at, error_message, error_transient,
+                           input_tokens, output_tokens, ttft_ms, stream_ms,
+                           superseded_at)
+       SELECT 'att_' || m.id, 'rt_' || m.id, 1, m.content, m.created_at,
+              m.created_at, m.error_message, m.error_transient,
+              m.input_tokens, m.output_tokens, m.ttft_ms, m.stream_ms, NULL
+         FROM messages m
+        WHERE m.role = 'assistant' AND m.persona_id IS NOT NULL`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.
