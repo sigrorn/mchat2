@@ -2,12 +2,12 @@
 // of persona panel — issue #13.
 import { test, expect } from "@playwright/test";
 
-test("Settings · API keys is positioned below all conversation rows", async ({ page }) => {
+test("Settings · Providers is positioned below all conversation rows", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "New conversation" }).first().click();
 
   const lastRow = page.locator("aside ul li button").last();
-  const settingsBtn = page.getByRole("button", { name: /Settings · API keys/ });
+  const settingsBtn = page.getByRole("button", { name: /Settings · Providers/ });
 
   const lastRowBox = await lastRow.boundingBox();
   const settingsBox = await settingsBtn.boundingBox();

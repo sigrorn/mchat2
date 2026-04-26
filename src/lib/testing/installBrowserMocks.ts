@@ -12,6 +12,7 @@ import { __setImpl as setSql } from "../tauri/sql";
 import { __setImpl as setKc } from "../tauri/keychain";
 import { __setImpl as setFs } from "../tauri/filesystem";
 import { __setImpl as setLc } from "../tauri/lifecycle";
+import { __setImpl as setShell } from "../tauri/shell";
 import { makeSqljsAdapter } from "./sqljsAdapter";
 
 // --- in-memory SQL ---------------------------------------------------
@@ -67,6 +68,15 @@ function memLifecycle() {
   setLc({ isTauri: () => true, onBeforeUnload: () => () => {} });
 }
 
+function memShell() {
+  // Register links call shell.open during E2E. We swallow the call
+  // (no real browser tab) and trust the assertion to be on the
+  // click event itself, not on what it opened.
+  setShell({
+    async open() {},
+  });
+}
+
 // Force every provider to use the mock adapter so E2E runs offline.
 async function installMockAdapters(): Promise<void> {
   const reg = await import("../providers/registryOfAdapters");
@@ -81,5 +91,6 @@ export async function installBrowserMocks(): Promise<void> {
   memKeychain();
   memFs();
   memLifecycle();
+  memShell();
   await installMockAdapters();
 }

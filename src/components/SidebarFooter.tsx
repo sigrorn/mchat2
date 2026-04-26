@@ -1,10 +1,12 @@
 // ------------------------------------------------------------------
 // Component: SidebarFooter
 // Responsibility: The fixed bottom of Sidebar — Settings · General,
-//                 Settings · API keys, the streaming response toggle,
+//                 Settings · Providers, the streaming response toggle,
 //                 and the debug-session toggle. Extracted from Sidebar
 //                 in #167 so the parent stays focused on the
-//                 conversation list and high-level layout.
+//                 conversation list and high-level layout. The
+//                 Settings · Providers button (#170) opens the unified
+//                 native + openai-compat configuration dialog.
 // Collaborators: Sidebar (parent), uiStore, SettingsDialog,
 //                SettingsGeneralDialog.
 // ------------------------------------------------------------------
@@ -29,7 +31,7 @@ export function SidebarFooter(): JSX.Element {
         onClick={() => setSettingsOpen(true)}
         className="mx-2 mt-1 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
       >
-        Settings · API keys
+        Settings · Providers
       </button>
       <StreamToggle />
       <DebugToggle />
