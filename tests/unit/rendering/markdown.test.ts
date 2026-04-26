@@ -32,6 +32,69 @@ describe("renderMarkdownToHtml", () => {
   it("escapes dangerous html", () => {
     expect(escapeHtml("<script>alert(1)</script>")).toBe("&lt;script&gt;alert(1)&lt;/script&gt;");
   });
+
+  it("renders GFM tables (#163)", () => {
+    const md = `| col1 | col2 |
+|------|------|
+| a    | b    |
+| c    | d    |`;
+    const html = renderMarkdownToHtml(md);
+    expect(html).toContain("<table>");
+    expect(html).toContain("<thead>");
+    expect(html).toContain("<th>col1</th>");
+    expect(html).toContain("<th>col2</th>");
+    expect(html).toContain("<tbody>");
+    expect(html).toContain("<td>a</td>");
+    expect(html).toContain("<td>b</td>");
+    expect(html).toContain("<td>c</td>");
+    expect(html).toContain("<td>d</td>");
+    expect(html).not.toContain("|col1|");
+  });
+
+  it("table cells inherit alignment from the separator row (#163)", () => {
+    const md = `| L | C | R |
+|:---|:---:|---:|
+| a | b | c |`;
+    const html = renderMarkdownToHtml(md);
+    // Header alignment applies to <th> cells.
+    expect(html).toMatch(/<th[^>]*style="text-align:left"[^>]*>L<\/th>/);
+    expect(html).toMatch(/<th[^>]*style="text-align:center"[^>]*>C<\/th>/);
+    expect(html).toMatch(/<th[^>]*style="text-align:right"[^>]*>R<\/th>/);
+    // Body alignment applies to <td> cells too.
+    expect(html).toMatch(/<td[^>]*style="text-align:left"[^>]*>a<\/td>/);
+    expect(html).toMatch(/<td[^>]*style="text-align:center"[^>]*>b<\/td>/);
+    expect(html).toMatch(/<td[^>]*style="text-align:right"[^>]*>c<\/td>/);
+  });
+
+  it("table rendering ends at a blank line (#163)", () => {
+    const md = `| h |
+|---|
+| x |
+
+After the table.`;
+    const html = renderMarkdownToHtml(md);
+    expect(html).toContain("<table>");
+    expect(html).toContain("</table>");
+    expect(html).toContain("<p>After the table.</p>");
+  });
+
+  it("inline markdown still works inside table cells (#163)", () => {
+    const md = `| a | b |
+|---|---|
+| **bold** | \`code\` |`;
+    const html = renderMarkdownToHtml(md);
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain("<code>code</code>");
+  });
+
+  it("a row that looks like a table header but has no separator stays a paragraph (#163)", () => {
+    const md = `| not | a | table |
+just text after.`;
+    const html = renderMarkdownToHtml(md);
+    expect(html).not.toContain("<table>");
+    // Pipes survive in the paragraph (escaped HTML).
+    expect(html).toContain("|");
+  });
 });
 
 describe("extractCodeBlocks", () => {
