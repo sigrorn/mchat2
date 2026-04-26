@@ -259,3 +259,26 @@ export async function listAttempts(runTargetId: string): Promise<Attempt[]> {
   );
   return rows.map(mapAttempt);
 }
+
+// #180: returns the set of message ids whose Attempt has been
+// superseded. Relies on the v14 backfill convention (att_<msgid>)
+// and the recordSend/Retry/Replay convention (also att_-prefixed).
+// Free-form appendAttempt ids that don't correspond to a message
+// are silently included by their suffix; they're harmless because
+// they can't match any messages.id in practice.
+export async function listSupersededMessageIds(conversationId: string): Promise<Set<string>> {
+  const rows = await sql.select<{ id: string }>(
+    `SELECT a.id AS id
+       FROM attempts a
+       JOIN run_targets rt ON rt.id = a.run_target_id
+       JOIN runs r ON r.id = rt.run_id
+      WHERE r.conversation_id = ?
+        AND a.superseded_at IS NOT NULL`,
+    [conversationId],
+  );
+  const out = new Set<string>();
+  for (const r of rows) {
+    if (r.id.startsWith("att_")) out.add(r.id.slice(4));
+  }
+  return out;
+}
