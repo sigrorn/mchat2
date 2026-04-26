@@ -15,6 +15,7 @@ import type { Conversation } from "@/lib/types";
 import { resolveTargets } from "@/lib/personas/resolver";
 import { generateTitle } from "@/lib/conversations/autoTitle";
 import { modelForTarget } from "@/lib/orchestration/streamRunner";
+import { recordSend } from "@/lib/orchestration/recordSend";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import { postResponseCheck } from "./postResponseCheck";
@@ -71,8 +72,45 @@ export async function sendMessage(
     pinned: pinned ?? false,
   });
 
+  // #179: snapshot the message ids that exist before the send so we
+  // can diff afterwards and write the new assistant rows into the
+  // Run/Attempt model.
+  const beforeIds = new Set(deps.getMessages(conversation.id).map((m) => m.id));
+
   const result = await runPlannedSend(deps, { conversation, resolved, personas });
   if (!result.ok) return { ok: false, reason: result.reason };
+
+  // #179: parallel-write the send to the new Run/RunTarget/Attempt
+  // model. Tolerated to fail silently — the messages table remains
+  // authoritative for the UI until #180 flips that.
+  try {
+    const after = deps.getMessages(conversation.id);
+    const newAssistantMessages = after
+      .filter((m) => m.role === "assistant" && !beforeIds.has(m.id))
+      .sort((a, b) => a.index - b.index)
+      .map((m) => ({
+        id: m.id,
+        personaId: m.personaId,
+        targetKey: personas.find((p) => p.id === m.personaId)?.nameSlug ?? m.personaId ?? "",
+        provider: m.provider,
+        model: m.model,
+        content: m.content,
+        createdAt: m.createdAt,
+        inputTokens: m.inputTokens,
+        outputTokens: m.outputTokens,
+        ttftMs: m.ttftMs ?? null,
+        streamMs: m.streamMs ?? null,
+        errorMessage: m.errorMessage,
+        errorTransient: m.errorTransient,
+      }));
+    await recordSend({
+      conversationId: conversation.id,
+      now: Date.now(),
+      newAssistantMessages,
+    });
+  } catch (err) {
+    console.warn("recordSend failed (parallel-write; non-fatal)", err);
+  }
 
   // #105: post-response autocompact / context warnings.
   void postResponseCheck(deps, conversation.id);
