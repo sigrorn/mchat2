@@ -54,3 +54,13 @@ export function isReservedName(slug: string): boolean {
 export function providerForPrefix(prefix: string): ProviderId | null {
   return PREFIX_TO_PROVIDER.get(prefix.toLowerCase()) ?? null;
 }
+
+// #141 phase 1 — wrap an ISO 3166 alpha-2 country code in brackets,
+// e.g. `[CH]`. Bracketed codes instead of flag emojis because Tauri
+// on Windows can't render `🇨🇭` (Windows ships no flag glyphs;
+// Twemoji would add ~50–200KB for what is fundamentally an
+// information-density gain). Empty string when no code is set.
+export function formatHostingTag(country: string | null): string {
+  if (!country) return "";
+  return `[${country.toUpperCase()}]`;
+}

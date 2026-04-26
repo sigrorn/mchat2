@@ -6,7 +6,8 @@
 // ------------------------------------------------------------------
 
 import type { Conversation, Message, Persona } from "../types";
-import { PROVIDER_COLORS, PROVIDER_DISPLAY_NAMES } from "../providers/derived";
+import { PROVIDER_COLORS, PROVIDER_DISPLAY_NAMES, formatHostingTag } from "../providers/derived";
+import { PROVIDER_REGISTRY } from "../providers/registry";
 import { renderMarkdownToHtml, escapeHtml } from "./markdown";
 import { redact } from "../security/redact";
 import { formatUserHeader } from "../conversations/userHeader";
@@ -98,7 +99,12 @@ function renderPersonasSection(
   if (personas.length === 0) return "";
   const items = personas
     .map((p) => {
-      const provider = PROVIDER_DISPLAY_NAMES[p.provider] ?? p.provider;
+      // #141: prefix the provider name with the hosting-country tag
+      // (e.g. "[CH] Apertus") so the export keeps the data-sovereignty
+      // signal that the in-app UI shows.
+      const providerName = PROVIDER_DISPLAY_NAMES[p.provider] ?? p.provider;
+      const tag = formatHostingTag(PROVIDER_REGISTRY[p.provider]?.hostingCountry ?? null);
+      const provider = tag ? `${tag} ${providerName}` : providerName;
       const headerParts = [p.name, provider];
       if (p.modelOverride) headerParts.push(p.modelOverride);
       const head = headerParts.map(escapeHtml).join(" · ");

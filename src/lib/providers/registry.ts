@@ -33,6 +33,10 @@ export interface ProviderMeta {
   // Maximum context tokens the provider's default model accepts (#55).
   // buildContext truncates history to stay under this. Infinity = no limit.
   maxContextTokens: number;
+  // #141 phase 1 — ISO 3166 alpha-2 country code for where the API
+  // endpoint is hosted. Surfaces as `[CH]` / `[FR]` etc. in the model
+  // picker and persona row. null only for non-hosted providers (mock).
+  hostingCountry: string | null;
 }
 
 export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
@@ -46,6 +50,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keychainKey: "anthropic_api_key",
     requiresKey: true,
     maxContextTokens: 200000,
+    hostingCountry: "US",
   },
   openai: {
     id: "openai",
@@ -57,6 +62,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keychainKey: "openai_api_key",
     requiresKey: true,
     maxContextTokens: 128000,
+    hostingCountry: "US",
   },
   gemini: {
     id: "gemini",
@@ -68,6 +74,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keychainKey: "google_api_key",
     requiresKey: true,
     maxContextTokens: 1048576,
+    hostingCountry: "US",
   },
   perplexity: {
     id: "perplexity",
@@ -78,6 +85,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keychainKey: "perplexity_api_key",
     requiresKey: true,
     maxContextTokens: 127072,
+    hostingCountry: "US",
   },
   mistral: {
     id: "mistral",
@@ -89,6 +97,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keychainKey: "mistral_api_key",
     requiresKey: true,
     maxContextTokens: 128000,
+    hostingCountry: "FR",
   },
   apertus: {
     id: "apertus",
@@ -100,6 +109,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keychainKey: "apertus_api_key",
     requiresKey: true,
     maxContextTokens: 16384,
+    hostingCountry: "CH",
   },
   mock: {
     id: "mock",
@@ -110,6 +120,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keychainKey: "mock_api_key",
     requiresKey: false,
     maxContextTokens: Infinity,
+    hostingCountry: null,
   },
 };
 

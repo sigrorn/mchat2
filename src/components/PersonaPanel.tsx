@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import type { Conversation, Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import { PRICING } from "@/lib/pricing/table";
@@ -353,7 +354,11 @@ function PersonaRow({
             </div>
           </div>
           <div className="text-xs text-neutral-600">
-            {persona.provider}
+            {/* #141: hosting-country tag prefixes the persona's provider id */}
+            {(() => {
+              const tag = formatHostingTag(PROVIDER_REGISTRY[persona.provider].hostingCountry);
+              return tag ? `${tag} ${persona.provider}` : persona.provider;
+            })()}
             {persona.modelOverride ? ` · ${persona.modelOverride}` : ""}
             {persona.runsAfter.length > 0
               ? ` · after ${persona.runsAfter.map((id) => labelFor(id, allPersonas)).join(", ")}`
@@ -387,7 +392,10 @@ function PersonaRow({
             >
               {SELECTABLE_PROVIDER_IDS.map((id) => (
                 <option key={id} value={id}>
-                  {PROVIDER_REGISTRY[id].displayName}
+                  {/* #141: hosting-country tag prefixes the display name */}
+                  {formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)
+                    ? `${formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)} ${PROVIDER_REGISTRY[id].displayName}`
+                    : PROVIDER_REGISTRY[id].displayName}
                 </option>
               ))}
             </select>
@@ -401,12 +409,18 @@ function PersonaRow({
               className="w-full rounded border border-neutral-300 px-2 py-1"
             />
             <datalist id={modelListId}>
-              {modelOptions.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.id}
-                  {m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : ""}
-                </option>
-              ))}
+              {modelOptions.map((m) => {
+                // #141: prefix the model id with the provider's hosting
+                // country tag so the data-sovereignty signal stays
+                // visible in the picker too.
+                const tag = formatHostingTag(PROVIDER_REGISTRY[provider].hostingCountry);
+                const tokens = m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : "";
+                return (
+                  <option key={m.id} value={m.id}>
+                    {tag ? `${tag} ${m.id}${tokens}` : `${m.id}${tokens}`}
+                  </option>
+                );
+              })}
             </datalist>
           </Field>
           <Field label="Color">
@@ -706,7 +720,10 @@ function CreateForm({
         >
           {SELECTABLE_PROVIDER_IDS.map((id) => (
             <option key={id} value={id}>
-              {PROVIDER_REGISTRY[id].displayName}
+              {/* #141: hosting-country tag prefixes the display name */}
+              {formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)
+                ? `${formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)} ${PROVIDER_REGISTRY[id].displayName}`
+                : PROVIDER_REGISTRY[id].displayName}
             </option>
           ))}
         </select>
@@ -720,12 +737,18 @@ function CreateForm({
           className="w-full rounded border border-neutral-300 px-2 py-1"
         />
         <datalist id={modelListId}>
-          {modelOptions.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.id}
-              {m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : ""}
-            </option>
-          ))}
+          {modelOptions.map((m) => {
+            // #141: prefix the model id with the provider's hosting
+            // country tag so the data-sovereignty signal stays
+            // visible in the picker too.
+            const tag = formatHostingTag(PROVIDER_REGISTRY[provider].hostingCountry);
+            const tokens = m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : "";
+            return (
+              <option key={m.id} value={m.id}>
+                {tag ? `${tag} ${m.id}${tokens}` : `${m.id}${tokens}`}
+              </option>
+            );
+          })}
         </datalist>
       </Field>
       <Field label="Scope">
