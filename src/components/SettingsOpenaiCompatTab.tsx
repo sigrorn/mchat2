@@ -365,13 +365,13 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100"
+            className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             Cancel
           </button>
           <button
             onClick={() => void applyDraft()}
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100"
+            className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             Apply
           </button>

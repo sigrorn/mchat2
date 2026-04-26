@@ -224,7 +224,7 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
       <div className="mt-5 flex justify-end gap-2">
         <button
           onClick={onClose}
-          className="rounded border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100"
+          className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
         >
           Close
         </button>

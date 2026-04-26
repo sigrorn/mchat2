@@ -608,7 +608,7 @@ function CreateForm({
             setOpen(false);
             setError(null);
           }}
-          className="rounded border border-neutral-300 px-2 py-1 hover:bg-neutral-100"
+          className="rounded border border-neutral-300 px-2 py-1 text-neutral-700 hover:bg-neutral-100"
         >
           Cancel
         </button>
