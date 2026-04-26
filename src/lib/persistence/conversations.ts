@@ -1,10 +1,14 @@
 // ------------------------------------------------------------------
-// Component: Conversations repository
+// Component: Conversations repository (Kysely-backed)
 // Responsibility: Persist and load Conversation rows.
 // Collaborators: stores/conversations.ts, migrations.ts, ids.ts.
+// History:       Migrated to Kysely in #191. Public exports keep
+//                their signatures; column types come from
+//                lib/persistence/schema.ts.
 // ------------------------------------------------------------------
 
-import { sql } from "../tauri/sql";
+import { db } from "./db";
+import type { ConversationsTable } from "./schema";
 import type { Conversation, ProviderId } from "../types";
 import { newConversationId } from "./ids";
 import {
@@ -14,24 +18,7 @@ import {
   parseSelectedPersonas,
 } from "../schemas/conversationJsonColumns";
 
-interface Row {
-  id: string;
-  title: string;
-  system_prompt: string | null;
-  created_at: number;
-  last_provider: string | null;
-  limit_mark_index: number | null;
-  display_mode: string;
-  visibility_mode: string;
-  visibility_matrix?: string;
-  limit_size_tokens?: number | null;
-  selected_personas?: string;
-  compaction_floor_index?: number | null;
-  autocompact_threshold?: string | null;
-  context_warnings_fired?: string;
-}
-
-function rowToConversation(r: Row): Conversation {
+function rowToConversation(r: ConversationsTable): Conversation {
   return {
     id: r.id,
     title: r.title,
@@ -41,23 +28,52 @@ function rowToConversation(r: Row): Conversation {
     limitMarkIndex: r.limit_mark_index,
     displayMode: r.display_mode === "cols" ? "cols" : "lines",
     visibilityMode: r.visibility_mode === "joined" ? "joined" : "separated",
-    visibilityMatrix: parseVisibilityMatrix(r.visibility_matrix ?? "{}"),
-    limitSizeTokens: r.limit_size_tokens ?? null,
-    selectedPersonas: parseSelectedPersonas(r.selected_personas ?? "[]"),
-    compactionFloorIndex: r.compaction_floor_index ?? null,
-    autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold ?? null),
-    contextWarningsFired: parseContextWarningsFired(r.context_warnings_fired ?? "[]"),
+    visibilityMatrix: parseVisibilityMatrix(r.visibility_matrix),
+    limitSizeTokens: r.limit_size_tokens,
+    selectedPersonas: parseSelectedPersonas(r.selected_personas),
+    compactionFloorIndex: r.compaction_floor_index,
+    autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold),
+    contextWarningsFired: parseContextWarningsFired(r.context_warnings_fired),
+  };
+}
+
+function conversationToRow(conv: Conversation): ConversationsTable {
+  return {
+    id: conv.id,
+    title: conv.title,
+    system_prompt: conv.systemPrompt,
+    created_at: conv.createdAt,
+    last_provider: conv.lastProvider,
+    limit_mark_index: conv.limitMarkIndex,
+    display_mode: conv.displayMode,
+    visibility_mode: conv.visibilityMode,
+    visibility_matrix: JSON.stringify(conv.visibilityMatrix),
+    limit_size_tokens: conv.limitSizeTokens,
+    selected_personas: JSON.stringify(conv.selectedPersonas),
+    compaction_floor_index: conv.compactionFloorIndex,
+    autocompact_threshold: conv.autocompactThreshold
+      ? JSON.stringify(conv.autocompactThreshold)
+      : null,
+    context_warnings_fired: JSON.stringify(conv.contextWarningsFired ?? []),
   };
 }
 
 export async function listConversations(): Promise<Conversation[]> {
-  const rows = await sql.select<Row>("SELECT * FROM conversations ORDER BY created_at DESC");
+  const rows = await db
+    .selectFrom("conversations")
+    .selectAll()
+    .orderBy("created_at", "desc")
+    .execute();
   return rows.map(rowToConversation);
 }
 
 export async function getConversation(id: string): Promise<Conversation | null> {
-  const rows = await sql.select<Row>("SELECT * FROM conversations WHERE id = ?", [id]);
-  return rows[0] ? rowToConversation(rows[0]) : null;
+  const row = await db
+    .selectFrom("conversations")
+    .selectAll()
+    .where("id", "=", id)
+    .executeTakeFirst();
+  return row ? rowToConversation(row) : null;
 }
 
 export async function createConversation(
@@ -68,60 +84,35 @@ export async function createConversation(
     id: partial.id ?? newConversationId(),
     createdAt: partial.createdAt ?? Date.now(),
   };
-  await sql.execute(
-    `INSERT INTO conversations
-       (id, title, system_prompt, created_at, last_provider,
-        limit_mark_index, display_mode, visibility_mode, visibility_matrix,
-        limit_size_tokens, selected_personas, compaction_floor_index,
-        autocompact_threshold, context_warnings_fired)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      conv.id,
-      conv.title,
-      conv.systemPrompt,
-      conv.createdAt,
-      conv.lastProvider,
-      conv.limitMarkIndex,
-      conv.displayMode,
-      conv.visibilityMode,
-      JSON.stringify(conv.visibilityMatrix),
-      conv.limitSizeTokens,
-      JSON.stringify(conv.selectedPersonas),
-      conv.compactionFloorIndex,
-      conv.autocompactThreshold ? JSON.stringify(conv.autocompactThreshold) : null,
-      JSON.stringify(conv.contextWarningsFired ?? []),
-    ],
-  );
+  await db.insertInto("conversations").values(conversationToRow(conv)).execute();
   return conv;
 }
 
 export async function updateConversation(conv: Conversation): Promise<void> {
-  await sql.execute(
-    `UPDATE conversations SET
-       title = ?, system_prompt = ?, last_provider = ?,
-       limit_mark_index = ?, display_mode = ?, visibility_mode = ?,
-       visibility_matrix = ?, limit_size_tokens = ?,
-       selected_personas = ?, compaction_floor_index = ?,
-       autocompact_threshold = ?, context_warnings_fired = ?
-     WHERE id = ?`,
-    [
-      conv.title,
-      conv.systemPrompt,
-      conv.lastProvider,
-      conv.limitMarkIndex,
-      conv.displayMode,
-      conv.visibilityMode,
-      JSON.stringify(conv.visibilityMatrix),
-      conv.limitSizeTokens,
-      JSON.stringify(conv.selectedPersonas),
-      conv.compactionFloorIndex,
-      conv.autocompactThreshold ? JSON.stringify(conv.autocompactThreshold) : null,
-      JSON.stringify(conv.contextWarningsFired ?? []),
-      conv.id,
-    ],
-  );
+  // Kysely's set({...}) keeps the call short; the values builder
+  // matches the same JSON-encoding logic as createConversation
+  // (sharing conversationToRow ensures both paths agree).
+  const row = conversationToRow(conv);
+  await db
+    .updateTable("conversations")
+    .set({
+      title: row.title,
+      system_prompt: row.system_prompt,
+      last_provider: row.last_provider,
+      limit_mark_index: row.limit_mark_index,
+      display_mode: row.display_mode,
+      visibility_mode: row.visibility_mode,
+      visibility_matrix: row.visibility_matrix,
+      limit_size_tokens: row.limit_size_tokens,
+      selected_personas: row.selected_personas,
+      compaction_floor_index: row.compaction_floor_index,
+      autocompact_threshold: row.autocompact_threshold,
+      context_warnings_fired: row.context_warnings_fired,
+    })
+    .where("id", "=", conv.id)
+    .execute();
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  await sql.execute("DELETE FROM conversations WHERE id = ?", [id]);
+  await db.deleteFrom("conversations").where("id", "=", id).execute();
 }

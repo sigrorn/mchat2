@@ -1,44 +1,20 @@
 // #65 — Persist persona selection across restarts.
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
+// #200/#191: rewritten onto sql.js round-trips so the test isn't
+// coupled to the SQL syntax emitted by the repo.
+import { describe, it, expect, afterEach } from "vitest";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
+import { sql } from "@/lib/tauri/sql";
 import * as convRepo from "@/lib/persistence/conversations";
 
-interface Call {
-  sql: string;
-  params: unknown[];
-}
-
-function makeRecorder(selectResults: Record<string, unknown[]> = {}) {
-  const calls: Call[] = [];
-  __setImpl({
-    async execute(q, p) {
-      calls.push({ sql: q, params: p ?? [] });
-      return { rowsAffected: 1, lastInsertId: null };
-    },
-    async select<T>(q: string, p?: unknown[]): Promise<T[]> {
-      calls.push({ sql: q, params: p ?? [] });
-      for (const [needle, rows] of Object.entries(selectResults)) {
-        if (q.includes(needle)) return rows as T[];
-      }
-      return [];
-    },
-    async close() {},
-  });
-  return calls;
-}
-
-beforeEach(() =>
-  __setImpl({
-    execute: async () => ({ rowsAffected: 0, lastInsertId: null }),
-    select: async () => [],
-    close: async () => {},
-  }),
-);
-afterEach(() => __resetImpl());
+let handle: TestDbHandle | null = null;
+afterEach(() => {
+  handle?.restore();
+  handle = null;
+});
 
 describe("selectedPersonas persistence (#65)", () => {
-  it("createConversation stores selectedPersonas as JSON", async () => {
-    const calls = makeRecorder();
+  it("createConversation persists selectedPersonas (round-trips through DB)", async () => {
+    handle = await createTestDb();
     const c = await convRepo.createConversation({
       title: "T",
       systemPrompt: null,
@@ -49,98 +25,64 @@ describe("selectedPersonas persistence (#65)", () => {
       visibilityMatrix: {},
       limitSizeTokens: null,
       selectedPersonas: ["p_abc", "p_def"],
-    compactionFloorIndex: null,
-    autocompactThreshold: null,
-    contextWarningsFired: [],
+      compactionFloorIndex: null,
+      autocompactThreshold: null,
+      contextWarningsFired: [],
     });
     expect(c.selectedPersonas).toEqual(["p_abc", "p_def"]);
-    const insert = calls.find((x) => x.sql.includes("INSERT INTO conversations"));
-    expect(insert).toBeDefined();
-    // The JSON-encoded array should be in the params.
-    expect(insert!.params).toContain('["p_abc","p_def"]');
+    const fetched = await convRepo.getConversation(c.id);
+    expect(fetched?.selectedPersonas).toEqual(["p_abc", "p_def"]);
   });
 
-  it("getConversation round-trips selectedPersonas from DB row", async () => {
-    makeRecorder({
-      "FROM conversations WHERE id": [
-        {
-          id: "c_1",
-          title: "x",
-          system_prompt: null,
-          created_at: 10,
-          last_provider: null,
-          limit_mark_index: null,
-          display_mode: "lines",
-          visibility_mode: "separated",
-          visibility_matrix: "{}",
-          limit_size_tokens: null,
-          selected_personas: '["p_abc","p_def"]',
-        },
-      ],
-    });
+  it("getConversation parses selectedPersonas JSON from DB row", async () => {
+    handle = await createTestDb();
+    // Direct insert with explicit selected_personas value.
+    await sql.execute(
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 10, 'lines', 'separated', '{}', '["p_abc","p_def"]', '[]')`,
+    );
     const c = await convRepo.getConversation("c_1");
     expect(c?.selectedPersonas).toEqual(["p_abc", "p_def"]);
   });
 
-  it("getConversation defaults to empty array when column is missing", async () => {
-    makeRecorder({
-      "FROM conversations WHERE id": [
-        {
-          id: "c_1",
-          title: "x",
-          system_prompt: null,
-          created_at: 10,
-          last_provider: null,
-          limit_mark_index: null,
-          display_mode: "lines",
-          visibility_mode: "separated",
-        },
-      ],
-    });
+  it("getConversation defaults to [] when selected_personas is empty array", async () => {
+    handle = await createTestDb();
+    await sql.execute(
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 10, 'lines', 'separated', '{}', '[]', '[]')`,
+    );
     const c = await convRepo.getConversation("c_1");
     expect(c?.selectedPersonas).toEqual([]);
   });
 
   it("getConversation handles malformed JSON gracefully", async () => {
-    makeRecorder({
-      "FROM conversations WHERE id": [
-        {
-          id: "c_1",
-          title: "x",
-          system_prompt: null,
-          created_at: 10,
-          last_provider: null,
-          limit_mark_index: null,
-          display_mode: "lines",
-          visibility_mode: "separated",
-          selected_personas: "not-json",
-        },
-      ],
-    });
+    handle = await createTestDb();
+    await sql.execute(
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 10, 'lines', 'separated', '{}', 'not-json', '[]')`,
+    );
     const c = await convRepo.getConversation("c_1");
     expect(c?.selectedPersonas).toEqual([]);
   });
 
-  it("updateConversation writes selectedPersonas as JSON", async () => {
-    const calls = makeRecorder();
-    await convRepo.updateConversation({
-      id: "c_1",
+  it("updateConversation persists selectedPersonas changes (round-trips through DB)", async () => {
+    handle = await createTestDb();
+    const c = await convRepo.createConversation({
       title: "T",
       systemPrompt: null,
-      createdAt: 10,
       lastProvider: null,
       limitMarkIndex: null,
       displayMode: "lines",
       visibilityMode: "separated",
       visibilityMatrix: {},
       limitSizeTokens: null,
-      selectedPersonas: ["p_xyz"],
-    compactionFloorIndex: null,
-    autocompactThreshold: null,
-    contextWarningsFired: [],
+      selectedPersonas: [],
+      compactionFloorIndex: null,
+      autocompactThreshold: null,
+      contextWarningsFired: [],
     });
-    const update = calls.find((x) => x.sql.includes("UPDATE conversations"));
-    expect(update).toBeDefined();
-    expect(update!.params).toContain('["p_xyz"]');
+    await convRepo.updateConversation({ ...c, selectedPersonas: ["p_xyz"] });
+    const after = await convRepo.getConversation(c.id);
+    expect(after?.selectedPersonas).toEqual(["p_xyz"]);
   });
 });
