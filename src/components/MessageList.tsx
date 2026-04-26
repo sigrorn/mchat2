@@ -6,14 +6,16 @@
 //                 behavior lives in useScrollPin; row presentation is
 //                 in MessageBubble; the inline edit textarea is in
 //                 EditReplayEditor — split out under #167 so this file
-//                 stays a list/coordinator rather than a 500-line
-//                 catch-all.
+//                 stays a list/coordinator. Items are rendered through
+//                 @tanstack/react-virtual under #128 so a 5k-message
+//                 conversation only mounts the visible window.
 // Collaborators: MessageBubble, EditReplayEditor, useScrollPin,
 //                useSend, conversationsStore, messagesStore,
 //                personasStore.
 // ------------------------------------------------------------------
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import type { Message, Persona } from "@/lib/types";
@@ -31,6 +33,20 @@ import { useScrollPin } from "./useScrollPin";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 const EMPTY: readonly Message[] = Object.freeze([]);
+
+// Estimated row height, used by the virtualizer until each row's real
+// height is measured. Chat bubbles vary widely (1-line user messages
+// vs. multi-paragraph assistant replies with code blocks), so the
+// estimate's job is just to scale the scroll spacer reasonably during
+// the first paint — the ResizeObserver via measureElement corrects it
+// per row as the user scrolls.
+const ESTIMATED_ROW_HEIGHT = 120;
+
+// Overscan = how many rows above/below the visible window stay
+// mounted. Bigger overscan = less mount churn at scroll boundaries
+// but more work per render. 6 keeps the streaming row, the in-context
+// rows, and one screen of buffer in DOM at typical viewport sizes.
+const OVERSCAN = 6;
 
 export function MessageList({
   conversationId,
@@ -66,6 +82,35 @@ export function MessageList({
   const items = isCols
     ? groupIntoColumns(messages)
     : messages.map((m) => ({ kind: "row" as const, message: m }));
+
+  // Stable keys for the virtualizer — keying by message id (rows) and
+  // by the column-group's first message id (cols). Without stable
+  // keys, react-virtual would re-measure every item whenever the
+  // items array reference changes (which is every render).
+  const itemKey = (idx: number): string => {
+    const item = items[idx];
+    if (!item) return `gap:${idx}`;
+    if (item.kind === "row") return `row:${item.message.id}`;
+    return `cols:${item.messages[0]?.id ?? item.audience.join(":")}`;
+  };
+
+  // Map message id → item index, for find-scroll.
+  const itemIndexByMessageId = useMemo(() => {
+    const m = new Map<string, number>();
+    items.forEach((item, idx) => {
+      if (item.kind === "row") m.set(item.message.id, idx);
+      else for (const msg of item.messages) m.set(msg.id, idx);
+    });
+    return m;
+  }, [items]);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    getItemKey: itemKey,
+    overscan: OVERSCAN,
+  });
 
   // #43/#44: useSend exposes retry + replay for failed-row retry and
   // user-row edit+replay. Needs the full Conversation object, which
@@ -132,18 +177,17 @@ export function MessageList({
     return null;
   })();
 
-  // #53: when the find bar sets a new active match, scroll its bubble
-  // into view. Also temporarily unpin tail-follow so the scroll sticks.
+  // #53: when the find bar sets a new active match, scroll the
+  // matching bubble into view. With virtualization the target row may
+  // not be mounted yet, so we use scrollToIndex (computes the offset
+  // from estimated/measured sizes) instead of scrollIntoView.
   useEffect(() => {
     if (!activeMatchMessageId) return;
-    const el = containerRef.current?.querySelector<HTMLElement>(
-      `[data-message-id="${activeMatchMessageId}"]`,
-    );
-    if (el) {
-      pinnedRef.current = false;
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }, [activeMatchMessageId, containerRef, pinnedRef]);
+    const idx = itemIndexByMessageId.get(activeMatchMessageId);
+    if (idx === undefined) return;
+    pinnedRef.current = false;
+    virtualizer.scrollToIndex(idx, { align: "center", behavior: "smooth" });
+  }, [activeMatchMessageId, itemIndexByMessageId, pinnedRef, virtualizer]);
 
   const onCopy = (e: React.ClipboardEvent): void => {
     const sel = window.getSelection();
@@ -151,6 +195,11 @@ export function MessageList({
     const container = containerRef.current;
     if (!container) return;
     const selectedIds = new Set<string>();
+    // Note: virtualization unmounts off-screen rows, so a multi-bubble
+    // selection that extends past the visible window will only see
+    // the visible portion. Selecting across thousands of rows wasn't
+    // a supported workflow before either; the common case (selecting
+    // a few visible rows) keeps working as expected.
     const bubbles = container.querySelectorAll<HTMLElement>("[data-message-id]");
     for (const el of bubbles) {
       if (sel.containsNode(el, true)) {
@@ -166,6 +215,8 @@ export function MessageList({
     e.clipboardData.setData("text/plain", text);
   };
 
+  const virtualItems = virtualizer.getVirtualItems();
+
   return (
     <div
       ref={containerRef}
@@ -173,76 +224,125 @@ export function MessageList({
       onCopy={onCopy}
       className="flex-1 overflow-auto bg-neutral-100 px-4 py-3"
     >
-      {items.map((item) => {
-        if (item.kind === "row") {
-          const m = item.message;
-          if (editingId === m.id && m.role === "user") {
-            return (
-              <EditReplayEditor
-                key={m.id}
-                initial={m.content}
-                onCancel={() => setEditingId(null)}
-                onCommit={async (next) => {
-                  setEditingId(null);
-                  const trimmed = next.trim();
-                  if (!trimmed || trimmed === m.content) return;
-                  await replay(m.id, trimmed);
-                }}
-              />
-            );
-          }
-          const bubbleProps = {
-            key: m.id,
-            message: m,
-            personas,
-            userNumber: userNumbers.get(m.index) ?? null,
-            excluded: conversation
-              ? isExcludedByLimit(m, conversation, effectiveLimitIndex)
-              : false,
-            onRetry: () => void retry(m),
-            ...(m.role === "user" ? { onEdit: () => setEditingId(m.id) } : {}),
-          };
-          return <MessageBubble {...bubbleProps} />;
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualItems.map((virtualItem) => {
+          const item = items[virtualItem.index];
+          if (!item) return null;
+          return (
+            <div
+              key={virtualItem.key}
+              ref={virtualizer.measureElement}
+              data-index={virtualItem.index}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              {renderItem(item, {
+                editingId,
+                setEditingId,
+                replay,
+                retry,
+                conversation,
+                effectiveLimitIndex,
+                userNumbers,
+                personas,
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface RenderCtx {
+  editingId: string | null;
+  setEditingId: (id: string | null) => void;
+  replay: (id: string, content: string) => Promise<unknown>;
+  retry: (m: Message) => Promise<unknown>;
+  conversation: ReturnType<typeof useConversationsStore.getState>["conversations"][number] | undefined;
+  effectiveLimitIndex: number | null;
+  userNumbers: Map<number, number>;
+  personas: readonly Persona[];
+}
+
+function renderItem(
+  item: ReturnType<typeof groupIntoColumns>[number] | { kind: "row"; message: Message },
+  ctx: RenderCtx,
+): JSX.Element {
+  const { editingId, setEditingId, replay, retry, conversation, effectiveLimitIndex, userNumbers, personas } =
+    ctx;
+  if (item.kind === "row") {
+    const m = item.message;
+    if (editingId === m.id && m.role === "user") {
+      return (
+        <EditReplayEditor
+          initial={m.content}
+          onCancel={() => setEditingId(null)}
+          onCommit={async (next) => {
+            setEditingId(null);
+            const trimmed = next.trim();
+            if (!trimmed || trimmed === m.content) return;
+            await replay(m.id, trimmed);
+          }}
+        />
+      );
+    }
+    const bubbleProps = {
+      message: m,
+      personas,
+      userNumber: userNumbers.get(m.index) ?? null,
+      excluded: conversation ? isExcludedByLimit(m, conversation, effectiveLimitIndex) : false,
+      onRetry: () => void retry(m),
+      ...(m.role === "user" ? { onEdit: () => setEditingId(m.id) } : {}),
+    };
+    return <MessageBubble {...bubbleProps} />;
+  }
+  // Columns block (#16). One column per audience persona, in the
+  // persona-panel sortOrder. Each column shows that persona's reply,
+  // or a placeholder if absent.
+  const sortedAudience = item.audience
+    .map((id) => personas.find((p) => p.id === id))
+    .filter((p): p is Persona => !!p)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((p) => p.id);
+  const cols = sortedAudience.length > 0 ? sortedAudience : item.audience;
+  return (
+    <div
+      className="mb-3 grid gap-2"
+      style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}
+    >
+      {cols.map((personaKey) => {
+        const m = item.messages.find((x) => x.personaId === personaKey);
+        if (!m) {
+          return (
+            <div
+              key={personaKey}
+              className="rounded border border-dashed border-neutral-300 px-3 py-2 text-xs italic text-neutral-500"
+            >
+              no reply
+            </div>
+          );
         }
-        // Columns block (#16). One column per audience persona, in
-        // the persona-panel sortOrder. Each column shows that
-        // persona's reply, or a placeholder if absent.
-        const sortedAudience = item.audience
-          .map((id) => personas.find((p) => p.id === id))
-          .filter((p): p is Persona => !!p)
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((p) => p.id);
-        const cols = sortedAudience.length > 0 ? sortedAudience : item.audience;
         return (
-          <div
-            key={item.messages[0]?.id ?? item.audience.join(":")}
-            className="mb-3 grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}
-          >
-            {cols.map((personaKey) => {
-              const m = item.messages.find((x) => x.personaId === personaKey);
-              if (!m) {
-                return (
-                  <div
-                    key={personaKey}
-                    className="rounded border border-dashed border-neutral-300 px-3 py-2 text-xs italic text-neutral-500"
-                  >
-                    no reply
-                  </div>
-                );
-              }
-              return (
-                <MessageBubble
-                  key={m.id}
-                  message={m}
-                  personas={personas}
-                  userNumber={null}
-                  excluded={conversation ? isExcludedByLimit(m, conversation) : false}
-                  onRetry={() => void retry(m)}
-                />
-              );
-            })}
-          </div>
+          <MessageBubble
+            key={m.id}
+            message={m}
+            personas={personas}
+            userNumber={null}
+            excluded={conversation ? isExcludedByLimit(m, conversation) : false}
+            onRetry={() => void retry(m)}
+          />
         );
       })}
     </div>
