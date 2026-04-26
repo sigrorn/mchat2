@@ -8,6 +8,7 @@
 // ------------------------------------------------------------------
 
 import type { BlockKind } from "./codeBlocks";
+import { sanitizeSvg } from "./sanitizeSvg";
 
 const svgCache = new Map<string, string>();
 
@@ -19,7 +20,12 @@ export async function renderDiagramBlock(kind: BlockKind, source: string): Promi
   if (cached) return cached;
 
   try {
-    const svg = kind === "mermaid" ? await renderMermaid(source) : await renderGraphviz(source);
+    const raw = kind === "mermaid" ? await renderMermaid(source) : await renderGraphviz(source);
+    // #143: diagram sources are LLM-controlled. Sanitize before the
+    // SVG ever reaches dangerouslySetInnerHTML in DiagramBlock so a
+    // crafted mermaid/graphviz input can't inject scripts or event
+    // handlers.
+    const svg = sanitizeSvg(raw);
     svgCache.set(cacheKey, svg);
     return svg;
   } catch (e) {
