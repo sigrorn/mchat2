@@ -13,6 +13,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { parseCommand } from "@/lib/commands/parseCommand";
 import { parseTargetModifiers } from "@/lib/commands/targetModifier";
 import { dispatchCommand } from "@/lib/commands/dispatch";
+import { makeCommandDeps } from "@/hooks/commandDeps";
 import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
 import { buildPlaceholder } from "@/lib/ui/composerPlaceholder";
@@ -66,7 +67,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       const cmd = parseCommand(t);
       if (cmd.kind !== "noop") {
         const result = await dispatchCommand(
-          { conversation, rawInput: t, send, retry },
+          { conversation, rawInput: t, send, retry, deps: makeCommandDeps() },
           cmd,
         );
         applyResult(t, result);

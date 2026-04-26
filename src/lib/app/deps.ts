@@ -9,7 +9,13 @@
 //                from these); src/lib/app/* (use cases consume them).
 // ------------------------------------------------------------------
 
-import type { ActiveStream, Conversation, Message, StreamStatus } from "@/lib/types";
+import type {
+  ActiveStream,
+  AutocompactThreshold,
+  Conversation,
+  Message,
+  StreamStatus,
+} from "@/lib/types";
 
 // -----------------------------------------------------------------
 // Reads — getters return current values without subscribing.
@@ -55,6 +61,9 @@ export interface MessagesWriteDeps {
     info: { errorMessage: string | null; errorTransient: boolean },
   ) => void;
   appendNotice: (conversationId: string, content: string) => Promise<Message>;
+  setPinned: (conversationId: string, messageId: string, pinned: boolean) => Promise<void>;
+  setEditing: (conversationId: string, messageId: string | null) => void;
+  setReplayQueue: (conversationId: string, queue: readonly string[]) => void;
 }
 
 export interface PersonasWriteDeps {
@@ -70,6 +79,21 @@ export interface ConversationsWriteDeps {
   setContextWarningsFired: (conversationId: string, fired: number[]) => Promise<void>;
   setCompactionFloor: (conversationId: string, floorIndex: number | null) => Promise<void>;
   setLimit: (conversationId: string, limitMarkIndex: number | null) => Promise<void>;
+  setLimitSize: (conversationId: string, limitSizeTokens: number | null) => Promise<void>;
+  setDisplayMode: (conversationId: string, mode: "lines" | "cols") => Promise<void>;
+  setVisibilityMatrix: (
+    conversationId: string,
+    matrix: Record<string, string[]>,
+  ) => Promise<void>;
+  setVisibilityPreset: (
+    conversationId: string,
+    mode: "separated" | "joined",
+    personaIds: readonly string[],
+  ) => Promise<void>;
+  setAutocompact: (
+    conversationId: string,
+    threshold: AutocompactThreshold | null,
+  ) => Promise<void>;
 }
 
 export interface SendStateDeps {
@@ -114,3 +138,26 @@ export type RetryMessageDeps = RunOneTargetDeps &
 // re-runs an already-titled conversation past the edited message —
 // so deps stay narrower than SendMessageDeps.
 export type ReplayMessageDeps = RunPlannedSendDeps & PersonasReadDeps & PersonasWriteDeps;
+
+// Surface needed by the //command handlers (#154). Spans every store
+// the command dispatcher reaches into. Each handler should access
+// only the slice it actually uses; this composed type captures the
+// union for the dispatcher's CommandContext.
+export type CommandDeps = MessagesReadDeps &
+  PersonasReadDeps &
+  Pick<
+    MessagesWriteDeps,
+    "appendNotice" | "reloadMessages" | "setPinned" | "setEditing" | "setReplayQueue"
+  > &
+  PersonasWriteDeps &
+  Pick<
+    ConversationsWriteDeps,
+    | "setLimit"
+    | "setLimitSize"
+    | "setCompactionFloor"
+    | "setDisplayMode"
+    | "setVisibilityMatrix"
+    | "setVisibilityPreset"
+    | "setAutocompact"
+  > &
+  Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus">;

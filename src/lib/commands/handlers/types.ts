@@ -10,7 +10,14 @@
 // ------------------------------------------------------------------
 
 import type { Conversation, Message } from "@/lib/types";
-import type { SendOptions } from "@/hooks/useSend";
+import type { CommandDeps } from "@/lib/app/deps";
+
+// SendOptions duplicated here to keep this file boundary-clean
+// (cannot import from @/hooks/* under #142). The shape mirrors
+// hooks/useSend.SendOptions.
+export interface SendOptions {
+  pinned?: boolean;
+}
 
 export interface SendFn {
   (text: string, opts?: SendOptions): Promise<
@@ -24,9 +31,8 @@ export interface RetryFn {
 }
 
 /**
- * Context passed to every command handler. All store interactions
- * happen through Zustand's .getState() inside the handlers, so only
- * per-invocation values live here.
+ * Context passed to every command handler. Store interactions go
+ * through `deps` (#154) — handlers must not import stores directly.
  */
 export interface CommandContext {
   conversation: Conversation;
@@ -34,6 +40,7 @@ export interface CommandContext {
   rawInput: string;
   send: SendFn;
   retry: RetryFn;
+  deps: CommandDeps;
 }
 
 /**

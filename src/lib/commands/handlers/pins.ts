@@ -4,8 +4,6 @@
 // Collaborators: lib/commands/dispatch.ts.
 // ------------------------------------------------------------------
 
-import { useMessagesStore } from "@/stores/messagesStore";
-import { usePersonasStore } from "@/stores/personasStore";
 import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { indexByUserNumber } from "@/lib/conversations/userMessageNumber";
 import type { CommandContext, CommandResult } from "./types";
@@ -18,24 +16,20 @@ export async function handlePin(
   // Reuse the resolver via useSend with pinned=true. Reject @others
   // up-front since it's contextual and pins need a stable audience.
   if (/^\s*@others\b/i.test(payload.rest)) {
-    await useMessagesStore
-      .getState()
-      .appendNotice(
-        conversation.id,
-        "pin: @others is not allowed — pins need an explicit, stable audience. Use @name or @all.",
-      );
+    await ctx.deps.appendNotice(
+      conversation.id,
+      "pin: @others is not allowed — pins need an explicit, stable audience. Use @name or @all.",
+    );
     return { restoreText: rawInput };
   }
   const r = await send(payload.rest, { pinned: true });
   if (!r.ok) {
-    await useMessagesStore
-      .getState()
-      .appendNotice(
-        conversation.id,
-        r.reason === "no targets"
-          ? "pin: specify the target persona(s) before the message body. e.g. //pin @claudio do this."
-          : `pin: could not send (${r.reason}).`,
-      );
+    await ctx.deps.appendNotice(
+      conversation.id,
+      r.reason === "no targets"
+        ? "pin: specify the target persona(s) before the message body. e.g. //pin @claudio do this."
+        : `pin: could not send (${r.reason}).`,
+    );
     return { restoreText: rawInput };
   }
 }
@@ -45,16 +39,17 @@ export async function handlePins(
   payload: { persona: string | null },
 ): Promise<CommandResult | void> {
   const { conversation, rawInput } = ctx;
-  const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
-  const personas = usePersonasStore.getState().byConversation[conversation.id] ?? [];
-  const body = formatPinsNotice(history, personas, payload.persona);
+  const history = ctx.deps.getMessages(conversation.id);
+  const personas = ctx.deps.getPersonas(conversation.id);
+  const body = formatPinsNotice([...history], [...personas], payload.persona);
   if (body === null) {
-    await useMessagesStore
-      .getState()
-      .appendNotice(conversation.id, `pins: persona '${payload.persona ?? ""}' not found.`);
+    await ctx.deps.appendNotice(
+      conversation.id,
+      `pins: persona '${payload.persona ?? ""}' not found.`,
+    );
     return { restoreText: rawInput };
   }
-  await useMessagesStore.getState().appendNotice(conversation.id, body);
+  await ctx.deps.appendNotice(conversation.id, body);
 }
 
 export async function handleUnpin(
@@ -62,42 +57,40 @@ export async function handleUnpin(
   payload: { userNumber: number },
 ): Promise<CommandResult | void> {
   const { conversation, rawInput } = ctx;
-  const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
-  const idx = indexByUserNumber(history, payload.userNumber);
+  const history = ctx.deps.getMessages(conversation.id);
+  const idx = indexByUserNumber([...history], payload.userNumber);
   if (idx === null) {
-    await useMessagesStore
-      .getState()
-      .appendNotice(conversation.id, `unpin: message ${payload.userNumber} does not exist.`);
+    await ctx.deps.appendNotice(
+      conversation.id,
+      `unpin: message ${payload.userNumber} does not exist.`,
+    );
     return { restoreText: rawInput };
   }
   const target = history.find((m) => m.index === idx);
   if (!target?.pinned) {
-    await useMessagesStore
-      .getState()
-      .appendNotice(conversation.id, `unpin: message ${payload.userNumber} is not pinned.`);
+    await ctx.deps.appendNotice(
+      conversation.id,
+      `unpin: message ${payload.userNumber} is not pinned.`,
+    );
     return { restoreText: rawInput };
   }
-  await useMessagesStore.getState().setPinned(conversation.id, target.id, false);
-  await useMessagesStore
-    .getState()
-    .appendNotice(conversation.id, `unpinned message ${payload.userNumber}.`);
+  await ctx.deps.setPinned(conversation.id, target.id, false);
+  await ctx.deps.appendNotice(conversation.id, `unpinned message ${payload.userNumber}.`);
 }
 
 export async function handleUnpinAll(ctx: CommandContext): Promise<CommandResult | void> {
   const { conversation } = ctx;
-  const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+  const history = ctx.deps.getMessages(conversation.id);
   const pinned = history.filter((m) => m.pinned);
   if (pinned.length === 0) {
-    await useMessagesStore.getState().appendNotice(conversation.id, "unpin: no pins to remove.");
+    await ctx.deps.appendNotice(conversation.id, "unpin: no pins to remove.");
     return;
   }
   for (const m of pinned) {
-    await useMessagesStore.getState().setPinned(conversation.id, m.id, false);
+    await ctx.deps.setPinned(conversation.id, m.id, false);
   }
-  await useMessagesStore
-    .getState()
-    .appendNotice(
-      conversation.id,
-      `unpinned ${pinned.length} message${pinned.length === 1 ? "" : "s"}.`,
-    );
+  await ctx.deps.appendNotice(
+    conversation.id,
+    `unpinned ${pinned.length} message${pinned.length === 1 ? "" : "s"}.`,
+  );
 }

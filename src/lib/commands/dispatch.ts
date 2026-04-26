@@ -9,19 +9,8 @@
 // ------------------------------------------------------------------
 
 import type { ParsedCommand } from "./parseCommand";
-import { useMessagesStore } from "@/stores/messagesStore";
-import {
-  handleLimit,
-  handleRetry,
-  handlePop,
-  handleEdit,
-} from "./handlers/history";
-import {
-  handlePin,
-  handlePins,
-  handleUnpin,
-  handleUnpinAll,
-} from "./handlers/pins";
+import { handleLimit, handleRetry, handlePop, handleEdit } from "./handlers/history";
+import { handlePin, handlePins, handleUnpin, handleUnpinAll } from "./handlers/pins";
 import { handleSelect, handleSelectAll } from "./handlers/selection";
 import {
   handleVisibilityStatus,
@@ -51,7 +40,7 @@ export async function dispatchCommand(
     case "noop":
       return;
     case "error":
-      await useMessagesStore.getState().appendNotice(ctx.conversation.id, cmd.message);
+      await ctx.deps.appendNotice(ctx.conversation.id, cmd.message);
       return { restoreText: ctx.rawInput };
     case "limit":
       return handleLimit(ctx, cmd.payload);
