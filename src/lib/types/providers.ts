@@ -14,4 +14,10 @@ export type ProviderId =
   | "perplexity"
   | "mistral"
   | "apertus"
+  // #140 → #169: meta-provider for OpenAI-compatible endpoints.
+  // Resolves to a concrete preset (OpenRouter / OVHcloud / IONOS /
+  // Infomaniak / custom) per persona via openaiCompatPresets +
+  // openaiCompatStorage; the adapter reads url + headers from
+  // extraConfig at call time.
+  | "openai_compat"
   | "mock";

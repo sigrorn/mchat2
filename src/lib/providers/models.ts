@@ -66,6 +66,11 @@ export function isChatModel(provider: ProviderId, id: string): boolean {
       return !EMBED_KEYWORDS.some((k) => lc.includes(k));
     case "perplexity":
       return true;
+    case "openai_compat":
+      // Preset-routed; the user types a free-form model id, so chat-
+      // gating is best-effort: keep everything that isn't an obvious
+      // embedding/TTS model.
+      return !EMBED_KEYWORDS.some((k) => lc.includes(k));
     case "mock":
       return true;
   }
@@ -140,6 +145,12 @@ async function fetchProviderModelInfos(
       return anthropicList(apiKey);
     case "gemini":
       return geminiList(apiKey);
+    case "openai_compat":
+      // Listing requires the resolved base URL, which only the
+      // resolver knows. Phase A keeps the model field as a free
+      // string; phase C may hook this up by accepting an extra hint
+      // through the `extra` arg.
+      return [];
     case "mock":
       return [];
   }

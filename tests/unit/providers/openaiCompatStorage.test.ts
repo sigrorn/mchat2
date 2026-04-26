@@ -19,11 +19,6 @@ import {
   removeApiKeyForPreset,
 } from "@/lib/providers/openaiCompatStorage";
 
-interface SqlRow {
-  key: string;
-  value: string;
-}
-
 let store: Map<string, string>;
 let keychainStore: Map<string, string>;
 

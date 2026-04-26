@@ -122,6 +122,22 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     maxContextTokens: Infinity,
     hostingCountry: null,
   },
+  // #140 → #169: meta-provider entry. Real per-persona display
+  // (color, hosting country, default model, max-context) comes from
+  // the resolved preset, not from these placeholder values. The
+  // entry exists so adapterFor("openai_compat") and provider-keyed
+  // lookups don't throw before phase C wires preset-aware rendering.
+  openai_compat: {
+    id: "openai_compat",
+    displayName: "OpenAI-compatible",
+    prefix: "openai_compat",
+    defaultModel: "",
+    color: "#475569",
+    keychainKey: "openai_compat.apiKey",
+    requiresKey: false,
+    maxContextTokens: Infinity,
+    hostingCountry: null,
+  },
 };
 
 export const ALL_PROVIDER_IDS: readonly ProviderId[] = Object.freeze(

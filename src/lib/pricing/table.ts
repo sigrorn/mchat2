@@ -48,4 +48,8 @@ export const PRICING: PricingTable = {
   mock: {
     "mock-1": { inputUsdPerMTok: 0, outputUsdPerMTok: 0 },
   },
+  // #169: openai_compat is preset-routed; concrete pricing varies per
+  // host and per model. The empty table forces the fallback "unknown
+  // model" estimate until a future commit fills in per-preset rates.
+  openai_compat: {},
 };

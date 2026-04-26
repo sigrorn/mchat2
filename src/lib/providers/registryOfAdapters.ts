@@ -13,6 +13,7 @@ import { anthropicAdapter } from "./anthropic";
 import { openaiAdapter, perplexityAdapter, mistralAdapter } from "./openaiCompat";
 import { apertusAdapter } from "./apertus";
 import { geminiAdapter } from "./gemini";
+import { openaiCompatTemplatedAdapter } from "./openaiCompatTemplated";
 
 export const ADAPTERS: Record<ProviderId, ProviderAdapter> = {
   claude: anthropicAdapter,
@@ -21,6 +22,7 @@ export const ADAPTERS: Record<ProviderId, ProviderAdapter> = {
   perplexity: perplexityAdapter,
   mistral: mistralAdapter,
   apertus: apertusAdapter,
+  openai_compat: openaiCompatTemplatedAdapter,
   mock: mockAdapter,
 };
 

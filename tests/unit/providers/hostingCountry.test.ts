@@ -23,9 +23,11 @@ describe("formatHostingTag", () => {
 });
 
 describe("PROVIDER_REGISTRY hostingCountry assignments", () => {
-  it("every selectable provider has a hostingCountry set (mock may be null)", () => {
+  it("every selectable provider has a hostingCountry set (mock + openai_compat may be null)", () => {
+    // openai_compat is a meta-provider — its hosting country comes
+    // from the resolved preset (#140 → #169), not from the registry.
     for (const [id, meta] of Object.entries(PROVIDER_REGISTRY)) {
-      if (id === "mock") continue;
+      if (id === "mock" || id === "openai_compat") continue;
       expect(meta.hostingCountry, `${id} missing hostingCountry`).toBeTruthy();
       expect(meta.hostingCountry).toMatch(/^[A-Z]{2}$/);
     }
