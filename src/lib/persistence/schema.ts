@@ -145,6 +145,16 @@ export interface PersonaRunsAfterTable {
   parent_id: string;
 }
 
+// #196: relational form of conversations.context_warnings_fired.
+// Adds a fired_at timestamp the JSON form lacked. Reads now come
+// from this table; the legacy JSON column stays populated as a
+// dual-write safety net.
+export interface ConversationContextWarningsTable {
+  conversation_id: string;
+  threshold: number;
+  fired_at: number;
+}
+
 export interface Database {
   conversations: ConversationsTable;
   personas: PersonasTable;
@@ -156,6 +166,7 @@ export interface Database {
   conversation_personas_selected: ConversationPersonasSelectedTable;
   persona_visibility: PersonaVisibilityTable;
   persona_runs_after: PersonaRunsAfterTable;
+  conversation_context_warnings: ConversationContextWarningsTable;
 }
 
 // Re-export for callers that need the Generated marker (auto-incremented

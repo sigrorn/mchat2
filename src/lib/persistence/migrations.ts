@@ -290,6 +290,24 @@ export const MIGRATIONS: string[][] = [
          JOIN personas parent ON parent.id = j.value
                               AND parent.conversation_id = child.conversation_id`,
   ],
+  // 18 — Normalize context_warnings_fired → table (#192 → #196).
+  // Adds a fired_at timestamp the JSON form lacked. Legacy column
+  // stays populated as a dual-write rollback safety net; reads
+  // switch to this table.
+  [
+    `CREATE TABLE conversation_context_warnings (
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      threshold       INTEGER NOT NULL,
+      fired_at        INTEGER NOT NULL,
+      PRIMARY KEY (conversation_id, threshold)
+    )`,
+    // Backfill: each threshold in the JSON array becomes one row;
+    // fired_at is best-approximated as the conversation's created_at
+    // (the JSON form didn't carry per-threshold timestamps).
+    `INSERT INTO conversation_context_warnings (conversation_id, threshold, fired_at)
+       SELECT c.id, CAST(j.value AS INTEGER), c.created_at
+         FROM conversations c, json_each(c.context_warnings_fired) j`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

@@ -14,13 +14,17 @@ import { newConversationId } from "./ids";
 import {
   parseVisibilityMatrix,
   parseAutocompactThreshold,
-  parseContextWarningsFired,
 } from "../schemas/conversationJsonColumns";
 
-// #193: selectedPersonas now comes from the conversation_personas_selected
-// junction, not the legacy JSON column. The column stays populated as a
-// dual-write so any rollback can still read it.
-function rowToConversation(r: ConversationsTable, selectedPersonas: string[]): Conversation {
+// #193: selectedPersonas comes from the conversation_personas_selected
+// junction. #196: contextWarningsFired comes from
+// conversation_context_warnings. Both legacy JSON columns stay
+// populated as dual-write rollback safety nets.
+function rowToConversation(
+  r: ConversationsTable,
+  selectedPersonas: string[],
+  contextWarningsFired: number[],
+): Conversation {
   return {
     id: r.id,
     title: r.title,
@@ -35,7 +39,7 @@ function rowToConversation(r: ConversationsTable, selectedPersonas: string[]): C
     selectedPersonas,
     compactionFloorIndex: r.compaction_floor_index,
     autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold),
-    contextWarningsFired: parseContextWarningsFired(r.context_warnings_fired),
+    contextWarningsFired,
   };
 }
 
@@ -69,6 +73,45 @@ async function writeSelectedPersonas(
     .execute();
 }
 
+// #196: load context warning thresholds for a batch of conversations.
+async function loadContextWarningsMap(
+  conversationIds: readonly string[],
+): Promise<Map<string, number[]>> {
+  const out = new Map<string, number[]>();
+  for (const id of conversationIds) out.set(id, []);
+  if (conversationIds.length === 0) return out;
+  const rows = await db
+    .selectFrom("conversation_context_warnings")
+    .select(["conversation_id", "threshold"])
+    .where("conversation_id", "in", conversationIds)
+    .orderBy("threshold")
+    .execute();
+  for (const r of rows) out.get(r.conversation_id)?.push(r.threshold);
+  return out;
+}
+
+async function writeContextWarnings(
+  conversationId: string,
+  thresholds: readonly number[],
+  now: number,
+): Promise<void> {
+  await db
+    .deleteFrom("conversation_context_warnings")
+    .where("conversation_id", "=", conversationId)
+    .execute();
+  if (thresholds.length === 0) return;
+  await db
+    .insertInto("conversation_context_warnings")
+    .values(
+      thresholds.map((t) => ({
+        conversation_id: conversationId,
+        threshold: t,
+        fired_at: now,
+      })),
+    )
+    .execute();
+}
+
 function conversationToRow(conv: Conversation): ConversationsTable {
   return {
     id: conv.id,
@@ -96,8 +139,14 @@ export async function listConversations(): Promise<Conversation[]> {
     .selectAll()
     .orderBy("created_at", "desc")
     .execute();
-  const selectedMap = await loadSelectedPersonasMap(rows.map((r) => r.id));
-  return rows.map((r) => rowToConversation(r, selectedMap.get(r.id) ?? []));
+  const ids = rows.map((r) => r.id);
+  const [selectedMap, warningsMap] = await Promise.all([
+    loadSelectedPersonasMap(ids),
+    loadContextWarningsMap(ids),
+  ]);
+  return rows.map((r) =>
+    rowToConversation(r, selectedMap.get(r.id) ?? [], warningsMap.get(r.id) ?? []),
+  );
 }
 
 export async function getConversation(id: string): Promise<Conversation | null> {
@@ -107,8 +156,11 @@ export async function getConversation(id: string): Promise<Conversation | null> 
     .where("id", "=", id)
     .executeTakeFirst();
   if (!row) return null;
-  const map = await loadSelectedPersonasMap([id]);
-  return rowToConversation(row, map.get(id) ?? []);
+  const [selectedMap, warningsMap] = await Promise.all([
+    loadSelectedPersonasMap([id]),
+    loadContextWarningsMap([id]),
+  ]);
+  return rowToConversation(row, selectedMap.get(id) ?? [], warningsMap.get(id) ?? []);
 }
 
 export async function createConversation(
@@ -121,6 +173,11 @@ export async function createConversation(
   };
   await db.insertInto("conversations").values(conversationToRow(conv)).execute();
   await writeSelectedPersonas(conv.id, conv.selectedPersonas);
+  await writeContextWarnings(
+    conv.id,
+    conv.contextWarningsFired ?? [],
+    conv.createdAt,
+  );
   return conv;
 }
 
@@ -150,6 +207,16 @@ export async function updateConversation(conv: Conversation): Promise<void> {
     .where("id", "=", conv.id)
     .execute();
   await writeSelectedPersonas(conv.id, conv.selectedPersonas);
+  // #196: rewrite warning rows. fired_at uses the current time; the
+  // legacy JSON form had no per-threshold timestamp anyway, and
+  // setContextWarningsFired in conversationsStore is the only writer
+  // — it's called when a new threshold trips, so "now" matches the
+  // actual firing moment.
+  await writeContextWarnings(
+    conv.id,
+    conv.contextWarningsFired ?? [],
+    Date.now(),
+  );
 }
 
 export async function deleteConversation(id: string): Promise<void> {
