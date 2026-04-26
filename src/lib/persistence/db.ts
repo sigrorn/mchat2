@@ -29,20 +29,23 @@ class MchatKyselyConnection implements DatabaseConnection {
   async executeQuery<R>(query: CompiledQuery): Promise<QueryResult<R>> {
     const isSelect =
       /^\s*(?:WITH\b[\s\S]*?)?SELECT\b/i.test(query.sql) || /\bRETURNING\b/i.test(query.sql);
-    const params = [...query.parameters] as readonly unknown[];
+    // SqlImpl.execute / .select type their second arg as `unknown[]`;
+    // Kysely's compiled parameters are `readonly`, so a defensive
+    // copy is the cleanest cross.
+    const params = [...query.parameters];
     if (isSelect) {
       const rows = await ourSql.select<R>(query.sql, params);
       return { rows };
     }
     const result = await ourSql.execute(query.sql, params);
-    return {
+    const baseResult: QueryResult<R> = {
       rows: [],
       numAffectedRows: BigInt(result.rowsAffected),
-      insertId:
-        result.lastInsertId === null || result.lastInsertId === undefined
-          ? undefined
-          : BigInt(result.lastInsertId),
     };
+    if (result.lastInsertId !== null && result.lastInsertId !== undefined) {
+      return { ...baseResult, insertId: BigInt(result.lastInsertId) };
+    }
+    return baseResult;
   }
   // Streaming isn't used by any current query path. Throw rather
   // than silently returning the buffered rows so a future caller

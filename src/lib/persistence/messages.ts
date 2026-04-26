@@ -1,40 +1,23 @@
 // ------------------------------------------------------------------
-// Component: Messages repository
+// Component: Messages repository (Kysely-backed)
 // Responsibility: CRUD over Message rows. Owns monotonic index
 //                 allocation — callers never set index themselves.
 // Collaborators: orchestration/streamRunner.ts, context/builder.ts.
+// History:       Migrated from raw sql.execute / sql.select to
+//                Kysely in #190. Public exports keep their
+//                signatures; the hand-written `Row` interface is
+//                gone — column types come from
+//                lib/persistence/schema.ts.
 // ------------------------------------------------------------------
 
-import { sql } from "../tauri/sql";
+import { sql as ourSql } from "../tauri/sql";
+import { db } from "./db";
+import type { MessagesTable } from "./schema";
 import type { Message, ProviderId, DisplayMode, Role } from "../types";
 import { newMessageId } from "./ids";
 import { parseAddressedTo, parseAudience } from "../schemas/messageJsonColumns";
 
-interface Row {
-  id: string;
-  conversation_id: string;
-  role: string;
-  content: string;
-  provider: string | null;
-  model: string | null;
-  persona_id: string | null;
-  display_mode: string;
-  pinned: number;
-  pin_target: string | null;
-  addressed_to: string;
-  created_at: number;
-  idx: number;
-  error_message: string | null;
-  error_transient: number;
-  input_tokens?: number;
-  output_tokens?: number;
-  usage_estimated?: number;
-  audience?: string;
-  ttft_ms?: number | null;
-  stream_ms?: number | null;
-}
-
-function rowToMessage(r: Row): Message {
+function rowToMessage(r: MessagesTable): Message {
   return {
     id: r.id,
     conversationId: r.conversation_id,
@@ -43,7 +26,7 @@ function rowToMessage(r: Row): Message {
     provider: (r.provider as ProviderId | null) ?? null,
     model: r.model,
     personaId: r.persona_id,
-    displayMode: r.display_mode === "cols" ? "cols" : "lines",
+    displayMode: (r.display_mode === "cols" ? "cols" : "lines") as DisplayMode,
     pinned: r.pinned !== 0,
     pinTarget: r.pin_target,
     addressedTo: parseAddressedTo(r.addressed_to),
@@ -51,34 +34,63 @@ function rowToMessage(r: Row): Message {
     index: r.idx,
     errorMessage: r.error_message,
     errorTransient: r.error_transient !== 0,
-    inputTokens: r.input_tokens ?? 0,
-    outputTokens: r.output_tokens ?? 0,
-    usageEstimated: (r.usage_estimated ?? 0) !== 0,
-    audience: parseAudience(r.audience ?? "[]"),
-    ttftMs: r.ttft_ms ?? null,
-    streamMs: r.stream_ms ?? null,
+    inputTokens: r.input_tokens,
+    outputTokens: r.output_tokens,
+    usageEstimated: r.usage_estimated !== 0,
+    audience: parseAudience(r.audience),
+    ttftMs: r.ttft_ms,
+    streamMs: r.stream_ms,
+  };
+}
+
+function messageToRow(msg: Message): MessagesTable {
+  return {
+    id: msg.id,
+    conversation_id: msg.conversationId,
+    role: msg.role,
+    content: msg.content,
+    provider: msg.provider,
+    model: msg.model,
+    persona_id: msg.personaId,
+    display_mode: msg.displayMode,
+    pinned: msg.pinned ? 1 : 0,
+    pin_target: msg.pinTarget,
+    addressed_to: JSON.stringify(msg.addressedTo),
+    created_at: msg.createdAt,
+    idx: msg.index,
+    error_message: msg.errorMessage,
+    error_transient: msg.errorTransient ? 1 : 0,
+    input_tokens: msg.inputTokens,
+    output_tokens: msg.outputTokens,
+    usage_estimated: msg.usageEstimated ? 1 : 0,
+    audience: JSON.stringify(msg.audience),
+    ttft_ms: msg.ttftMs ?? null,
+    stream_ms: msg.streamMs ?? null,
   };
 }
 
 export async function listMessages(conversationId: string): Promise<Message[]> {
-  const rows = await sql.select<Row>(
-    "SELECT * FROM messages WHERE conversation_id = ? ORDER BY idx",
-    [conversationId],
-  );
+  const rows = await db
+    .selectFrom("messages")
+    .selectAll()
+    .where("conversation_id", "=", conversationId)
+    .orderBy("idx")
+    .execute();
   return rows.map(rowToMessage);
 }
 
 export async function getMessage(id: string): Promise<Message | null> {
-  const rows = await sql.select<Row>("SELECT * FROM messages WHERE id = ?", [id]);
-  return rows[0] ? rowToMessage(rows[0]) : null;
+  const row = await db.selectFrom("messages").selectAll().where("id", "=", id).executeTakeFirst();
+  return row ? rowToMessage(row) : null;
 }
 
 async function nextIndex(conversationId: string): Promise<number> {
-  const rows = await sql.select<{ next: number | null }>(
-    "SELECT COALESCE(MAX(idx) + 1, 0) AS next FROM messages WHERE conversation_id = ?",
-    [conversationId],
-  );
-  return rows[0]?.next ?? 0;
+  const row = await db
+    .selectFrom("messages")
+    .select((eb) => eb.fn.coalesce(eb.fn.max("idx"), eb.lit(-1)).as("last"))
+    .where("conversation_id", "=", conversationId)
+    .executeTakeFirst();
+  return (row?.last ?? -1) + 1;
 }
 
 // Per-conversation serialization of appendMessage. Without this, parallel
@@ -116,66 +128,38 @@ async function doAppend(
     index: idx,
     createdAt: partial.createdAt ?? Date.now(),
   };
-  await sql.execute(
-    `INSERT INTO messages
-       (id, conversation_id, role, content, provider, model, persona_id,
-        display_mode, pinned, pin_target, addressed_to, created_at, idx,
-        error_message, error_transient, input_tokens, output_tokens,
-        usage_estimated, audience, ttft_ms, stream_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      msg.id,
-      msg.conversationId,
-      msg.role,
-      msg.content,
-      msg.provider,
-      msg.model,
-      msg.personaId,
-      msg.displayMode,
-      msg.pinned ? 1 : 0,
-      msg.pinTarget,
-      JSON.stringify(msg.addressedTo),
-      msg.createdAt,
-      msg.index,
-      msg.errorMessage,
-      msg.errorTransient ? 1 : 0,
-      msg.inputTokens,
-      msg.outputTokens,
-      msg.usageEstimated ? 1 : 0,
-      JSON.stringify(msg.audience),
-      msg.ttftMs ?? null,
-      msg.streamMs ?? null,
-    ],
-  );
+  await db.insertInto("messages").values(messageToRow(msg)).execute();
   return msg;
 }
 
-// Used by streamRunner to flush accumulated text and final error state.
 export async function updateMessageContent(
   id: string,
   content: string,
   errorMessage: string | null,
   errorTransient: boolean,
 ): Promise<void> {
-  await sql.execute(
-    "UPDATE messages SET content = ?, error_message = ?, error_transient = ? WHERE id = ?",
-    [content, errorMessage, errorTransient ? 1 : 0, id],
-  );
+  await db
+    .updateTable("messages")
+    .set({ content, error_message: errorMessage, error_transient: errorTransient ? 1 : 0 })
+    .where("id", "=", id)
+    .execute();
 }
 
-// Separate UPDATE so the big content flush and the small token-counts
-// write can migrate independently (and so the streamRunner test can
-// assert on the token-writing statement without grepping the same SQL).
 export async function updateMessageUsage(
   id: string,
   inputTokens: number,
   outputTokens: number,
   usageEstimated: boolean,
 ): Promise<void> {
-  await sql.execute(
-    "UPDATE messages SET input_tokens = ?, output_tokens = ?, usage_estimated = ? WHERE id = ?",
-    [inputTokens, outputTokens, usageEstimated ? 1 : 0, id],
-  );
+  await db
+    .updateTable("messages")
+    .set({
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      usage_estimated: usageEstimated ? 1 : 0,
+    })
+    .where("id", "=", id)
+    .execute();
 }
 
 // #122 — record streaming timings on successful stream completion.
@@ -186,10 +170,11 @@ export async function updateMessageTiming(
   ttftMs: number,
   streamMs: number,
 ): Promise<void> {
-  await sql.execute(
-    "UPDATE messages SET ttft_ms = ?, stream_ms = ? WHERE id = ?",
-    [ttftMs, streamMs, id],
-  );
+  await db
+    .updateTable("messages")
+    .set({ ttft_ms: ttftMs, stream_ms: streamMs })
+    .where("id", "=", id)
+    .execute();
 }
 
 // Apply a partial mutation to a message row. Used by the persona-
@@ -202,27 +187,14 @@ export async function applyMessageMutation(mutation: {
   addressedTo?: string[];
   content?: string;
 }): Promise<void> {
-  const sets: string[] = [];
-  const values: unknown[] = [];
-  if (mutation.pinned !== undefined) {
-    sets.push("pinned = ?");
-    values.push(mutation.pinned ? 1 : 0);
-  }
-  if (mutation.pinTarget !== undefined) {
-    sets.push("pin_target = ?");
-    values.push(mutation.pinTarget);
-  }
-  if (mutation.addressedTo !== undefined) {
-    sets.push("addressed_to = ?");
-    values.push(JSON.stringify(mutation.addressedTo));
-  }
-  if (mutation.content !== undefined) {
-    sets.push("content = ?");
-    values.push(mutation.content);
-  }
-  if (sets.length === 0) return;
-  values.push(mutation.id);
-  await sql.execute(`UPDATE messages SET ${sets.join(", ")} WHERE id = ?`, values);
+  const updates: Partial<MessagesTable> = {};
+  if (mutation.pinned !== undefined) updates.pinned = mutation.pinned ? 1 : 0;
+  if (mutation.pinTarget !== undefined) updates.pin_target = mutation.pinTarget;
+  if (mutation.addressedTo !== undefined)
+    updates.addressed_to = JSON.stringify(mutation.addressedTo);
+  if (mutation.content !== undefined) updates.content = mutation.content;
+  if (Object.keys(updates).length === 0) return;
+  await db.updateTable("messages").set(updates).where("id", "=", mutation.id).execute();
 }
 
 // Insert a message at an explicit `idx`. Caller must ensure the slot
@@ -240,37 +212,7 @@ export async function insertMessageAtIndex(
     id: partial.id ?? newMessageId(),
     createdAt: partial.createdAt ?? Date.now(),
   };
-  await sql.execute(
-    `INSERT INTO messages
-       (id, conversation_id, role, content, provider, model, persona_id,
-        display_mode, pinned, pin_target, addressed_to, created_at, idx,
-        error_message, error_transient, input_tokens, output_tokens,
-        usage_estimated, audience, ttft_ms, stream_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      msg.id,
-      msg.conversationId,
-      msg.role,
-      msg.content,
-      msg.provider,
-      msg.model,
-      msg.personaId,
-      msg.displayMode,
-      msg.pinned ? 1 : 0,
-      msg.pinTarget,
-      JSON.stringify(msg.addressedTo),
-      msg.createdAt,
-      msg.index,
-      msg.errorMessage,
-      msg.errorTransient ? 1 : 0,
-      msg.inputTokens,
-      msg.outputTokens,
-      msg.usageEstimated ? 1 : 0,
-      JSON.stringify(msg.audience),
-      msg.ttftMs ?? null,
-      msg.streamMs ?? null,
-    ],
-  );
+  await db.insertInto("messages").values(messageToRow(msg)).execute();
   return msg;
 }
 
@@ -281,13 +223,17 @@ export async function insertMessageAtIndex(
 // Safety: SQLite validates the UNIQUE (conversation_id, idx) index
 // after the whole UPDATE completes, not per-row, so `idx = idx + delta`
 // is safe even though intermediate rows would collide mid-update.
+//
+// Implementation note: SET idx = idx + delta needs a column self-
+// reference. Falls back to ourSql.execute for this one case to avoid
+// a tag-template dance for a single-line UPDATE.
 export async function shiftMessageIndicesFrom(
   conversationId: string,
   fromIdx: number,
   delta: number,
 ): Promise<void> {
   if (delta === 0) return;
-  await sql.execute(
+  await ourSql.execute(
     "UPDATE messages SET idx = idx + ? WHERE conversation_id = ? AND idx >= ?",
     [delta, conversationId, fromIdx],
   );
@@ -297,10 +243,11 @@ export async function shiftMessageIndicesFrom(
 // drop every row after the edited user message so the regenerated
 // replies take their place.
 export async function deleteMessagesAfter(conversationId: string, index: number): Promise<void> {
-  await sql.execute("DELETE FROM messages WHERE conversation_id = ? AND idx > ?", [
-    conversationId,
-    index,
-  ]);
+  await db
+    .deleteFrom("messages")
+    .where("conversation_id", "=", conversationId)
+    .where("idx", ">", index)
+    .execute();
 }
 
 export async function setMessagePin(
@@ -308,15 +255,15 @@ export async function setMessagePin(
   pinned: boolean,
   pinTarget: string | null,
 ): Promise<void> {
-  await sql.execute("UPDATE messages SET pinned = ?, pin_target = ? WHERE id = ?", [
-    pinned ? 1 : 0,
-    pinTarget,
-    id,
-  ]);
+  await db
+    .updateTable("messages")
+    .set({ pinned: pinned ? 1 : 0, pin_target: pinTarget })
+    .where("id", "=", id)
+    .execute();
 }
 
 export async function deleteMessage(id: string): Promise<void> {
-  await sql.execute("DELETE FROM messages WHERE id = ?", [id]);
+  await db.deleteFrom("messages").where("id", "=", id).execute();
 }
 
 // Helper for test fixtures — build a Message without hitting the DB.
@@ -341,6 +288,8 @@ export function makeMessage(overrides: Partial<Message> & { conversationId: stri
     outputTokens: 0,
     usageEstimated: false,
     audience: [],
+    ttftMs: null,
+    streamMs: null,
   };
   return { ...base, ...overrides };
 }
