@@ -168,32 +168,7 @@ export async function decompressSnapshot(data: Uint8Array): Promise<string> {
   return result;
 }
 
-export type ParseSnapshotResult =
-  | { ok: true; snapshot: SnapshotEnvelope }
-  | { ok: false; error: string };
-
-export function parseSnapshot(json: string): ParseSnapshotResult {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return { ok: false, error: "invalid JSON" };
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, error: "expected an object" };
-  }
-  const obj = parsed as Record<string, unknown>;
-  if (obj["version"] !== SNAPSHOT_VERSION) {
-    return { ok: false, error: `unsupported version: ${String(obj["version"])}` };
-  }
-  if (typeof obj["title"] !== "string") {
-    return { ok: false, error: "missing title" };
-  }
-  if (!Array.isArray(obj["personas"])) {
-    return { ok: false, error: "missing personas array" };
-  }
-  if (!Array.isArray(obj["messages"])) {
-    return { ok: false, error: "missing messages array" };
-  }
-  return { ok: true, snapshot: parsed as SnapshotEnvelope };
-}
+// #165 — parsing routed through the zod-backed schema in lib/schemas/snapshot.
+// The envelope shape is defined here; the parser lives next to the other
+// trust-boundary schemas.
+export { parseSnapshot, type ParseSnapshotResult } from "../schemas/snapshot";

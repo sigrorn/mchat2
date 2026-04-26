@@ -8,7 +8,6 @@
 // ------------------------------------------------------------------
 
 import type { Persona, ProviderId } from "../types";
-import { ALL_PROVIDER_IDS } from "../providers/registry";
 
 export const PERSONA_EXPORT_VERSION = 1;
 
@@ -51,45 +50,11 @@ export function serializePersonas(personas: readonly Persona[]): string {
   return JSON.stringify(out, null, 2);
 }
 
-export type ParseResult = { ok: true; personas: ExportedPersona[] } | { ok: false; error: string };
-
-export function parsePersonasImport(raw: string): ParseResult {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { ok: false, error: "file is not valid JSON" };
-  }
-  if (!isObj(parsed)) return { ok: false, error: "expected an object at the top level" };
-  if (parsed["version"] !== PERSONA_EXPORT_VERSION) {
-    return { ok: false, error: `unsupported version: ${String(parsed["version"])}` };
-  }
-  const list = parsed["personas"];
-  if (!Array.isArray(list)) return { ok: false, error: "personas must be an array" };
-  const out: ExportedPersona[] = [];
-  for (const entry of list) {
-    if (!isObj(entry)) return { ok: false, error: "persona entry is not an object" };
-    const name = entry["name"];
-    const provider = entry["provider"];
-    if (typeof name !== "string" || name.trim() === "") {
-      return { ok: false, error: "persona entry missing name" };
-    }
-    if (typeof provider !== "string" || !ALL_PROVIDER_IDS.includes(provider as ProviderId)) {
-      return { ok: false, error: `persona '${name}' has unknown provider` };
-    }
-    out.push({
-      name,
-      provider: provider as ProviderId,
-      systemPromptOverride: nullableString(entry["systemPromptOverride"]),
-      modelOverride: nullableString(entry["modelOverride"]),
-      colorOverride: nullableString(entry["colorOverride"]),
-      apertusProductId: nullableString(entry["apertusProductId"]),
-      visibilityDefaults: parseVisibilityDefaultsField(entry["visibilityDefaults"]),
-      runsAfter: parseRunsAfterField(entry["runsAfter"]),
-    });
-  }
-  return { ok: true, personas: out };
-}
+// #165 — parsing routed through the zod-backed schema in lib/schemas/.
+// Per-entry validation now soft-fails (drops bad personas, keeps the
+// rest); the previous parser hard-failed on the first bad entry. The
+// types stay assignment-compatible so callers don't change.
+export { parsePersonasImport, type ParseResult } from "../schemas/personasImport";
 
 // Translates parsed import entries into the createPersona-shaped values
 // the service needs, dropping name-collisions with existing active
@@ -164,25 +129,3 @@ export function resolveImport(
   };
 }
 
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function parseRunsAfterField(v: unknown): string[] {
-  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string" && x !== "");
-  if (typeof v === "string" && v !== "") return [v];
-  return [];
-}
-
-function parseVisibilityDefaultsField(v: unknown): Record<string, "y" | "n"> {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-  const out: Record<string, "y" | "n"> = {};
-  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-    if (val === "y" || val === "n") out[k] = val;
-  }
-  return out;
-}
-
-function nullableString(v: unknown): string | null {
-  return typeof v === "string" && v !== "" ? v : null;
-}

@@ -8,6 +8,7 @@
 import { sql } from "../tauri/sql";
 import type { Message, ProviderId, DisplayMode, Role } from "../types";
 import { newMessageId } from "./ids";
+import { parseAddressedTo, parseAudience } from "../schemas/messageJsonColumns";
 
 interface Row {
   id: string;
@@ -34,14 +35,6 @@ interface Row {
 }
 
 function rowToMessage(r: Row): Message {
-  let addressedTo: string[] = [];
-  try {
-    const parsed: unknown = JSON.parse(r.addressed_to);
-    if (Array.isArray(parsed))
-      addressedTo = parsed.filter((x): x is string => typeof x === "string");
-  } catch {
-    addressedTo = [];
-  }
   return {
     id: r.id,
     conversationId: r.conversation_id,
@@ -53,7 +46,7 @@ function rowToMessage(r: Row): Message {
     displayMode: r.display_mode === "cols" ? "cols" : "lines",
     pinned: r.pinned !== 0,
     pinTarget: r.pin_target,
-    addressedTo,
+    addressedTo: parseAddressedTo(r.addressed_to),
     createdAt: r.created_at,
     index: r.idx,
     errorMessage: r.error_message,
@@ -61,19 +54,10 @@ function rowToMessage(r: Row): Message {
     inputTokens: r.input_tokens ?? 0,
     outputTokens: r.output_tokens ?? 0,
     usageEstimated: (r.usage_estimated ?? 0) !== 0,
-    audience: parseStringArray(r.audience ?? "[]"),
+    audience: parseAudience(r.audience ?? "[]"),
     ttftMs: r.ttft_ms ?? null,
     streamMs: r.stream_ms ?? null,
   };
-}
-
-function parseStringArray(raw: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
 }
 
 export async function listMessages(conversationId: string): Promise<Message[]> {

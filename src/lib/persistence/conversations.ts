@@ -5,8 +5,14 @@
 // ------------------------------------------------------------------
 
 import { sql } from "../tauri/sql";
-import type { AutocompactThreshold, Conversation, ProviderId } from "../types";
+import type { Conversation, ProviderId } from "../types";
 import { newConversationId } from "./ids";
+import {
+  parseVisibilityMatrix,
+  parseAutocompactThreshold,
+  parseContextWarningsFired,
+  parseSelectedPersonas,
+} from "../schemas/conversationJsonColumns";
 
 interface Row {
   id: string;
@@ -35,12 +41,12 @@ function rowToConversation(r: Row): Conversation {
     limitMarkIndex: r.limit_mark_index,
     displayMode: r.display_mode === "cols" ? "cols" : "lines",
     visibilityMode: r.visibility_mode === "joined" ? "joined" : "separated",
-    visibilityMatrix: parseMatrix(r.visibility_matrix ?? "{}"),
+    visibilityMatrix: parseVisibilityMatrix(r.visibility_matrix ?? "{}"),
     limitSizeTokens: r.limit_size_tokens ?? null,
-    selectedPersonas: parseStringArray(r.selected_personas ?? "[]"),
+    selectedPersonas: parseSelectedPersonas(r.selected_personas ?? "[]"),
     compactionFloorIndex: r.compaction_floor_index ?? null,
     autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold ?? null),
-    contextWarningsFired: parseNumberArray(r.context_warnings_fired ?? "[]"),
+    contextWarningsFired: parseContextWarningsFired(r.context_warnings_fired ?? "[]"),
   };
 }
 
@@ -114,65 +120,6 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       conv.id,
     ],
   );
-}
-
-function parseStringArray(raw: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((x): x is string => typeof x === "string");
-  } catch {
-    return [];
-  }
-}
-
-function parseMatrix(raw: string): Record<string, string[]> {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
-    const out: Record<string, string[]> = {};
-    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (Array.isArray(v)) {
-        out[k] = v.filter((x): x is string => typeof x === "string");
-      }
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-function parseAutocompactThreshold(raw: string | null): AutocompactThreshold | null {
-  if (!raw) return null;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
-    const obj = parsed as Record<string, unknown>;
-    if (
-      (obj.mode === "kTokens" || obj.mode === "percent") &&
-      typeof obj.value === "number" &&
-      obj.value > 0
-    ) {
-      const result: AutocompactThreshold = { mode: obj.mode, value: obj.value };
-      if (typeof obj.preserve === "number" && obj.preserve > 0) {
-        result.preserve = obj.preserve;
-      }
-      return result;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function parseNumberArray(raw: string): number[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((x): x is number => typeof x === "number");
-  } catch {
-    return [];
-  }
 }
 
 export async function deleteConversation(id: string): Promise<void> {
