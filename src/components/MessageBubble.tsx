@@ -23,6 +23,7 @@ import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { formatUserHeader } from "@/lib/conversations/userHeader";
 import { DiagramBlock } from "./DiagramBlock";
 import { areBubblePropsEqual, type BubbleProps } from "./messageBubbleMemo";
+import { AttemptHistory } from "./AttemptHistory";
 
 // #63: render #N patterns in notice text as clickable scroll-links.
 function NoticeContent({ content }: { content: string }): JSX.Element {
@@ -208,6 +209,11 @@ function MessageBubbleImpl({
       ) : (
         renderBubbleBody(message, excluded)
       )}
+      {/* #181: history expansion under assistant rows that have
+          superseded sibling attempts on the same target_key. */}
+      {message.role === "assistant" ? (
+        <AttemptHistory conversationId={message.conversationId} messageId={message.id} />
+      ) : null}
     </div>
   );
 }

@@ -260,6 +260,40 @@ export async function listAttempts(runTargetId: string): Promise<Attempt[]> {
   return rows.map(mapAttempt);
 }
 
+// #181: superseded sibling attempts on the same target_key as the
+// given message's RunTarget. Per-target_key (not per-RunTarget) so
+// replay's new RunTarget can still surface the prior send's history
+// under the same persona. Returns [] when the message has no
+// att_<msgid> backing or no superseded siblings exist.
+export async function listAttemptHistoryForMessage(
+  conversationId: string,
+  messageId: string,
+): Promise<Attempt[]> {
+  const targetKeyRows = await sql.select<{ target_key: string }>(
+    `SELECT rt.target_key AS target_key
+       FROM attempts a
+       JOIN run_targets rt ON rt.id = a.run_target_id
+       JOIN runs r ON r.id = rt.run_id
+      WHERE a.id = ? AND r.conversation_id = ?`,
+    [`att_${messageId}`, conversationId],
+  );
+  const targetKey = targetKeyRows[0]?.target_key;
+  if (!targetKey) return [];
+  const rows = await sql.select<unknown>(
+    `SELECT a.*
+       FROM attempts a
+       JOIN run_targets rt ON rt.id = a.run_target_id
+       JOIN runs r ON r.id = rt.run_id
+      WHERE r.conversation_id = ?
+        AND rt.target_key = ?
+        AND a.superseded_at IS NOT NULL
+        AND a.id <> ?
+      ORDER BY a.sequence`,
+    [conversationId, targetKey, `att_${messageId}`],
+  );
+  return rows.map(mapAttempt);
+}
+
 // #180: returns the set of message ids whose Attempt has been
 // superseded. Relies on the v14 backfill convention (att_<msgid>)
 // and the recordSend/Retry/Replay convention (also att_-prefixed).
