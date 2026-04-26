@@ -179,7 +179,7 @@ export function MessageList({
       pinnedRef.current = false;
       el.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-  }, [activeMatchMessageId]);
+  }, [activeMatchMessageId, containerRef, pinnedRef]);
 
   const onCopy = (e: React.ClipboardEvent): void => {
     const sel = window.getSelection();
