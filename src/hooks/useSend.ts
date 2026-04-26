@@ -11,7 +11,6 @@ import { useCallback } from "react";
 import type { Conversation, Message, Persona } from "@/lib/types";
 import { resolveTargets } from "@/lib/personas/resolver";
 import { modelForTarget } from "@/lib/orchestration/streamRunner";
-import { buildRetryTarget } from "@/lib/orchestration/retryTarget";
 import { planReplay } from "@/lib/conversations/replay";
 import { generateTitle } from "@/lib/conversations/autoTitle";
 import * as messagesRepo from "@/lib/persistence/messages";
@@ -20,13 +19,12 @@ import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
-import { useSendStore } from "@/stores/sendStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { selectionAfterResolve } from "@/lib/app/sendSelection";
-import { runOneTarget } from "@/lib/app/runOneTarget";
 import { postResponseCheck } from "@/lib/app/postResponseCheck";
+import { retryMessage } from "@/lib/app/retryMessage";
 import { runPlannedSend } from "./runPlannedSend";
-import { makeRunOneTargetDeps } from "./runOneTargetDeps";
+import { makeRetryMessageDeps } from "./runOneTargetDeps";
 import { makePostResponseCheckDeps } from "./postResponseCheckDeps";
 
 export interface SendOptions {
@@ -112,23 +110,8 @@ export function useSend(conversation: Conversation) {
 
   const retry = useCallback(
     async (failed: Message) => {
-      const personas: Persona[] = usePersonasStore.getState().byConversation[conversation.id] ?? [];
-      const target = buildRetryTarget(failed, personas);
-      if (!target) return { ok: false as const, reason: "no retry target" };
-
-      const runId = useSendStore.getState().nextRunId(conversation.id);
-      useSendStore.getState().setTargetStatus(conversation.id, target.key, "queued");
-
-      await runOneTarget(makeRunOneTargetDeps(), {
-        conversation,
-        target,
-        personas,
-        runId,
-        bufferTokens: false,
-      });
-
-      await useMessagesStore.getState().load(conversation.id);
-      return { ok: true as const };
+      const result = await retryMessage(makeRetryMessageDeps(), { conversation, failed });
+      return result.ok ? { ok: true as const } : { ok: false as const, reason: result.reason };
     },
     [conversation],
   );

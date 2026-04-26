@@ -9,12 +9,15 @@
 //                stores/sendStore, stores/uiStore.
 // ------------------------------------------------------------------
 
-import type { RunOneTargetDeps } from "@/lib/app/deps";
+import type { RetryMessageDeps, RunOneTargetDeps } from "@/lib/app/deps";
+import type { Persona } from "@/lib/types";
 import { useMessagesStore } from "@/stores/messagesStore";
+import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
 import { useUiStore } from "@/stores/uiStore";
 
 const EMPTY: readonly never[] = Object.freeze([]) as readonly never[];
+const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]) as readonly Persona[];
 
 export function makeRunOneTargetDeps(): RunOneTargetDeps {
   return {
@@ -41,5 +44,19 @@ export function makeRunOneTargetDeps(): RunOneTargetDeps {
     getStreamResponses: () => useUiStore.getState().streamResponses,
     getDebugSession: () => useUiStore.getState().debugSession,
     getWorkingDir: () => useUiStore.getState().workingDir,
+  };
+}
+
+// Retry needs everything runOneTarget needs PLUS getPersonas and
+// reloadMessages. Compose at the wiring layer rather than duplicating
+// the field list.
+export function makeRetryMessageDeps(): RetryMessageDeps {
+  return {
+    ...makeRunOneTargetDeps(),
+    getPersonas: (conversationId) =>
+      usePersonasStore.getState().byConversation[conversationId] ?? EMPTY_PERSONAS,
+    getSelection: (conversationId) =>
+      usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
+    reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
   };
 }

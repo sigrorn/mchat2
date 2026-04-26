@@ -106,10 +106,8 @@ export type SendMessageDeps = MessagesReadDeps &
   SendStateDeps &
   UiReadDeps;
 
-export type RetryMessageDeps = MessagesReadDeps &
-  Pick<MessagesWriteDeps, "reloadMessages"> &
+export type RetryMessageDeps = RunOneTargetDeps &
   PersonasReadDeps &
-  SendStateDeps &
-  UiReadDeps;
+  Pick<MessagesWriteDeps, "reloadMessages">;
 
 export type ReplayMessageDeps = SendMessageDeps;
