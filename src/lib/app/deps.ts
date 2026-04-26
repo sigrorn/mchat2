@@ -24,9 +24,14 @@ export interface PersonasReadDeps {
   getSelection: (conversationId: string) => readonly string[];
 }
 
+export interface UiDebugSession {
+  enabled: boolean;
+  sessionTimestamp: string | null;
+}
+
 export interface UiReadDeps {
   getStreamResponses: () => boolean;
-  getDebugSession: () => { id: string; startedAt: number } | null;
+  getDebugSession: () => UiDebugSession;
   getWorkingDir: () => string | null;
 }
 

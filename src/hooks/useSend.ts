@@ -23,9 +23,10 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { selectionAfterResolve } from "@/lib/app/sendSelection";
-import { runOneTarget } from "./runOneTarget";
+import { runOneTarget } from "@/lib/app/runOneTarget";
 import { postResponseCheck } from "./postResponseCheck";
 import { runPlannedSend } from "./runPlannedSend";
+import { makeRunOneTargetDeps } from "./runOneTargetDeps";
 
 export interface SendOptions {
   pinned?: boolean;
@@ -117,7 +118,7 @@ export function useSend(conversation: Conversation) {
       const runId = useSendStore.getState().nextRunId(conversation.id);
       useSendStore.getState().setTargetStatus(conversation.id, target.key, "queued");
 
-      await runOneTarget({
+      await runOneTarget(makeRunOneTargetDeps(), {
         conversation,
         target,
         personas,

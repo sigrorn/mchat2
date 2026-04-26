@@ -14,11 +14,12 @@ import type { ResolveResult } from "@/lib/personas/resolver";
 import { planSend } from "@/lib/orchestration/sendPlanner";
 import { executeDag } from "@/lib/orchestration/dagExecutor";
 import type { StreamRunOutcome } from "@/lib/orchestration/streamRunner";
+import { runOneTarget } from "@/lib/app/runOneTarget";
 import { shouldBufferTokens } from "@/lib/app/shouldBufferTokens";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useSendStore } from "@/stores/sendStore";
 import { useUiStore } from "@/stores/uiStore";
-import { runOneTarget } from "./runOneTarget";
+import { makeRunOneTargetDeps } from "./runOneTargetDeps";
 
 export type RunPlannedSendResult =
   | { ok: true; allTargets: readonly PersonaTarget[] }
@@ -57,8 +58,15 @@ export async function runPlannedSend(args: {
     useSendStore.getState().setTargetStatus(conversation.id, t.key, "queued");
   }
 
+  const deps = makeRunOneTargetDeps();
   const runOne = (target: PersonaTarget): Promise<StreamRunOutcome> =>
-    runOneTarget({ conversation, target, personas: [...personas], runId, bufferTokens });
+    runOneTarget(deps, {
+      conversation,
+      target,
+      personas: [...personas],
+      runId,
+      bufferTokens,
+    });
 
   if (plan.kind === "single") {
     await runOne(plan.target);

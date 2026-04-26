@@ -1,12 +1,14 @@
 // ------------------------------------------------------------------
-// Component: runOneTarget
-// Responsibility: Single-target send orchestration extracted from
-//                 useSend (#58). Encapsulates the full setup chain:
-//                 keychain → extraConfig → trace → status flip →
-//                 runStream → token-patch-by-id → context notice →
-//                 cleanup. Used by send, retry, and replay so the
-//                 same logic isn't duplicated three times.
-// Collaborators: hooks/useSend.ts.
+// Component: runOneTarget (lib/app)
+// Responsibility: Single-target send orchestration. Encapsulates the
+//                 full setup chain: keychain → extraConfig → trace →
+//                 status flip → runStream → token-patch-by-id →
+//                 context notice → cleanup. Used by send, retry, and
+//                 replay (#58, #117). Originally lived under
+//                 src/hooks/; lifted here in #148 with store calls
+//                 routed through deps so the boundary holds (#142).
+// Collaborators: lib/orchestration/streamRunner, lib/providers/*,
+//                lib/persistence/messages, hooks/useSend (wires deps).
 // ------------------------------------------------------------------
 
 import type { Conversation, Persona, PersonaTarget, StreamEvent } from "@/lib/types";
@@ -21,9 +23,7 @@ import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/set
 import { DEFAULT_RETRY } from "@/lib/orchestration/retryManager";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
 import * as messagesRepo from "@/lib/persistence/messages";
-import { useUiStore } from "@/stores/uiStore";
-import { useMessagesStore } from "@/stores/messagesStore";
-import { useSendStore } from "@/stores/sendStore";
+import type { RunOneTargetDeps } from "./deps";
 
 export interface RunOneTargetInput {
   conversation: Conversation;
@@ -33,12 +33,15 @@ export interface RunOneTargetInput {
   bufferTokens: boolean;
 }
 
-export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunOutcome> {
+export async function runOneTarget(
+  deps: RunOneTargetDeps,
+  input: RunOneTargetInput,
+): Promise<StreamRunOutcome> {
   const { conversation, target, personas, runId, bufferTokens } = input;
   const streamId = `${runId}:${target.key}:${Date.now()}`;
   const controller = new AbortController();
 
-  useSendStore.getState().registerStream(conversation.id, {
+  deps.registerStream(conversation.id, {
     streamId,
     controller,
     target: target.key,
@@ -52,7 +55,7 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
   // chains via a per-conversation appendChain, so siblings calling it
   // in Promise.all/map order enqueue in that same order and get
   // contiguous indices.
-  const history = useMessagesStore.getState().byConversation[conversation.id] ?? [];
+  const history = deps.getMessages(conversation.id);
   const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
   const priorUser = [...history].reverse().find((m) => m.role === "user");
   const audience = priorUser?.addressedTo ?? [];
@@ -85,8 +88,9 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
   const retryPolicy = { ...DEFAULT_RETRY, maxAttempts };
 
   const placeholder = await placeholderPromise;
-  useMessagesStore.getState().append(placeholder);
-  const { debugSession, workingDir } = useUiStore.getState();
+  deps.appendPlaceholder(placeholder);
+  const debugSession = deps.getDebugSession();
+  const workingDir = deps.getWorkingDir();
   const slug = persona?.nameSlug ?? target.key;
   const traceSink =
     debugSession.enabled && debugSession.sessionTimestamp && workingDir
@@ -98,7 +102,7 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
         })
       : undefined;
 
-  useSendStore.getState().setTargetStatus(conversation.id, target.key, "streaming");
+  deps.setTargetStatus(conversation.id, target.key, "streaming");
 
   // #58/#117: placeholder is already pre-appended and in the store;
   // patch by its specific id, never "the last assistant row".
@@ -112,7 +116,7 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
       conversation,
       target,
       personas,
-      history,
+      history: [...history],
       adapter: adapterFor(target.provider),
       apiKey,
       model: modelForTarget(target, personas),
@@ -130,15 +134,13 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
           rafId = 0;
           if (!placeholderId || !pendingTokens) return;
           const current =
-            useMessagesStore
-              .getState()
-              .byConversation[conversation.id]?.find((m) => m.id === placeholderId)?.content ?? "";
-          useMessagesStore.getState().patchContent(conversation.id, placeholderId, current + pendingTokens);
+            deps.getMessages(conversation.id).find((m) => m.id === placeholderId)?.content ?? "";
+          deps.patchContent(conversation.id, placeholderId, current + pendingTokens);
           pendingTokens = "";
         };
         return (e: StreamEvent) => {
           if (e.type === "retrying") {
-            useSendStore.getState().setTargetStatus(conversation.id, target.key, "retrying");
+            deps.setTargetStatus(conversation.id, target.key, "retrying");
           }
           if (e.type === "token" && placeholderId) {
             pendingTokens += e.text;
@@ -157,18 +159,15 @@ export async function runOneTarget(input: RunOneTargetInput): Promise<StreamRunO
       const before = outcome.contextFirstSurviving
         ? `dropped messages before #${outcome.contextFirstSurviving}`
         : `dropped ${outcome.contextDropped} oldest message${outcome.contextDropped === 1 ? "" : "s"}`;
-      void useMessagesStore
-        .getState()
-        .appendNotice(
-          conversation.id,
-          `context trimmed for ${name} (${modelForTarget(target, personas)}): ${before} to fit the ${PROVIDER_REGISTRY[target.provider].maxContextTokens}-token limit.`,
-        );
+      void deps.appendNotice(
+        conversation.id,
+        `context trimmed for ${name} (${modelForTarget(target, personas)}): ${before} to fit the ${PROVIDER_REGISTRY[target.provider].maxContextTokens}-token limit.`,
+      );
     }
 
     return outcome;
   } finally {
-    useSendStore.getState().finishStream(conversation.id, streamId);
-    useSendStore.getState().clearTargetStatus(conversation.id, target.key);
+    deps.finishStream(conversation.id, streamId);
+    deps.clearTargetStatus(conversation.id, target.key);
   }
 }
-
