@@ -5,17 +5,16 @@
 //                 (validation) and the personasStore (reactive cache).
 // ------------------------------------------------------------------
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Conversation, Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
-import { PRICING } from "@/lib/pricing/table";
 import { computePersonaCosts, formatPersonaCost } from "@/lib/pricing/personaCosts";
 import type { CostResult } from "@/lib/pricing/estimator";
-import { listModelInfos, formatTokenLimit, type ModelInfo } from "@/lib/providers/models";
-import { keychain } from "@/lib/tauri/keychain";
+import { useModelOptions, modelOptionsFromPricing } from "./useModelOptions";
+import { PersonaFormFields } from "./PersonaFormFields";
 import {
   createPersona,
   deletePersona,
@@ -25,8 +24,6 @@ import {
 } from "@/lib/personas/service";
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
-import { getSetting } from "@/lib/persistence/settings";
-import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { buildMatrixFromDefaults } from "@/lib/personas/service";
 import { usePersonasStore } from "@/stores/personasStore";
@@ -287,26 +284,8 @@ function PersonaRow({
     }
   };
 
-  const [modelOptions, setModelOptions] = useState<ModelInfo[]>(() =>
-    Object.keys(PRICING[provider] ?? {}).map((id) => ({ id })),
-  );
   const modelListId = `models-${persona.id}`;
-
-  useEffect(() => {
-    if (!editing) return;
-    let cancelled = false;
-    void (async () => {
-      const key = PROVIDER_REGISTRY[provider].requiresKey
-        ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
-        : null;
-      const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
-      const infos = await listModelInfos(provider, key, { apertusProductId: pid });
-      if (!cancelled) setModelOptions(infos);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [editing, provider]);
+  const modelOptions = useModelOptions(provider, editing, modelOptionsFromPricing(provider));
 
   const color = persona.colorOverride ?? PROVIDER_COLORS[persona.provider];
   // #31: subscribe to per-persona inflight status. Persona key in the
@@ -374,77 +353,27 @@ function PersonaRow({
       </div>
       {editing ? (
         <div className="mt-2 space-y-2 text-xs">
-          <Field label="Name">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border border-neutral-300 px-2 py-1"
-            />
-          </Field>
-          <Field label="Provider">
-            <select
-              value={provider}
-              onChange={(e) => {
-                setProvider(e.target.value as ProviderId);
-                setModel("");
-              }}
-              className="w-full rounded border border-neutral-300 px-2 py-1"
-            >
-              {SELECTABLE_PROVIDER_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {/* #141: hosting-country tag prefixes the display name */}
-                  {formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)
-                    ? `${formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)} ${PROVIDER_REGISTRY[id].displayName}`
-                    : PROVIDER_REGISTRY[id].displayName}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Model override">
-            <input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              list={modelListId}
-              placeholder={PROVIDER_REGISTRY[provider].defaultModel}
-              className="w-full rounded border border-neutral-300 px-2 py-1"
-            />
-            <datalist id={modelListId}>
-              {modelOptions.map((m) => {
-                // #141: prefix the model id with the provider's hosting
-                // country tag so the data-sovereignty signal stays
-                // visible in the picker too.
-                const tag = formatHostingTag(PROVIDER_REGISTRY[provider].hostingCountry);
-                const tokens = m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : "";
-                return (
-                  <option key={m.id} value={m.id}>
-                    {tag ? `${tag} ${m.id}${tokens}` : `${m.id}${tokens}`}
-                  </option>
-                );
-              })}
-            </datalist>
-          </Field>
-          <Field label="Color">
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={colorOverride ?? PROVIDER_COLORS[provider]}
-                onChange={(e) => setColorOverride(e.target.value)}
-                className="h-6 w-8 cursor-pointer rounded border border-neutral-300 p-0"
-              />
-              <span className="text-neutral-500">
-                {colorOverride ? "custom" : "provider default"}
-              </span>
-              {colorOverride !== null && (
-                <button
-                  type="button"
-                  onClick={() => setColorOverride(null)}
-                  className="text-neutral-500 hover:text-neutral-900"
-                >
-                  reset
-                </button>
-              )}
-            </div>
-          </Field>
+          <PersonaFormFields
+            name={name}
+            onNameChange={setName}
+            provider={provider}
+            onProviderChange={setProvider}
+            model={model}
+            onModelChange={setModel}
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            colorOverride={colorOverride}
+            onColorOverrideChange={setColorOverride}
+            visDefs={visDefs}
+            onVisDefsChange={setVisDefs}
+            seenByEdits={seenByEdits}
+            onSeenByEditsChange={setSeenByEdits}
+            siblings={allPersonas.filter((p) => p.id !== persona.id)}
+            self={persona}
+            modelListId={modelListId}
+            modelOptions={modelOptions}
+            promptRows={3}
+          />
           <Field label="Runs after">
             <div className="flex flex-wrap gap-2">
               {allPersonas
@@ -467,75 +396,6 @@ function PersonaRow({
                 <span className="text-neutral-400">(no other personas)</span>
               )}
             </div>
-          </Field>
-          {allPersonas.filter((p) => p.id !== persona.id).length > 0 && (
-            <Field label="Visibility">
-              <div className="space-y-2">
-                <div>
-                  <span className="text-neutral-500">Can see responses from:</span>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {allPersonas
-                      .filter((p) => p.id !== persona.id)
-                      .map((other) => {
-                        const checked = (visDefs[other.nameSlug] ?? "y") === "y";
-                        return (
-                          <label key={other.id} className="flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() =>
-                                setVisDefs({
-                                  ...visDefs,
-                                  [other.nameSlug]: checked ? "n" : "y",
-                                })
-                              }
-                            />
-                            <span className="text-neutral-800">{other.name}</span>
-                          </label>
-                        );
-                      })}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-neutral-500">Responses seen by:</span>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {allPersonas
-                      .filter((p) => p.id !== persona.id)
-                      .map((other) => {
-                        const seenByBase = other.visibilityDefaults[persona.nameSlug] ?? "y";
-                        const seenByVal =
-                          other.nameSlug in seenByEdits
-                            ? (seenByEdits[other.nameSlug] ?? "y")
-                            : seenByBase;
-                        const checked = seenByVal === "y";
-                        return (
-                          <label key={other.id} className="flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() =>
-                                setSeenByEdits({
-                                  ...seenByEdits,
-                                  [other.nameSlug]: checked ? "n" : "y",
-                                })
-                              }
-                            />
-                            <span className="text-neutral-800">{other.name}</span>
-                          </label>
-                        );
-                      })}
-                  </div>
-                </div>
-              </div>
-            </Field>
-          )}
-          <Field label="System prompt">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={3}
-              className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
-            />
           </Field>
           {error ? <div className="text-red-600">{error}</div> : null}
           <div className="flex gap-2">
@@ -580,23 +440,8 @@ function CreateForm({
   const [seenByEdits, setSeenByEdits] = useState<Record<string, "y" | "n">>({});
   const [error, setError] = useState<string | null>(null);
 
-  const [modelOptions, setModelOptions] = useState<ModelInfo[]>([]);
   const modelListId = "create-model-list";
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    void (async () => {
-      const key = PROVIDER_REGISTRY[provider].requiresKey
-        ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
-        : null;
-      const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
-      const infos = await listModelInfos(provider, key, { apertusProductId: pid });
-      if (!cancelled) setModelOptions(infos);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, provider]);
+  const modelOptions = useModelOptions(provider, open);
 
   const submit = async (): Promise<void> => {
     setError(null);
@@ -700,57 +545,30 @@ function CreateForm({
   }
   return (
     <div className="space-y-2 border-b border-neutral-200 px-3 py-2 text-xs">
-      <Field label="Name">
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Alice"
-          className="w-full rounded border border-neutral-300 px-2 py-1"
-        />
-      </Field>
-      <Field label="Provider">
-        <select
-          value={provider}
-          onChange={(e) => {
-            setProvider(e.target.value as ProviderId);
-            setModel("");
-          }}
-          className="w-full rounded border border-neutral-300 px-2 py-1"
-        >
-          {SELECTABLE_PROVIDER_IDS.map((id) => (
-            <option key={id} value={id}>
-              {/* #141: hosting-country tag prefixes the display name */}
-              {formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)
-                ? `${formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry)} ${PROVIDER_REGISTRY[id].displayName}`
-                : PROVIDER_REGISTRY[id].displayName}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Model override">
-        <input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          list={modelListId}
-          placeholder={PROVIDER_REGISTRY[provider].defaultModel}
-          className="w-full rounded border border-neutral-300 px-2 py-1"
-        />
-        <datalist id={modelListId}>
-          {modelOptions.map((m) => {
-            // #141: prefix the model id with the provider's hosting
-            // country tag so the data-sovereignty signal stays
-            // visible in the picker too.
-            const tag = formatHostingTag(PROVIDER_REGISTRY[provider].hostingCountry);
-            const tokens = m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : "";
-            return (
-              <option key={m.id} value={m.id}>
-                {tag ? `${tag} ${m.id}${tokens}` : `${m.id}${tokens}`}
-              </option>
-            );
-          })}
-        </datalist>
-      </Field>
+      <PersonaFormFields
+        name={name}
+        onNameChange={setName}
+        provider={provider}
+        onProviderChange={setProvider}
+        model={model}
+        onModelChange={setModel}
+        prompt={prompt}
+        onPromptChange={setPrompt}
+        colorOverride={colorOverride}
+        onColorOverrideChange={setColorOverride}
+        visDefs={visDefs}
+        onVisDefsChange={setVisDefs}
+        seenByEdits={seenByEdits}
+        onSeenByEditsChange={setSeenByEdits}
+        siblings={personas}
+        self={null}
+        modelListId={modelListId}
+        modelOptions={modelOptions}
+        nameAutoFocus
+        namePlaceholder="Alice"
+        promptPlaceholder="(inherits global)"
+        promptRows={2}
+      />
       <Field label="Scope">
         <select
           value={scope}
@@ -760,93 +578,6 @@ function CreateForm({
           <option value="inherit">inherit (sees full history)</option>
           <option value="new">new (sees only future messages)</option>
         </select>
-      </Field>
-      <Field label="Color">
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={colorOverride ?? PROVIDER_COLORS[provider]}
-            onChange={(e) => setColorOverride(e.target.value)}
-            className="h-6 w-8 cursor-pointer rounded border border-neutral-300 p-0"
-          />
-          <span className="text-neutral-500">
-            {colorOverride ? "custom" : "provider default"}
-          </span>
-          {colorOverride !== null && (
-            <button
-              type="button"
-              onClick={() => setColorOverride(null)}
-              className="text-neutral-500 hover:text-neutral-900"
-            >
-              reset
-            </button>
-          )}
-        </div>
-      </Field>
-      {personas.length > 0 && (
-        <Field label="Visibility">
-          <div className="space-y-2">
-            <div>
-              <span className="text-neutral-500">Can see responses from:</span>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {personas.map((other) => {
-                  const checked = (visDefs[other.nameSlug] ?? "y") === "y";
-                  return (
-                    <label key={other.id} className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() =>
-                          setVisDefs({
-                            ...visDefs,
-                            [other.nameSlug]: checked ? "n" : "y",
-                          })
-                        }
-                      />
-                      <span className="text-neutral-800">{other.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <span className="text-neutral-500">Responses seen by:</span>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {personas.map((other) => {
-                  const seenByVal =
-                    other.nameSlug in seenByEdits
-                      ? (seenByEdits[other.nameSlug] ?? "y")
-                      : "y";
-                  const checked = seenByVal === "y";
-                  return (
-                    <label key={other.id} className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() =>
-                          setSeenByEdits({
-                            ...seenByEdits,
-                            [other.nameSlug]: checked ? "n" : "y",
-                          })
-                        }
-                      />
-                      <span className="text-neutral-800">{other.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </Field>
-      )}
-      <Field label="System prompt">
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={2}
-          placeholder="(inherits global)"
-          className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
-        />
       </Field>
       {error ? <div className="text-red-600">{error}</div> : null}
       <div className="flex gap-2">
