@@ -1,9 +1,12 @@
 // streamRunner populates assistant.audience from the prior user row — issue #4.
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
+// #200: rewritten to round-trip through sql.js instead of asserting on
+// INSERT INTO messages parameter positions.
+import { describe, it, expect, afterEach } from "vitest";
 import { runStream } from "@/lib/orchestration/streamRunner";
 import { mockAdapter } from "@/lib/providers/mock";
-import { makeMessage } from "@/lib/persistence/messages";
+import * as messagesRepo from "@/lib/persistence/messages";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
+import { sql } from "@/lib/tauri/sql";
 import type { Conversation, PersonaTarget } from "@/lib/types";
 
 const CONV: Conversation = {
@@ -18,93 +21,105 @@ const CONV: Conversation = {
   visibilityMatrix: {},
   limitSizeTokens: null,
   selectedPersonas: [],
-    compactionFloorIndex: null,
-    autocompactThreshold: null,
-    contextWarningsFired: [],
+  compactionFloorIndex: null,
+  autocompactThreshold: null,
+  contextWarningsFired: [],
 };
 
 function target(key: string): PersonaTarget {
   return { provider: "mock", personaId: key, key, displayName: key };
 }
 
-let inserts: { sql: string; params: unknown[] }[];
-beforeEach(() => {
-  inserts = [];
-  __setImpl({
-    async execute(q, p) {
-      if (q.startsWith("INSERT INTO messages")) {
-        inserts.push({ sql: q, params: p ?? [] });
-      }
-      return { rowsAffected: 1, lastInsertId: null };
-    },
-    async select<T>(q: string): Promise<T[]> {
-      if (q.includes("MAX(idx)")) return [{ next: 1 } as unknown as T];
-      return [];
-    },
-    async close() {},
-  });
+let handle: TestDbHandle | null = null;
+afterEach(() => {
+  handle?.restore();
+  handle = null;
 });
-afterEach(() => __resetImpl());
+
+async function seedConversationAndPersonas(): Promise<void> {
+  await sql.execute(
+    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+     VALUES ('c_1', 'T', 0, 'lines', 'separated', '{}', '[]', '[]')`,
+  );
+  for (const pid of ["p_a", "p_b"]) {
+    await sql.execute(
+      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
+       VALUES (?, 'c_1', 'mock', ?, ?, 0, 0, '[]', '{}')`,
+      [pid, pid, pid],
+    );
+  }
+}
 
 describe("streamRunner audience propagation", () => {
   it("copies the prior user row's addressedTo into the assistant placeholder audience", async () => {
-    const history = [
-      makeMessage({
-        conversationId: "c_1",
-        role: "user",
-        content: "hi",
-        addressedTo: ["p_a", "p_b"],
-        index: 0,
-      }),
-    ];
-    await runStream({
+    handle = await createTestDb();
+    await seedConversationAndPersonas();
+    const userMsg = await messagesRepo.appendMessage({
+      conversationId: "c_1",
+      role: "user",
+      content: "hi",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: ["p_a", "p_b"],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
+    const outcome = await runStream({
       streamId: "s1",
       conversation: CONV,
       target: target("p_a"),
       personas: [],
-      history,
+      history: [userMsg],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",
       displayMode: "lines",
     });
-    expect(inserts).toHaveLength(1);
-    // INSERT param layout: see messagesRepo — audience is the 19th
-    // column (after usage_estimated). Find by JSON content to stay
-    // resilient to column reordering.
-    const params = inserts[0]?.params ?? [];
-    const audienceParam = params.find(
-      (p) => typeof p === "string" && p.startsWith("[") && p.includes("p_a") && p.includes("p_b"),
-    );
-    expect(audienceParam).toBe(JSON.stringify(["p_a", "p_b"]));
+    const placeholder = await messagesRepo.getMessage(outcome.messageId);
+    expect(placeholder?.audience).toEqual(["p_a", "p_b"]);
   });
 
   it("writes an empty audience when the prior user row was implicit", async () => {
-    const history = [
-      makeMessage({
-        conversationId: "c_1",
-        role: "user",
-        content: "hi",
-        addressedTo: [],
-        index: 0,
-      }),
-    ];
-    await runStream({
+    handle = await createTestDb();
+    await seedConversationAndPersonas();
+    const userMsg = await messagesRepo.appendMessage({
+      conversationId: "c_1",
+      role: "user",
+      content: "hi",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
+    const outcome = await runStream({
       streamId: "s1",
       conversation: CONV,
       target: target("p_a"),
       personas: [],
-      history,
+      history: [userMsg],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",
       displayMode: "lines",
     });
-    const params = inserts[0]?.params ?? [];
-    const jsonParams = params.filter(
-      (p): p is string => typeof p === "string" && p.startsWith("["),
-    );
-    // audience param is the second JSON array (after addressed_to).
-    expect(jsonParams).toContain("[]");
+    const placeholder = await messagesRepo.getMessage(outcome.messageId);
+    expect(placeholder?.audience).toEqual([]);
   });
 });

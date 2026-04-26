@@ -1,72 +1,16 @@
 // Imported personas must get their identity pin — issue #36.
+// #200: rewritten to round-trip through sql.js instead of asserting on
+// INSERT INTO messages parameter positions.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
 import { __setImpl as __setFsImpl, __resetImpl as __resetFsImpl } from "@/lib/tauri/filesystem";
 import { importPersonasFromFile } from "@/lib/personas/fileOps";
+import * as messagesRepo from "@/lib/persistence/messages";
+import * as personasRepo from "@/lib/persistence/personas";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
+import { sql } from "@/lib/tauri/sql";
 
-interface PersonaRow {
-  id: string;
-  name: string;
-  name_slug: string;
-}
-
-function makeStubs() {
-  const personas: PersonaRow[] = [];
-  const messageInserts: Array<Record<string, unknown>> = [];
-  __setImpl({
-    async execute(query, params) {
-      const ps = (params ?? []) as unknown[];
-      if (query.startsWith("INSERT INTO personas")) {
-        personas.push({
-          id: String(ps[0]),
-          name: String(ps[3]),
-          name_slug: String(ps[4]),
-        });
-      }
-      if (query.startsWith("INSERT INTO messages")) {
-        // Column order from messages.ts appendMessage:
-        // id, conversation_id, role, content, provider, model,
-        // persona_id, display_mode, pinned, pin_target, addressed_to,
-        // created_at, idx, error_message, error_transient,
-        // input_tokens, output_tokens, usage_estimated, audience
-        messageInserts.push({
-          id: ps[0],
-          role: ps[2],
-          content: ps[3],
-          pinned: ps[8],
-          pin_target: ps[9],
-        });
-      }
-      return { rowsAffected: 1, lastInsertId: null };
-    },
-    async select<T>(query: string): Promise<T[]> {
-      if (query.includes("FROM personas")) {
-        return personas.map((p) => ({
-          id: p.id,
-          conversation_id: "c_1",
-          provider: "claude",
-          name: p.name,
-          name_slug: p.name_slug,
-          system_prompt_override: null,
-          model_override: null,
-          color_override: null,
-          created_at_message_index: 0,
-          sort_order: 0,
-          runs_after: null,
-          deleted_at: null,
-          apertus_product_id: null,
-        })) as unknown as T[];
-      }
-      if (query.includes("MAX(idx)")) {
-        return [{ next: 0 } as unknown as T];
-      }
-      if (query.includes("FROM messages")) {
-        return [];
-      }
-      return [];
-    },
-    async close() {},
-  });
+let handle: TestDbHandle | null = null;
+beforeEach(() => {
   __setFsImpl({
     async readText() {
       return JSON.stringify({
@@ -96,36 +40,38 @@ function makeStubs() {
       return null;
     },
   });
-  return { messageInserts, personas };
-}
-
-beforeEach(() => makeStubs());
+});
 afterEach(() => {
-  __resetImpl();
+  handle?.restore();
+  handle = null;
   __resetFsImpl();
 });
 
 describe("importPersonasFromFile identity pins (#36)", () => {
   it("appends both identity pins per imported persona (#38)", async () => {
-    const { messageInserts, personas } = makeStubs();
+    handle = await createTestDb();
+    await sql.execute(
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 0, 'lines', 'separated', '{}', '[]', '[]')`,
+    );
     const r = await importPersonasFromFile("c_1", 0, null);
     if (!r.ok) throw new Error("import failed: " + ("message" in r ? r.message : r.reason));
+
+    const personas = await personasRepo.listPersonas("c_1");
     expect(personas).toHaveLength(2);
-    const identityPins = messageInserts.filter((m) => m.pinned === 1 && m.pin_target);
-    // #88: 2 personas × 1 pin each (instruction only; setup is now a notice) = 2
+
+    const allMessages = await messagesRepo.listMessages("c_1");
+    const identityPins = allMessages.filter((m) => m.pinned && m.pinTarget);
+    // 2 personas × 1 pin each (instruction only; setup is a notice) = 2
     expect(identityPins).toHaveLength(2);
-    const notices = messageInserts.filter((m) => m.role === "notice");
+    const notices = allMessages.filter((m) => m.role === "notice");
     expect(notices).toHaveLength(2);
     for (const persona of personas) {
-      const own = identityPins.filter((p) => p.pin_target === persona.id);
+      const own = identityPins.filter((p) => p.pinTarget === persona.id);
       expect(own).toHaveLength(1);
-      const hasInstruction = own.some(
-        (p) => typeof p.content === "string" && p.content.includes("use " + persona.name),
-      );
-      const hasSetupNote = notices.some(
-        (p) =>
-          typeof p.content === "string" &&
-          (p.content as string).startsWith(`Added persona "${persona.name}"`),
+      const hasInstruction = own.some((p) => p.content.includes("use " + persona.name));
+      const hasSetupNote = notices.some((p) =>
+        p.content.startsWith(`Added persona "${persona.name}"`),
       );
       expect(hasInstruction).toBe(true);
       expect(hasSetupNote).toBe(true);

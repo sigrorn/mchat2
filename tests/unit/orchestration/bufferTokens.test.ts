@@ -1,9 +1,12 @@
 // streamRunner.bufferTokens suppresses per-token onEvent calls — issue #16.
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
+// #200: rewritten to round-trip through sql.js instead of asserting on
+// UPDATE messages SET content parameter positions.
+import { describe, it, expect, afterEach } from "vitest";
 import { runStream } from "@/lib/orchestration/streamRunner";
 import { mockAdapter } from "@/lib/providers/mock";
-import { makeMessage } from "@/lib/persistence/messages";
+import * as messagesRepo from "@/lib/persistence/messages";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
+import { sql } from "@/lib/tauri/sql";
 import type { Conversation, PersonaTarget, StreamEvent } from "@/lib/types";
 
 const CONV: Conversation = {
@@ -18,50 +21,59 @@ const CONV: Conversation = {
   visibilityMatrix: {},
   limitSizeTokens: null,
   selectedPersonas: [],
-    compactionFloorIndex: null,
-    autocompactThreshold: null,
-    contextWarningsFired: [],
+  compactionFloorIndex: null,
+  autocompactThreshold: null,
+  contextWarningsFired: [],
 };
 
 function target(): PersonaTarget {
   return { provider: "mock", personaId: null, key: "mock", displayName: "Mock" };
 }
 
-let updates: { sql: string; params: unknown[] }[];
-beforeEach(() => {
-  updates = [];
-  __setImpl({
-    async execute(q, p) {
-      updates.push({ sql: q, params: p ?? [] });
-      return { rowsAffected: 1, lastInsertId: null };
-    },
-    async select<T>(q: string): Promise<T[]> {
-      if (q.includes("MAX(idx)")) return [{ next: 0 } as unknown as T];
-      return [];
-    },
-    async close() {},
-  });
+let handle: TestDbHandle | null = null;
+afterEach(() => {
+  handle?.restore();
+  handle = null;
 });
-afterEach(() => __resetImpl());
+
+async function seedConversationAndUserMessage(): Promise<string> {
+  await sql.execute(
+    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+     VALUES ('c_1', 'T', 0, 'lines', 'separated', '{}', '[]', '[]')`,
+  );
+  const m = await messagesRepo.appendMessage({
+    conversationId: "c_1",
+    role: "user",
+    content: "[[MOCK: tokens=ab|cd|ef]]",
+    provider: null,
+    model: null,
+    personaId: null,
+    displayMode: "lines",
+    pinned: false,
+    pinTarget: null,
+    addressedTo: [],
+    errorMessage: null,
+    errorTransient: false,
+    inputTokens: 0,
+    outputTokens: 0,
+    usageEstimated: false,
+    audience: [],
+  });
+  return m.id;
+}
 
 describe("streamRunner.bufferTokens", () => {
-  const history = [
-    makeMessage({
-      conversationId: "c_1",
-      role: "user",
-      content: "[[MOCK: tokens=ab|cd|ef]]",
-      index: 0,
-    }),
-  ];
-
-  it("when bufferTokens=true, onEvent is NOT called for token events", async () => {
+  it("when bufferTokens=true, onEvent is NOT called for token events but the final UPDATE flushes content", async () => {
+    handle = await createTestDb();
+    const userMsgId = await seedConversationAndUserMessage();
+    const userMsg = await messagesRepo.getMessage(userMsgId);
     const events: StreamEvent[] = [];
-    await runStream({
+    const outcome = await runStream({
       streamId: "s1",
       conversation: CONV,
       target: target(),
       personas: [],
-      history,
+      history: userMsg ? [userMsg] : [],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",
@@ -70,19 +82,21 @@ describe("streamRunner.bufferTokens", () => {
       onEvent: (e) => events.push(e),
     });
     expect(events.some((e) => e.type === "token")).toBe(false);
-    // But the final UPDATE still flushes the accumulated content.
-    const contentUpdate = updates.find((c) => c.sql.startsWith("UPDATE messages SET content"));
-    expect(contentUpdate?.params[0]).toBe("abcdef");
+    const placeholder = await messagesRepo.getMessage(outcome.messageId);
+    expect(placeholder?.content).toBe("abcdef");
   });
 
   it("when bufferTokens=false (default), onEvent receives tokens", async () => {
+    handle = await createTestDb();
+    const userMsgId = await seedConversationAndUserMessage();
+    const userMsg = await messagesRepo.getMessage(userMsgId);
     const events: StreamEvent[] = [];
     await runStream({
       streamId: "s1",
       conversation: CONV,
       target: target(),
       personas: [],
-      history,
+      history: userMsg ? [userMsg] : [],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",

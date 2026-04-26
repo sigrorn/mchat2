@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
+// #200: rewritten to round-trip through sql.js instead of asserting on
+// UPDATE messages SET parameter positions. The runStream tests now
+// query the resulting placeholder row to verify content/error after
+// the stream rather than scraping SQL writes.
+import { describe, it, expect, afterEach } from "vitest";
 import { runStream } from "@/lib/orchestration/streamRunner";
 import { mockAdapter } from "@/lib/providers/mock";
+import * as messagesRepo from "@/lib/persistence/messages";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
+import { sql } from "@/lib/tauri/sql";
 import type { Conversation, PersonaTarget, StreamEvent } from "@/lib/types";
 
 const CONV: Conversation = {
@@ -25,65 +31,48 @@ function target(): PersonaTarget {
   return { provider: "mock", personaId: null, key: "mock", displayName: "Mock" };
 }
 
-function makeSqlRecorder() {
-  const calls: { sql: string; params: unknown[] }[] = [];
-  const updates: Record<string, { content: string; errorMessage: string | null }> = {};
-  __setImpl({
-    async execute(q, p) {
-      calls.push({ sql: q, params: p ?? [] });
-      if (q.startsWith("UPDATE messages SET content")) {
-        const ps = p ?? [];
-        updates[String(ps[3])] = {
-          content: String(ps[0]),
-          errorMessage: ps[1] === null ? null : String(ps[1]),
-        };
-      }
-      return { rowsAffected: 1, lastInsertId: null };
-    },
-    async select<T>(q: string): Promise<T[]> {
-      if (q.includes("MAX(idx)")) return [{ next: 0 } as unknown as T];
-      return [];
-    },
-    async close() {},
-  });
-  return { calls, updates };
-}
+let handle: TestDbHandle | null = null;
+afterEach(() => {
+  handle?.restore();
+  handle = null;
+});
 
-beforeEach(() => makeSqlRecorder());
-afterEach(() => __resetImpl());
+async function setupDb(): Promise<void> {
+  handle = await createTestDb();
+  await sql.execute(
+    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
+     VALUES ('c_1', 'T', 0, 'lines', 'separated', '{}', '[]', '[]')`,
+  );
+}
 
 describe("runStream", () => {
   it("accumulates tokens and flushes content on complete", async () => {
-    const rec = makeSqlRecorder();
+    await setupDb();
+    const userMsg = await messagesRepo.appendMessage({
+      conversationId: "c_1",
+      role: "user",
+      content: "[[MOCK: tokens=ab|cd]]",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
     const events: StreamEvent[] = [];
     const outcome = await runStream({
       streamId: "s1",
       conversation: CONV,
       target: target(),
       personas: [],
-      history: [
-        {
-          id: "m0",
-          conversationId: "c_1",
-          role: "user",
-          content: "[[MOCK: tokens=ab|cd]]",
-          provider: null,
-          model: null,
-          personaId: null,
-          displayMode: "lines",
-          pinned: false,
-          pinTarget: null,
-          addressedTo: [],
-          createdAt: 0,
-          index: 0,
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: 0,
-          usageEstimated: false,
-          audience: [],
-        },
-      ],
+      history: [userMsg],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",
@@ -92,13 +81,32 @@ describe("runStream", () => {
     });
     expect(outcome.kind).toBe("completed");
     expect(outcome.outputTokens).toBeGreaterThan(0);
-    const updated = rec.updates[outcome.messageId];
-    expect(updated?.content).toBe("abcd");
-    expect(updated?.errorMessage).toBeNull();
+    const placeholder = await messagesRepo.getMessage(outcome.messageId);
+    expect(placeholder?.content).toBe("abcd");
+    expect(placeholder?.errorMessage).toBeNull();
     expect(events.map((e) => e.type)).toContain("token");
   });
 
   it("emits trace rows to the sink before/after the stream when wired (#40)", async () => {
+    await setupDb();
+    const userMsg = await messagesRepo.appendMessage({
+      conversationId: "c_1",
+      role: "user",
+      content: "[[MOCK: tokens=hi|there]]",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
     const outboundCalls: string[][] = [];
     const inboundCalls: string[][] = [];
     const order: string[] = [];
@@ -117,29 +125,7 @@ describe("runStream", () => {
       conversation: CONV,
       target: target(),
       personas: [],
-      history: [
-        {
-          id: "m0",
-          conversationId: "c_1",
-          role: "user",
-          content: "[[MOCK: tokens=hi|there]]",
-          provider: null,
-          model: null,
-          personaId: null,
-          displayMode: "lines",
-          pinned: false,
-          pinTarget: null,
-          addressedTo: [],
-          createdAt: 0,
-          index: 0,
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: 0,
-          usageEstimated: false,
-          audience: [],
-        },
-      ],
+      history: [userMsg],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",
@@ -154,35 +140,32 @@ describe("runStream", () => {
   });
 
   it("does not call the trace sink when none is wired", async () => {
+    await setupDb();
+    const userMsg = await messagesRepo.appendMessage({
+      conversationId: "c_1",
+      role: "user",
+      content: "[[MOCK: tokens=hi]]",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
     let called = false;
     await runStream({
       streamId: "s1",
       conversation: CONV,
       target: target(),
       personas: [],
-      history: [
-        {
-          id: "m0",
-          conversationId: "c_1",
-          role: "user",
-          content: "[[MOCK: tokens=hi]]",
-          provider: null,
-          model: null,
-          personaId: null,
-          displayMode: "lines",
-          pinned: false,
-          pinTarget: null,
-          addressedTo: [],
-          createdAt: 0,
-          index: 0,
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: 0,
-          usageEstimated: false,
-          audience: [],
-        },
-      ],
+      history: [userMsg],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",
@@ -193,7 +176,25 @@ describe("runStream", () => {
   });
 
   it("treats a silent run (no tokens, no usage, no error) as failed (#26/#27)", async () => {
-    const rec = makeSqlRecorder();
+    await setupDb();
+    const userMsg = await messagesRepo.appendMessage({
+      conversationId: "c_1",
+      role: "user",
+      content: "hi",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
     const silentAdapter = {
       id: "mock" as const,
       async *stream(): AsyncIterable<StreamEvent> {
@@ -205,29 +206,7 @@ describe("runStream", () => {
       conversation: CONV,
       target: target(),
       personas: [],
-      history: [
-        {
-          id: "m0",
-          conversationId: "c_1",
-          role: "user",
-          content: "hi",
-          provider: null,
-          model: null,
-          personaId: null,
-          displayMode: "lines",
-          pinned: false,
-          pinTarget: null,
-          addressedTo: [],
-          createdAt: 0,
-          index: 0,
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: 0,
-          usageEstimated: false,
-          audience: [],
-        },
-      ],
+      history: [userMsg],
       adapter: silentAdapter,
       apiKey: null,
       model: "mock-1",
@@ -236,39 +215,36 @@ describe("runStream", () => {
     });
     expect(outcome.kind).toBe("failed");
     expect(outcome.errorMessage).toMatch(/no (response|content|events)/i);
-    expect(rec.updates[outcome.messageId]?.errorMessage).toMatch(/no (response|content|events)/i);
+    const placeholder = await messagesRepo.getMessage(outcome.messageId);
+    expect(placeholder?.errorMessage).toMatch(/no (response|content|events)/i);
   });
 
   it("records permanent error without retrying", async () => {
-    const rec = makeSqlRecorder();
+    await setupDb();
+    const userMsg = await messagesRepo.appendMessage({
+      conversationId: "c_1",
+      role: "user",
+      content: "[[MOCK: error=permanent]]",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
     const outcome = await runStream({
       streamId: "s1",
       conversation: CONV,
       target: target(),
       personas: [],
-      history: [
-        {
-          id: "m0",
-          conversationId: "c_1",
-          role: "user",
-          content: "[[MOCK: error=permanent]]",
-          provider: null,
-          model: null,
-          personaId: null,
-          displayMode: "lines",
-          pinned: false,
-          pinTarget: null,
-          addressedTo: [],
-          createdAt: 0,
-          index: 0,
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: 0,
-          usageEstimated: false,
-          audience: [],
-        },
-      ],
+      history: [userMsg],
       adapter: mockAdapter,
       apiKey: null,
       model: "mock-1",
@@ -277,6 +253,7 @@ describe("runStream", () => {
     });
     expect(outcome.kind).toBe("failed");
     expect(outcome.errorTransient).toBe(false);
-    expect(rec.updates[outcome.messageId]?.errorMessage).toContain("permanent");
+    const placeholder = await messagesRepo.getMessage(outcome.messageId);
+    expect(placeholder?.errorMessage).toContain("permanent");
   });
 });
