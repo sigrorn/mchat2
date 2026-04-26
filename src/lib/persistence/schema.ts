@@ -137,6 +137,14 @@ export interface PersonaVisibilityTable {
   visible: number; // 0/1
 }
 
+// #195: edge table replacing the JSON-encoded personas.runs_after
+// column. Reads now come from this table; the legacy JSON column
+// stays populated as a dual-write safety net.
+export interface PersonaRunsAfterTable {
+  child_id: string;
+  parent_id: string;
+}
+
 export interface Database {
   conversations: ConversationsTable;
   personas: PersonasTable;
@@ -147,6 +155,7 @@ export interface Database {
   attempts: AttemptsTable;
   conversation_personas_selected: ConversationPersonasSelectedTable;
   persona_visibility: PersonaVisibilityTable;
+  persona_runs_after: PersonaRunsAfterTable;
 }
 
 // Re-export for callers that need the Generated marker (auto-incremented

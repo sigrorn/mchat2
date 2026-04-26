@@ -102,6 +102,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
   ],
   conversation_personas_selected: ["conversation_id", "persona_id"],
   persona_visibility: ["conversation_id", "observer_slug", "source_slug", "visible"],
+  persona_runs_after: ["child_id", "parent_id"],
 };
 
 describe("schema.ts agrees with migrations on column lists", () => {

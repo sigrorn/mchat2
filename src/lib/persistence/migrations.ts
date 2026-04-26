@@ -270,6 +270,26 @@ export const MIGRATIONS: string[][] = [
          JOIN personas source ON source.id = inner_j.value
                             AND source.conversation_id = c.id`,
   ],
+  // 17 — Normalize runs_after → edge table (#192 → #195). The legacy
+  // JSON column stays populated as a dual-write rollback safety net;
+  // reads switch to this table.
+  [
+    `CREATE TABLE persona_runs_after (
+      child_id  TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+      parent_id TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+      PRIMARY KEY (child_id, parent_id)
+    )`,
+    `CREATE INDEX idx_persona_runs_after_parent ON persona_runs_after(parent_id)`,
+    // Backfill: each persona's runs_after JSON array becomes one
+    // edge row per parent id. The JOIN against personas filters out
+    // orphans (parents that don't resolve to a real row) — would
+    // otherwise fail the FK constraint.
+    `INSERT INTO persona_runs_after (child_id, parent_id)
+       SELECT child.id, parent.id
+         FROM personas child, json_each(child.runs_after) j
+         JOIN personas parent ON parent.id = j.value
+                              AND parent.conversation_id = child.conversation_id`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

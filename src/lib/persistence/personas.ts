@@ -26,7 +26,7 @@ interface Row {
   openai_compat_preset?: string | null;
 }
 
-function rowToPersona(r: Row): Persona {
+function rowToPersona(r: Row, runsAfter: string[]): Persona {
   return {
     id: r.id,
     conversationId: r.conversation_id,
@@ -38,12 +38,45 @@ function rowToPersona(r: Row): Persona {
     colorOverride: r.color_override,
     createdAtMessageIndex: r.created_at_message_index,
     sortOrder: r.sort_order,
-    runsAfter: parseRunsAfter(r.runs_after),
+    // #195: read from persona_runs_after junction; legacy JSON column
+    // is dual-written but no longer the read source.
+    runsAfter,
     deletedAt: r.deleted_at,
     apertusProductId: r.apertus_product_id ?? null,
     visibilityDefaults: parseVisibilityDefaults(r.visibility_defaults),
     openaiCompatPreset: parseOpenaiCompatPreset(r.openai_compat_preset),
   };
+}
+
+async function loadRunsAfterMap(
+  personaIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  for (const id of personaIds) out.set(id, []);
+  if (personaIds.length === 0) return out;
+  // SQLite doesn't support tuple-IN with placeholder lists out of
+  // the box; build a parameterized "IN (?, ?, ...)" instead.
+  const placeholders = personaIds.map(() => "?").join(",");
+  const rows = await sql.select<{ child_id: string; parent_id: string }>(
+    `SELECT child_id, parent_id FROM persona_runs_after WHERE child_id IN (${placeholders})`,
+    [...personaIds],
+  );
+  for (const r of rows) out.get(r.child_id)?.push(r.parent_id);
+  return out;
+}
+
+async function writeRunsAfter(personaId: string, parents: readonly string[]): Promise<void> {
+  await sql.execute("DELETE FROM persona_runs_after WHERE child_id = ?", [personaId]);
+  for (const parent of parents) {
+    // INSERT OR IGNORE — defensive against the very rare case that
+    // a parent doesn't resolve (e.g. an import sequence where the
+    // parent persona row hasn't been created yet). Without OR IGNORE
+    // the FK violation aborts the whole UPDATE/INSERT chain.
+    await sql.execute(
+      "INSERT OR IGNORE INTO persona_runs_after (child_id, parent_id) VALUES (?, ?)",
+      [personaId, parent],
+    );
+  }
 }
 
 function parseOpenaiCompatPreset(
@@ -67,16 +100,9 @@ function parseOpenaiCompatPreset(
   return null;
 }
 
-function parseRunsAfter(raw: string | null): string[] {
-  if (raw === null) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === "string");
-  } catch {
-    // Pre-migration single id string.
-  }
-  return raw ? [raw] : [];
-}
+// parseRunsAfter removed in #195 — runsAfter now comes from the
+// persona_runs_after junction. Kept here as a comment-marker so a
+// future grep finds the explanation.
 
 function parseVisibilityDefaults(raw: string | null | undefined): Record<string, "y" | "n"> {
   if (!raw) return {};
@@ -103,12 +129,15 @@ export async function listPersonas(
     ? "SELECT * FROM personas WHERE conversation_id = ? ORDER BY sort_order, name"
     : "SELECT * FROM personas WHERE conversation_id = ? AND deleted_at IS NULL ORDER BY sort_order, name";
   const rows = await sql.select<Row>(q, [conversationId]);
-  return rows.map(rowToPersona);
+  const runsAfterMap = await loadRunsAfterMap(rows.map((r) => r.id));
+  return rows.map((r) => rowToPersona(r, runsAfterMap.get(r.id) ?? []));
 }
 
 export async function getPersona(id: string): Promise<Persona | null> {
   const rows = await sql.select<Row>("SELECT * FROM personas WHERE id = ?", [id]);
-  return rows[0] ? rowToPersona(rows[0]) : null;
+  if (!rows[0]) return null;
+  const map = await loadRunsAfterMap([id]);
+  return rowToPersona(rows[0], map.get(id) ?? []);
 }
 
 export async function createPersona(
@@ -140,6 +169,7 @@ export async function createPersona(
       p.openaiCompatPreset ? JSON.stringify(p.openaiCompatPreset) : null,
     ],
   );
+  await writeRunsAfter(p.id, p.runsAfter);
   return p;
 }
 
@@ -168,6 +198,7 @@ export async function updatePersona(p: Persona): Promise<void> {
       p.id,
     ],
   );
+  await writeRunsAfter(p.id, p.runsAfter);
 }
 
 export async function tombstonePersona(id: string, at: number = Date.now()): Promise<void> {
