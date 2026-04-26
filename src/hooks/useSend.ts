@@ -24,9 +24,10 @@ import { useSendStore } from "@/stores/sendStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { selectionAfterResolve } from "@/lib/app/sendSelection";
 import { runOneTarget } from "@/lib/app/runOneTarget";
-import { postResponseCheck } from "./postResponseCheck";
+import { postResponseCheck } from "@/lib/app/postResponseCheck";
 import { runPlannedSend } from "./runPlannedSend";
 import { makeRunOneTargetDeps } from "./runOneTargetDeps";
+import { makePostResponseCheckDeps } from "./postResponseCheckDeps";
 
 export interface SendOptions {
   pinned?: boolean;
@@ -69,7 +70,7 @@ export function useSend(conversation: Conversation) {
       if (!result.ok) return { ok: false as const, reason: result.reason };
 
       // #105: post-response autocompact / context warnings.
-      void postResponseCheck(conversation.id);
+      void postResponseCheck(makePostResponseCheckDeps(), conversation.id);
 
       // #54: auto-title
       if (conversation.title === "New conversation") {

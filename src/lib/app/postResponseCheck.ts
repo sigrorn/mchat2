@@ -1,11 +1,14 @@
 // ------------------------------------------------------------------
-// Component: Post-response check
+// Component: Post-response check (lib/app)
 // Responsibility: After all responses complete, handle autocompact
 //                 triggering and 80/90/98% context warnings.
 //                 All checks are per-persona (#118): each persona is
 //                 compared against ITS OWN model's max-context window.
-// Collaborators: hooks/useSend.ts, lib/commands/autocompactCheck.ts,
-//                lib/conversations/runCompaction.ts.
+//                 Originally lived in src/hooks/; moved here in #149
+//                 with store calls routed through deps so the
+//                 lib→stores boundary holds (#142).
+// Collaborators: lib/commands/autocompactCheck, lib/conversations/
+//                runCompaction, hooks/useSend (wires deps).
 // ------------------------------------------------------------------
 
 import type { Conversation, Message, Persona, PersonaTarget } from "@/lib/types";
@@ -22,10 +25,7 @@ import { formatStats } from "@/lib/commands/stats";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { getSetting } from "@/lib/persistence/settings";
 import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
-import { useMessagesStore } from "@/stores/messagesStore";
-import { useConversationsStore } from "@/stores/conversationsStore";
-import { usePersonasStore } from "@/stores/personasStore";
-import { useSendStore } from "@/stores/sendStore";
+import type { PostResponseCheckDeps } from "./deps";
 
 /**
  * Build a per-persona usage record: current context tokens and that
@@ -83,25 +83,26 @@ function formatTriggeringPersonas(personas: readonly PersonaUsage[]): string {
  * Run after all responses complete. Handles autocompact triggering
  * and 80/90/98% context warnings.
  */
-export async function postResponseCheck(conversationId: string): Promise<void> {
-  const conversation = useConversationsStore
-    .getState()
-    .conversations.find((c) => c.id === conversationId);
+export async function postResponseCheck(
+  deps: PostResponseCheckDeps,
+  conversationId: string,
+): Promise<void> {
+  const conversation = deps.getConversation(conversationId);
   if (!conversation) return;
 
-  const personas = usePersonasStore.getState().byConversation[conversationId] ?? [];
+  const personas = deps.getPersonas(conversationId);
   if (personas.length === 0) return;
 
-  const messages = useMessagesStore.getState().byConversation[conversationId] ?? [];
+  const messages = deps.getMessages(conversationId);
   const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
 
-  const usages = computePersonaUsages(conversation, personas, messages, globalPrompt);
+  const usages = computePersonaUsages(conversation, personas, [...messages], globalPrompt);
 
   // Case 1: autocompact is on — check per-persona triggers.
   const triggers = autocompactTriggers(conversation, usages);
   if (triggers.length > 0) {
     const preserve = conversation.autocompactThreshold?.preserve ?? 0;
-    await runAutocompact(conversationId, conversation, personas, preserve);
+    await runAutocompact(deps, conversationId, conversation, personas, preserve);
     return;
   }
 
@@ -109,20 +110,19 @@ export async function postResponseCheck(conversationId: string): Promise<void> {
   const warnings = pendingWarnings(conversation, usages);
   if (warnings.length > 0) {
     const fired = [...(conversation.contextWarningsFired ?? []), ...warnings];
-    await useConversationsStore.getState().setContextWarningsFired(conversationId, fired);
+    await deps.setContextWarningsFired(conversationId, fired);
     const highest = warnings[warnings.length - 1]!;
     const triggering = personasAtThreshold(highest, usages);
     const names = formatTriggeringPersonas(triggering);
-    await useMessagesStore
-      .getState()
-      .appendNotice(
-        conversationId,
-        `⚠ ${names} — ${highest}% of own context window reached. Time for //compact ?`,
-      );
+    await deps.appendNotice(
+      conversationId,
+      `⚠ ${names} — ${highest}% of own context window reached. Time for //compact ?`,
+    );
   }
 }
 
 async function runAutocompact(
+  deps: PostResponseCheckDeps,
   conversationId: string,
   conversation: Conversation,
   personas: readonly Persona[],
@@ -131,40 +131,32 @@ async function runAutocompact(
   // #122 — emit current //stats before autocompact begins so the
   // pre-compaction TTFT/throughput averages are visible alongside the
   // post-compaction recap.
-  const preMessages = useMessagesStore.getState().byConversation[conversationId] ?? [];
-  await useMessagesStore
-    .getState()
-    .appendNotice(conversationId, formatStats(conversation, preMessages, personas));
-  const result = await runCompaction(conversation, personas, preserve, {
+  const preMessages = deps.getMessages(conversationId);
+  await deps.appendNotice(conversationId, formatStats(conversation, [...preMessages], personas));
+  const result = await runCompaction(conversation, [...personas], preserve, {
     // #123 — use "compacting" status (pale brown) for the persona row
     // so autocompact is visually distinct from a regular response.
-    onPersonaStart: (pid) =>
-      useSendStore.getState().setTargetStatus(conversationId, pid, "compacting"),
-    onPersonaError: (pid) =>
-      useSendStore.getState().setTargetStatus(conversationId, pid, "retrying"),
-    onPersonaDone: (pid) => useSendStore.getState().clearTargetStatus(conversationId, pid),
-    onSlow: () =>
-      void useMessagesStore
-        .getState()
-        .appendNotice(conversationId, "auto-compacting, please wait…"),
+    onPersonaStart: (pid) => deps.setTargetStatus(conversationId, pid, "compacting"),
+    onPersonaError: (pid) => deps.setTargetStatus(conversationId, pid, "retrying"),
+    onPersonaDone: (pid) => deps.clearTargetStatus(conversationId, pid),
+    onSlow: () => void deps.appendNotice(conversationId, "auto-compacting, please wait…"),
   });
 
   for (const f of result.failures) {
-    await useMessagesStore
-      .getState()
-      .appendNotice(conversationId, `autocompact: failed for ${f.persona.name}: ${f.error}`);
+    await deps.appendNotice(
+      conversationId,
+      `autocompact: failed for ${f.persona.name}: ${f.error}`,
+    );
   }
   if (result.nothingToDo) return;
   if (result.summaries.length === 0) {
-    await useMessagesStore
-      .getState()
-      .appendNotice(conversationId, "autocompact: no summaries generated.");
+    await deps.appendNotice(conversationId, "autocompact: no summaries generated.");
     return;
   }
 
-  await useMessagesStore.getState().load(conversationId);
-  await useConversationsStore.getState().setCompactionFloor(conversationId, result.cutoff);
-  await useConversationsStore.getState().setLimit(conversationId, result.cutoff);
+  await deps.reloadMessages(conversationId);
+  await deps.setCompactionFloor(conversationId, result.cutoff);
+  await deps.setLimit(conversationId, result.cutoff);
 
   const lines = [
     `auto-compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,
@@ -172,5 +164,5 @@ async function runAutocompact(
   for (const s of result.summaries) {
     lines.push(formatPersonaLine(s, result.tightestMaxTokens));
   }
-  await useMessagesStore.getState().appendNotice(conversationId, lines.join("\n"));
+  await deps.appendNotice(conversationId, lines.join("\n"));
 }

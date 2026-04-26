@@ -9,7 +9,7 @@
 //                from these); src/lib/app/* (use cases consume them).
 // ------------------------------------------------------------------
 
-import type { ActiveStream, Message, StreamStatus } from "@/lib/types";
+import type { ActiveStream, Conversation, Message, StreamStatus } from "@/lib/types";
 
 // -----------------------------------------------------------------
 // Reads — getters return current values without subscribing.
@@ -61,8 +61,15 @@ export interface PersonasWriteDeps {
   setSelection: (conversationId: string, selection: readonly string[]) => void;
 }
 
+export interface ConversationsReadDeps {
+  getConversation: (conversationId: string) => Conversation | undefined;
+}
+
 export interface ConversationsWriteDeps {
   rename: (conversationId: string, title: string) => Promise<void>;
+  setContextWarningsFired: (conversationId: string, fired: number[]) => Promise<void>;
+  setCompactionFloor: (conversationId: string, floorIndex: number | null) => Promise<void>;
+  setLimit: (conversationId: string, limitMarkIndex: number | null) => Promise<void>;
 }
 
 export interface SendStateDeps {
@@ -85,11 +92,11 @@ export type RunOneTargetDeps = MessagesReadDeps &
   UiReadDeps;
 
 export type PostResponseCheckDeps = MessagesReadDeps &
-  Pick<MessagesWriteDeps, "appendNotice"> &
+  Pick<MessagesWriteDeps, "appendNotice" | "reloadMessages"> &
   PersonasReadDeps &
-  // Limit-mark / compaction-floor mutations live on the conversations
-  // store today; widen this when #149 lands and we know the exact set.
-  ConversationsWriteDeps;
+  ConversationsReadDeps &
+  Pick<ConversationsWriteDeps, "setContextWarningsFired" | "setCompactionFloor" | "setLimit"> &
+  Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus">;
 
 export type SendMessageDeps = MessagesReadDeps &
   MessagesWriteDeps &
