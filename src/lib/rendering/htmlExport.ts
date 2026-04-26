@@ -63,6 +63,9 @@ h2{font-size:1.1rem;margin-top:1.5rem}
 .persona .source{font-size:.7rem;color:#888;font-weight:normal;text-transform:none;letter-spacing:0;margin-left:.5rem}
 pre{background:#f3f4f6;padding:.5rem .75rem;border-radius:4px;overflow-x:auto}
 code{font-family:ui-monospace,SFMono-Regular,monospace}
+table{border-collapse:collapse;margin:.5rem 0;font-size:.95em}
+th,td{border:1px solid #d1d5db;padding:.35rem .6rem}
+th{background:#f3f4f6;font-weight:600;text-align:left}
 </style>
 </head>
 <body>
