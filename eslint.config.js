@@ -43,5 +43,53 @@ export default [
     },
     settings: { react: { version: "detect" } },
   },
+  // #142: Layer boundary — pure services under src/lib must not pull
+  // in Zustand stores, React hooks, or @tauri-apps/* directly. Stores
+  // are UI-coupled state; hooks are React-only; raw @tauri-apps APIs
+  // must go through the @/lib/tauri/* shim so capabilities/scope are
+  // enforced in one place. Existing violators are exempted below until
+  // the use-case layer extraction (#144) cleans them up.
+  {
+    files: ["src/lib/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/stores/*", "*/stores/*", "../stores/*", "../../stores/*"],
+              message:
+                "src/lib/** must not import from @/stores/* — pass store actions in via callbacks. See #142/#144.",
+            },
+            {
+              group: ["@/hooks/*", "*/hooks/*", "../hooks/*", "../../hooks/*"],
+              message:
+                "src/lib/** must not import from @/hooks/* — hooks are React-only. See #142/#144.",
+            },
+            {
+              group: ["@tauri-apps/*"],
+              message:
+                "src/lib/** must not import @tauri-apps/* directly — go through @/lib/tauri/* shim. See #142.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // Exempt existing violators from the lib→stores ban. The store
+  // coupling here is the work scoped by #144. New files must NOT be
+  // added to this list — pass store actions in via callbacks instead.
+  {
+    files: [
+      "src/lib/commands/dispatch.ts",
+      "src/lib/commands/handlers/**/*.{ts,tsx}",
+      "src/lib/conversations/exportToFile.ts",
+      "src/lib/conversations/snapshotFileOps.ts",
+      "src/lib/personas/fileOps.ts",
+    ],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
   prettier,
 ];

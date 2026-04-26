@@ -144,7 +144,7 @@ export const MIGRATIONS: string[][] = [
 // #98: backup the DB file before running migrations.
 async function backupBeforeMigration(schemaVersion: number): Promise<string | null> {
   try {
-    const { appDataDir } = await import("@tauri-apps/api/path");
+    const { appDataDir } = await import("../tauri/path");
     const dir = await appDataDir();
     const sep = dir.includes("\\") ? "\\" : "/";
     const dbPath = `${dir}${sep}mchat2.db`;
