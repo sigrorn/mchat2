@@ -17,6 +17,7 @@ import { resolveTargets } from "@/lib/personas/resolver";
 import { planReplay } from "@/lib/conversations/replay";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { transaction } from "@/lib/persistence/transaction";
+import { recordReplay } from "@/lib/orchestration/recordReplay";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import type { ReplayMessageDeps } from "./deps";
@@ -81,6 +82,13 @@ export async function replayMessage(
   // one transaction. A failure mid-way otherwise leaves the edit applied
   // with the stale replies still attached.
   const edited = history.find((m) => m.id === messageId);
+  // #177: capture the assistant rows about to be dropped so we can
+  // mark their backfilled Attempts as superseded after the regeneration
+  // completes. Done before the transaction since deleteMessagesAfter
+  // makes them unobservable.
+  const supersededAssistantIds = edited
+    ? history.filter((m) => m.role === "assistant" && m.index > edited.index).map((m) => m.id)
+    : [];
   await transaction(async () => {
     await messagesRepo.applyMessageMutation({
       id: plan.update.id,
@@ -100,5 +108,42 @@ export async function replayMessage(
 
   const result = await runPlannedSend(deps, { conversation, resolved, personas });
   if (!result.ok) return { ok: false, reason: result.reason };
+
+  // #177: parallel-write the replay's side-effects to the new
+  // Run/RunTarget/Attempt model. Tolerated to fail silently —
+  // the messages table is still authoritative for the UI until #180
+  // flips that, so a write hiccup here must not break the replay.
+  try {
+    const editedIndex = edited?.index;
+    const after = deps.getMessages(conversation.id);
+    const newAssistantMessages =
+      editedIndex == null
+        ? []
+        : after
+            .filter((m) => m.role === "assistant" && m.index > editedIndex)
+            .map((m) => ({
+              id: m.id,
+              personaId: m.personaId,
+              targetKey: personas.find((p) => p.id === m.personaId)?.nameSlug ?? m.personaId ?? "",
+              provider: m.provider,
+              model: m.model,
+              content: m.content,
+              createdAt: m.createdAt,
+              inputTokens: m.inputTokens,
+              outputTokens: m.outputTokens,
+              ttftMs: m.ttftMs ?? null,
+              streamMs: m.streamMs ?? null,
+              errorMessage: m.errorMessage,
+              errorTransient: m.errorTransient,
+            }));
+    await recordReplay({
+      conversationId: conversation.id,
+      now: Date.now(),
+      supersededMessageIds: supersededAssistantIds,
+      newAssistantMessages,
+    });
+  } catch (err) {
+    console.warn("recordReplay failed (parallel-write; non-fatal)", err);
+  }
   return { ok: true };
 }
