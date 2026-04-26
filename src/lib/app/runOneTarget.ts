@@ -6,23 +6,19 @@
 //                 context notice → cleanup. Used by send, retry, and
 //                 replay (#58, #117). Originally lived under
 //                 src/hooks/; lifted here in #148 with store calls
-//                 routed through deps so the boundary holds (#142).
-// Collaborators: lib/orchestration/streamRunner, lib/providers/*,
-//                lib/persistence/messages, hooks/useSend (wires deps).
+//                 routed through deps. #168 finishes the inversion —
+//                 every formerly-direct import (keychain, settings,
+//                 adapter registry, RAF, trace sink, repo append)
+//                 now arrives through deps so the use case can be
+//                 unit-tested against fakes.
+// Collaborators: lib/orchestration/streamRunner, lib/providers/registry,
+//                hooks/useSend (wires deps).
 // ------------------------------------------------------------------
 
 import type { Conversation, Persona, PersonaTarget, StreamEvent } from "@/lib/types";
 import { runStream, modelForTarget, type StreamRunOutcome } from "@/lib/orchestration/streamRunner";
-import { adapterFor } from "@/lib/providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
-import { resolveExtraConfig } from "@/lib/providers/extraConfig";
-import { keychain } from "@/lib/tauri/keychain";
-import { getSetting } from "@/lib/persistence/settings";
-import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
-import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/settings/registry";
 import { DEFAULT_RETRY } from "@/lib/orchestration/retryManager";
-import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
-import * as messagesRepo from "@/lib/persistence/messages";
 import type { RunOneTargetDeps } from "./deps";
 
 export interface RunOneTargetInput {
@@ -59,7 +55,7 @@ export async function runOneTarget(
   const persona = target.personaId ? personas.find((p) => p.id === target.personaId) : null;
   const priorUser = [...history].reverse().find((m) => m.role === "user");
   const audience = priorUser?.addressedTo ?? [];
-  const placeholderPromise = messagesRepo.appendMessage({
+  const placeholderPromise = deps.appendAssistantPlaceholder({
     conversationId: conversation.id,
     role: "assistant",
     content: "",
@@ -78,13 +74,11 @@ export async function runOneTarget(
     audience,
   });
 
-  const apiKey = PROVIDER_REGISTRY[target.provider].requiresKey
-    ? await keychain.get(PROVIDER_REGISTRY[target.provider].keychainKey)
-    : null;
-  const extraConfig = (await resolveExtraConfig(target.provider, persona ?? null)) ?? {};
-  const globalSystemPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
-  const idleTimeoutMs = await idleTimeoutSetting.get();
-  const maxAttempts = await maxRetryAttempts.get();
+  const apiKey = await deps.getApiKey(target.provider);
+  const extraConfig = (await deps.resolveExtraConfig(target.provider, persona ?? null)) ?? {};
+  const globalSystemPrompt = await deps.getGlobalSystemPrompt();
+  const idleTimeoutMs = await deps.getIdleTimeoutMs();
+  const maxAttempts = await deps.getMaxRetryAttempts();
   const retryPolicy = { ...DEFAULT_RETRY, maxAttempts };
 
   const placeholder = await placeholderPromise;
@@ -94,7 +88,7 @@ export async function runOneTarget(
   const slug = persona?.nameSlug ?? target.key;
   const traceSink =
     debugSession.enabled && debugSession.sessionTimestamp && workingDir
-      ? makeTraceFileSink({
+      ? deps.makeTraceSink({
           workingDir,
           sessionTimestamp: debugSession.sessionTimestamp,
           conversationId: conversation.id,
@@ -117,7 +111,7 @@ export async function runOneTarget(
       target,
       personas,
       history: [...history],
-      adapter: adapterFor(target.provider),
+      adapter: deps.getAdapter(target.provider),
       apiKey,
       model: modelForTarget(target, personas),
       displayMode: conversation.displayMode,
@@ -144,10 +138,10 @@ export async function runOneTarget(
           }
           if (e.type === "token" && placeholderId) {
             pendingTokens += e.text;
-            if (!rafId) rafId = requestAnimationFrame(flushTokens);
+            if (!rafId) rafId = deps.requestFrame(flushTokens);
           }
           if (e.type === "complete" || e.type === "error") {
-            if (rafId) cancelAnimationFrame(rafId);
+            if (rafId) deps.cancelFrame(rafId);
             flushTokens();
           }
         };

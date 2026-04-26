@@ -15,9 +15,6 @@ import type { Conversation } from "@/lib/types";
 import { resolveTargets } from "@/lib/personas/resolver";
 import { generateTitle } from "@/lib/conversations/autoTitle";
 import { modelForTarget } from "@/lib/orchestration/streamRunner";
-import { adapterFor } from "@/lib/providers/registryOfAdapters";
-import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
-import { keychain } from "@/lib/tauri/keychain";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import { postResponseCheck } from "./postResponseCheck";
@@ -93,11 +90,9 @@ export async function sendMessage(
       if (titleTarget) {
         void (async () => {
           try {
-            const ak = PROVIDER_REGISTRY[titleTarget.provider].requiresKey
-              ? await keychain.get(PROVIDER_REGISTRY[titleTarget.provider].keychainKey)
-              : null;
+            const ak = await deps.getApiKey(titleTarget.provider);
             const title = await generateTitle(
-              adapterFor(titleTarget.provider),
+              deps.getAdapter(titleTarget.provider),
               ak,
               modelForTarget(titleTarget, [...personas]),
               firstUser.content,

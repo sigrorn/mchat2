@@ -20,6 +20,15 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
 import { useUiStore } from "@/stores/uiStore";
+import { keychain } from "@/lib/tauri/keychain";
+import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { adapterFor } from "@/lib/providers/registryOfAdapters";
+import { resolveExtraConfig } from "@/lib/providers/extraConfig";
+import { getSetting } from "@/lib/persistence/settings";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
+import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/settings/registry";
+import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
+import * as messagesRepo from "@/lib/persistence/messages";
 
 const EMPTY: readonly never[] = Object.freeze([]) as readonly never[];
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]) as readonly Persona[];
@@ -49,6 +58,21 @@ export function makeRunOneTargetDeps(): RunOneTargetDeps {
     getStreamResponses: () => useUiStore.getState().streamResponses,
     getDebugSession: () => useUiStore.getState().debugSession,
     getWorkingDir: () => useUiStore.getState().workingDir,
+    // #168: infrastructure deps that previously lived as direct
+    // imports inside lib/app/runOneTarget.ts.
+    getApiKey: async (provider) => {
+      const meta = PROVIDER_REGISTRY[provider];
+      return meta.requiresKey ? keychain.get(meta.keychainKey) : null;
+    },
+    getGlobalSystemPrompt: () => getSetting(GLOBAL_SYSTEM_PROMPT_KEY),
+    getIdleTimeoutMs: () => idleTimeoutSetting.get(),
+    getMaxRetryAttempts: () => maxRetryAttempts.get(),
+    getAdapter: (provider) => adapterFor(provider),
+    resolveExtraConfig: (provider, persona) => resolveExtraConfig(provider, persona),
+    appendAssistantPlaceholder: (args) => messagesRepo.appendMessage(args),
+    makeTraceSink: (args) => makeTraceFileSink(args),
+    requestFrame: (cb) => globalThis.requestAnimationFrame(cb),
+    cancelFrame: (id) => globalThis.cancelAnimationFrame(id),
   };
 }
 

@@ -23,8 +23,6 @@ import {
 import { runCompaction, formatPersonaLine } from "@/lib/conversations/runCompaction";
 import { formatStats } from "@/lib/commands/stats";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
-import { getSetting } from "@/lib/persistence/settings";
-import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import type { PostResponseCheckDeps } from "./deps";
 
 /**
@@ -94,7 +92,7 @@ export async function postResponseCheck(
   if (personas.length === 0) return;
 
   const messages = deps.getMessages(conversationId);
-  const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+  const globalPrompt = await deps.getGlobalSystemPrompt();
 
   const usages = computePersonaUsages(conversation, personas, [...messages], globalPrompt);
 

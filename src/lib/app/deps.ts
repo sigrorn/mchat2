@@ -14,8 +14,12 @@ import type {
   AutocompactThreshold,
   Conversation,
   Message,
+  Persona,
+  ProviderId,
   StreamStatus,
 } from "@/lib/types";
+import type { ProviderAdapter } from "@/lib/providers/adapter";
+import type { TraceSink } from "@/lib/orchestration/streamRunner";
 
 // -----------------------------------------------------------------
 // Reads — getters return current values without subscribing.
@@ -105,6 +109,62 @@ export interface SendStateDeps {
 }
 
 // -----------------------------------------------------------------
+// Infrastructure deps — keychain, settings, adapters, RAF, tracing
+// (#168). Replaces direct imports of lib/tauri/keychain,
+// lib/persistence/settings, lib/providers/registryOfAdapters,
+// lib/tracing/traceFileSink, and globalThis.requestAnimationFrame
+// inside src/lib/app/* so use cases can be unit-tested against fakes
+// without spinning up the React tree.
+// -----------------------------------------------------------------
+
+export interface KeychainDeps {
+  getApiKey: (provider: ProviderId) => Promise<string | null>;
+}
+
+export interface SettingsReadDeps {
+  getGlobalSystemPrompt: () => Promise<string | null>;
+  getIdleTimeoutMs: () => Promise<number>;
+  getMaxRetryAttempts: () => Promise<number>;
+}
+
+export interface AdapterRegistryDeps {
+  getAdapter: (provider: ProviderId) => ProviderAdapter;
+  resolveExtraConfig: (
+    provider: ProviderId,
+    persona: Persona | null,
+  ) => Promise<Record<string, unknown> | undefined>;
+}
+
+// Direct repo write that pre-allocates idx and returns the persisted
+// row synchronously (modulo the awaits inside the repo). Used by
+// runOneTarget so the assistant placeholder lands at a deterministic
+// index before any subsequent awaits.
+export interface MessagesRepoWriteDeps {
+  appendAssistantPlaceholder: (
+    args: Omit<Message, "id" | "index" | "createdAt"> & {
+      id?: string;
+      createdAt?: number;
+    },
+  ) => Promise<Message>;
+}
+
+export interface TracingDeps {
+  makeTraceSink: (args: {
+    workingDir: string;
+    sessionTimestamp: string;
+    conversationId: string;
+    slug: string;
+  }) => TraceSink | undefined;
+}
+
+// requestAnimationFrame / cancelAnimationFrame abstraction. Default
+// wires to globalThis; tests can supply a synchronous shim.
+export interface FrameDeps {
+  requestFrame: (cb: () => void) => number;
+  cancelFrame: (id: number) => void;
+}
+
+// -----------------------------------------------------------------
 // Composed shapes — what each use case actually needs. Keep these
 // minimal: a use case that doesn't need a slice should not declare
 // it (makes test mocks smaller and the dependency graph honest).
@@ -113,20 +173,29 @@ export interface SendStateDeps {
 export type RunOneTargetDeps = MessagesReadDeps &
   Pick<MessagesWriteDeps, "appendPlaceholder" | "patchContent" | "patchError" | "appendNotice"> &
   SendStateDeps &
-  UiReadDeps;
+  UiReadDeps &
+  KeychainDeps &
+  SettingsReadDeps &
+  AdapterRegistryDeps &
+  MessagesRepoWriteDeps &
+  TracingDeps &
+  FrameDeps;
 
 export type PostResponseCheckDeps = MessagesReadDeps &
   Pick<MessagesWriteDeps, "appendNotice" | "reloadMessages"> &
   PersonasReadDeps &
   ConversationsReadDeps &
   Pick<ConversationsWriteDeps, "setContextWarningsFired" | "setCompactionFloor" | "setLimit"> &
-  Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus">;
+  Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus"> &
+  Pick<SettingsReadDeps, "getGlobalSystemPrompt">;
 
 export type SendMessageDeps = RunPlannedSendDeps &
   PostResponseCheckDeps &
   PersonasWriteDeps &
   Pick<MessagesWriteDeps, "appendUserMessage"> &
-  Pick<ConversationsWriteDeps, "rename">;
+  Pick<ConversationsWriteDeps, "rename"> &
+  KeychainDeps &
+  AdapterRegistryDeps;
 
 export type RunPlannedSendDeps = RunOneTargetDeps & Pick<MessagesWriteDeps, "reloadMessages">;
 

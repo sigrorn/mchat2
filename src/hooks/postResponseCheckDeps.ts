@@ -12,6 +12,8 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
+import { getSetting } from "@/lib/persistence/settings";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 
 const EMPTY_M: readonly Message[] = Object.freeze([]) as readonly Message[];
 const EMPTY_P: readonly Persona[] = Object.freeze([]) as readonly Persona[];
@@ -39,5 +41,8 @@ export function makePostResponseCheckDeps(): PostResponseCheckDeps {
       useSendStore.getState().setTargetStatus(conversationId, key, status),
     clearTargetStatus: (conversationId, key) =>
       useSendStore.getState().clearTargetStatus(conversationId, key),
+    // #168: invert the lone settings read so the use case takes the
+    // global system prompt as a dep instead of importing getSetting.
+    getGlobalSystemPrompt: () => getSetting(GLOBAL_SYSTEM_PROMPT_KEY),
   };
 }

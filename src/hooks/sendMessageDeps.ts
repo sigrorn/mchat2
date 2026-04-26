@@ -14,6 +14,10 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { makeRunPlannedSendDeps } from "./runOneTargetDeps";
 import { makePostResponseCheckDeps } from "./postResponseCheckDeps";
+// #168: KeychainDeps + AdapterRegistryDeps already wired by
+// makeRunPlannedSendDeps (which composes makeRunOneTargetDeps); the
+// auto-title block in sendMessage reuses those dep methods rather
+// than re-wiring keychain/adapterFor here.
 
 export function makeSendMessageDeps(): SendMessageDeps {
   return {
