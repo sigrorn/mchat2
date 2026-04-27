@@ -9,6 +9,31 @@ import {
 } from "@/lib/tauri/http";
 import type { SSEEvent } from "@/lib/tauri/http";
 
+describe("HttpError (#205 follow-up)", () => {
+  it("preserves the full body in the message — no 200-char truncation", () => {
+    // Realistic Infomaniak validation_failed body: nested error object
+    // with a list of errors. Important diagnostic detail (the rejected
+    // parameter + allowed values) lives past 200 chars.
+    const body =
+      'HTTP 400: {"error":{"message":"Your request was malformed or missing some required parameters: ' +
+      '{\\"code\\":\\"validation_failed\\",\\"description\\":\\"Validation failed\\",\\"errors\\":[' +
+      '{\\"code\\":\\"validation_rule_in\\",\\"field\\":\\"model\\",\\"allowed\\":[\\"apertus-70b\\",\\"qwen-2-72b\\"]}]' +
+      '}"}}';
+    const err = new HttpError(400, body);
+    // The full body is preserved on .body (already true) AND on .message
+    // so trace files / UI bubbles see the diagnostic detail.
+    expect(err.body).toBe(body);
+    expect(err.message).toContain("validation_rule_in");
+    expect(err.message).toContain("allowed");
+    expect(err.message.length).toBeGreaterThan(200);
+  });
+
+  it("still includes the status prefix in the message", () => {
+    const err = new HttpError(503, "service unavailable");
+    expect(err.message).toMatch(/^HTTP 503:/);
+  });
+});
+
 describe("parseSSEFrame", () => {
   it("parses data-only frame as message event", () => {
     expect(__test.parseSSEFrame("data: hello")).toEqual({ event: "message", data: "hello" });
