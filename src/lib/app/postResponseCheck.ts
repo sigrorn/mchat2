@@ -34,6 +34,7 @@ function computePersonaUsages(
   personas: readonly Persona[],
   messages: readonly Message[],
   globalSystemPrompt: string | null,
+  supersededIds: ReadonlySet<string>,
 ): PersonaUsage[] {
   const usages: PersonaUsage[] = [];
   for (const p of personas) {
@@ -49,6 +50,7 @@ function computePersonaUsages(
       messages: [...messages],
       personas: [...personas],
       globalSystemPrompt,
+      supersededIds,
     });
     const systemCost = ctx.systemPrompt ? estimateTokens(ctx.systemPrompt) : 0;
     const messageCost = ctx.messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
@@ -92,9 +94,16 @@ export async function postResponseCheck(
   if (personas.length === 0) return;
 
   const messages = deps.getMessages(conversationId);
+  const supersededIds = deps.getSupersededIds(conversationId);
   const globalPrompt = await deps.getGlobalSystemPrompt();
 
-  const usages = computePersonaUsages(conversation, personas, [...messages], globalPrompt);
+  const usages = computePersonaUsages(
+    conversation,
+    personas,
+    [...messages],
+    globalPrompt,
+    supersededIds,
+  );
 
   // Case 1: autocompact is on — check per-persona triggers.
   const triggers = autocompactTriggers(conversation, usages);

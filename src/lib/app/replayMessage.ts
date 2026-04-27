@@ -78,14 +78,14 @@ export async function replayMessage(
   const plan = planReplay([...history], messageId, resolved.strippedText, addressedTo);
   if (!plan.ok) return { ok: false, reason: plan.reason };
 
-  // #164: rewrite the user row and drop the trailing assistant rows in
-  // one transaction. A failure mid-way otherwise leaves the edit applied
-  // with the stale replies still attached.
+  // #164: rewrite the user row in a transaction so a partial failure
+  // can't leave the message half-edited.
+  // #180: trailing assistant rows are no longer deleted; their
+  // Attempts get marked superseded after the regeneration completes
+  // (recordReplay below), and both the UI's filterSupersededMessages
+  // and buildContext's supersededIds filter hide them from rendering
+  // and from the next context.
   const edited = history.find((m) => m.id === messageId);
-  // #177: capture the assistant rows about to be dropped so we can
-  // mark their backfilled Attempts as superseded after the regeneration
-  // completes. Done before the transaction since deleteMessagesAfter
-  // makes them unobservable.
   const supersededAssistantIds = edited
     ? history.filter((m) => m.role === "assistant" && m.index > edited.index).map((m) => m.id)
     : [];
@@ -95,9 +95,6 @@ export async function replayMessage(
       content: plan.update.content,
       addressedTo: plan.update.addressedTo,
     });
-    if (edited) {
-      await messagesRepo.deleteMessagesAfter(conversation.id, edited.index);
-    }
   });
   await deps.reloadMessages(conversation.id);
 
@@ -116,11 +113,20 @@ export async function replayMessage(
   try {
     const editedIndex = edited?.index;
     const after = deps.getMessages(conversation.id);
+    // #180: old assistant rows past the edit are no longer deleted;
+    // exclude them by id so newAssistantMessages contains only the
+    // freshly-streamed survivors.
+    const supersededSet = new Set(supersededAssistantIds);
     const newAssistantMessages =
       editedIndex == null
         ? []
         : after
-            .filter((m) => m.role === "assistant" && m.index > editedIndex)
+            .filter(
+              (m) =>
+                m.role === "assistant" &&
+                m.index > editedIndex &&
+                !supersededSet.has(m.id),
+            )
             .map((m) => ({
               id: m.id,
               personaId: m.personaId,

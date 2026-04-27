@@ -48,6 +48,9 @@ export async function recordRetry(input: RecordRetryInput): Promise<void> {
 
   const m = input.newAssistantMessage;
   await appendAttempt({
+    // #180: deterministic id so listSupersededMessageIds can map
+    // the attempt back to its message id.
+    id: `att_${m.id}`,
     runTargetId: targetId,
     content: m.content,
     startedAt: m.createdAt,

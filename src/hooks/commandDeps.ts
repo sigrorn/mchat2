@@ -14,11 +14,14 @@ import { useSendStore } from "@/stores/sendStore";
 
 const EMPTY_M: readonly Message[] = Object.freeze([]) as readonly Message[];
 const EMPTY_P: readonly Persona[] = Object.freeze([]) as readonly Persona[];
+const EMPTY_SUP: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
 
 export function makeCommandDeps(): CommandDeps {
   return {
     getMessages: (conversationId) =>
       useMessagesStore.getState().byConversation[conversationId] ?? EMPTY_M,
+    getSupersededIds: (conversationId) =>
+      useMessagesStore.getState().supersededByConversation[conversationId] ?? EMPTY_SUP,
     getPersonas: (conversationId) =>
       usePersonasStore.getState().byConversation[conversationId] ?? EMPTY_P,
     getSelection: (conversationId) =>

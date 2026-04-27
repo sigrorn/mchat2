@@ -63,17 +63,19 @@ export async function handleRetry(ctx: CommandContext): Promise<CommandResult | 
     await ctx.deps.appendNotice(conversation.id, "retry: nothing to retry.");
     return { restoreText: rawInput };
   }
-  const cleanupIds: string[] = [];
+  let anySucceeded = false;
   await Promise.all(
     failed.map(async (m) => {
       const r = await retry(m);
-      if (r.ok) cleanupIds.push(m.id);
+      if (r.ok) anySucceeded = true;
     }),
   );
-  for (const id of cleanupIds) {
-    await messagesRepo.deleteMessage(id);
-  }
-  if (cleanupIds.length > 0) await ctx.deps.reloadMessages(conversation.id);
+  // #180: failed assistant rows used to be deleted here after a
+  // successful retry; recordRetry now marks their Attempt as
+  // superseded instead, and the UI's filterSupersededMessages hides
+  // them. The errorMessage filter in buildContext keeps them out of
+  // any subsequent context regardless.
+  if (anySucceeded) await ctx.deps.reloadMessages(conversation.id);
 }
 
 export async function handlePop(

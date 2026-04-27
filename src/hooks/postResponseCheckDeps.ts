@@ -17,11 +17,14 @@ import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 
 const EMPTY_M: readonly Message[] = Object.freeze([]) as readonly Message[];
 const EMPTY_P: readonly Persona[] = Object.freeze([]) as readonly Persona[];
+const EMPTY_SUP: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
 
 export function makePostResponseCheckDeps(): PostResponseCheckDeps {
   return {
     getMessages: (conversationId) =>
       useMessagesStore.getState().byConversation[conversationId] ?? EMPTY_M,
+    getSupersededIds: (conversationId) =>
+      useMessagesStore.getState().supersededByConversation[conversationId] ?? EMPTY_SUP,
     appendNotice: (conversationId, content) =>
       useMessagesStore.getState().appendNotice(conversationId, content),
     reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),

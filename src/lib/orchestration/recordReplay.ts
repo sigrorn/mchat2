@@ -72,6 +72,9 @@ export async function recordReplay(input: RecordReplayInput): Promise<void> {
       status,
     });
     await appendAttempt({
+      // #180: deterministic id so listSupersededMessageIds can map
+      // the attempt back to its message id.
+      id: `att_${msg.id}`,
       runTargetId: target.id,
       content: msg.content,
       startedAt: msg.createdAt,

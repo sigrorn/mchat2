@@ -27,6 +27,12 @@ import type { TraceSink } from "@/lib/orchestration/streamRunner";
 
 export interface MessagesReadDeps {
   getMessages: (conversationId: string) => readonly Message[];
+  // #180: ids of assistant rows whose Attempt has been superseded by
+  // a later one. Empty set when nothing is superseded. Use cases that
+  // build LLM context (sendMessage, replayMessage, retryMessage,
+  // postResponseCheck, runCompaction) read this and forward it so
+  // buildContext can drop the stale rows.
+  getSupersededIds: (conversationId: string) => ReadonlySet<string>;
 }
 
 export interface PersonasReadDeps {

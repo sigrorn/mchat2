@@ -122,6 +122,9 @@ export async function runOneTarget(
       target,
       personas,
       history: [...history],
+      // #180: drop superseded assistant rows from context so retry/
+      // replay survivors don't leak the stale prior reply.
+      supersededIds: deps.getSupersededIds(conversation.id),
       adapter: deps.getAdapter(target.provider),
       apiKey,
       model: modelForTarget(target, personas),

@@ -54,6 +54,10 @@ export async function recordSend(input: RecordSendInput): Promise<void> {
       status: m.errorMessage ? "error" : "complete",
     });
     await appendAttempt({
+      // #180: deterministic id so listSupersededMessageIds (which
+      // strips the att_ prefix to recover the message id) can map
+      // the attempt back to the message it represents.
+      id: `att_${m.id}`,
       runTargetId: target.id,
       content: m.content,
       startedAt: m.createdAt,

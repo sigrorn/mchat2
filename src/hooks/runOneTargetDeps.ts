@@ -32,11 +32,14 @@ import * as messagesRepo from "@/lib/persistence/messages";
 
 const EMPTY: readonly never[] = Object.freeze([]) as readonly never[];
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]) as readonly Persona[];
+const EMPTY_SUPERSEDED: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
 
 export function makeRunOneTargetDeps(): RunOneTargetDeps {
   return {
     getMessages: (conversationId) =>
       useMessagesStore.getState().byConversation[conversationId] ?? EMPTY,
+    getSupersededIds: (conversationId) =>
+      useMessagesStore.getState().supersededByConversation[conversationId] ?? EMPTY_SUPERSEDED,
     appendPlaceholder: (msg) => useMessagesStore.getState().append(msg),
     patchContent: (conversationId, messageId, content) =>
       useMessagesStore.getState().patchContent(conversationId, messageId, content),

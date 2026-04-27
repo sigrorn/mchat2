@@ -74,6 +74,10 @@ export interface StreamRunInput {
   // display stable), it passes the placeholder id here so runStream
   // skips its own appendMessage and doesn't allocate a new index.
   placeholderId?: string;
+  // #180: ids of assistant rows whose Attempt was superseded by a
+  // later one. Forwarded to buildContext so the LLM doesn't see stale
+  // replies left in place by retry/replay.
+  supersededIds?: ReadonlySet<string>;
 }
 
 export interface StreamRunOutcome {
@@ -94,14 +98,16 @@ export interface StreamRunOutcome {
 export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome> {
   const { conversation, target, personas, history, adapter, signal, onEvent } = input;
   const providerMeta: ProviderMeta = PROVIDER_REGISTRY[target.provider];
-  const { systemPrompt, messages, dropped, firstSurvivingUserNumber } = buildContext({
+  const buildArgs: Parameters<typeof buildContext>[0] = {
     conversation,
     target,
     messages: history,
     personas,
     globalSystemPrompt: input.globalSystemPrompt ?? null,
     maxContextTokens: providerMeta.maxContextTokens,
-  });
+  };
+  if (input.supersededIds) buildArgs.supersededIds = input.supersededIds;
+  const { systemPrompt, messages, dropped, firstSurvivingUserNumber } = buildContext(buildArgs);
 
   // Persist the empty shell up-front so the UI can render its bubble
   // and append tokens as they arrive.

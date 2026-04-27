@@ -25,6 +25,12 @@ export interface BuildContextInput {
   // Provider's token limit (#55). When set, oldest non-pinned messages
   // are dropped to fit. Infinity or omitted = no truncation.
   maxContextTokens?: number;
+  // #180: ids of assistant rows whose Attempt has been superseded by a
+  // later one (e.g. retry/replay survivors). Filtered out so a fresh
+  // run doesn't see the stale reply alongside the surviving one.
+  // Optional — callers that don't carry this state pass undefined and
+  // get the legacy "exclude only by errorMessage" behavior.
+  supersededIds?: ReadonlySet<string>;
 }
 
 export interface BuildContextResult {
@@ -82,10 +88,14 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   const limitMark = conversation.limitMarkIndex;
   const cutoff = persona?.createdAtMessageIndex ?? 0;
 
+  const supersededIds = input.supersededIds ?? null;
   const out: ChatMessage[] = [];
   for (const m of messages) {
     if (m.role === "system" || m.role === "notice") continue;
     if (m.role === "assistant" && m.errorMessage !== null) continue;
+    // #180: drop superseded assistant rows so retry/replay don't pollute
+    // a fresh run with their stale prior text.
+    if (m.role === "assistant" && supersededIds?.has(m.id)) continue;
 
     // #102: hard floor from compaction — nothing below it enters context.
     const floor = conversation.compactionFloorIndex;
