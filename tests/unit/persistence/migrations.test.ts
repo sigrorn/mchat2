@@ -104,10 +104,10 @@ describe("runMigrations", () => {
   });
 
   it("does not issue COMMIT after a failed migration", async () => {
-    // Match against the latest migration's signature statement (#196
-    // added `CREATE TABLE conversation_context_warnings`).
+    // Match against the latest migration's signature statement (#206
+    // added `ALTER TABLE messages ADD COLUMN superseded_at`).
     const mock = makeMockSql(MIGRATIONS.length - 1, {
-      failOn: (q) => /CREATE TABLE conversation_context_warnings/i.test(q),
+      failOn: (q) => /ALTER TABLE messages ADD COLUMN superseded_at/i.test(q),
     });
     await expect(runMigrations()).rejects.toThrow();
     // After the failure, no further BEGIN/COMMIT pairs should appear.

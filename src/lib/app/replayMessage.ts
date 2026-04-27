@@ -95,6 +95,13 @@ export async function replayMessage(
       content: plan.update.content,
       addressedTo: plan.update.addressedTo,
     });
+    // #206: stamp the trailing assistant rows as superseded so the
+    // UI hides them and the context builder skips them. Done inside
+    // the transaction with the message edit so a partial failure
+    // can't leave the chat half-replaced.
+    if (supersededAssistantIds.length > 0) {
+      await messagesRepo.markMessagesSuperseded(supersededAssistantIds, Date.now());
+    }
   });
   await deps.reloadMessages(conversation.id);
 

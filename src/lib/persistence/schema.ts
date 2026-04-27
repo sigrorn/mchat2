@@ -78,6 +78,10 @@ export interface MessagesTable {
   audience: string; // JSON-encoded
   ttft_ms: number | null;
   stream_ms: number | null;
+  // #206: stamped by replay/retry to hide a message from the UI
+  // without deleting it. NULL means visible. Reads (UI filter,
+  // context builder, listSupersededMessageIds) consult this directly.
+  superseded_at: number | null;
 }
 
 export interface SettingsTable {

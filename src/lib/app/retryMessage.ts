@@ -12,6 +12,7 @@
 import type { Conversation, Message } from "@/lib/types";
 import { buildRetryTarget } from "@/lib/orchestration/retryTarget";
 import { recordRetry } from "@/lib/orchestration/recordRetry";
+import * as messagesRepo from "@/lib/persistence/messages";
 import { runOneTarget } from "./runOneTarget";
 import type { RetryMessageDeps } from "./deps";
 
@@ -38,6 +39,15 @@ export async function retryMessage(
     runId,
     bufferTokens: false,
   });
+
+  // #206: hide the failed bubble once the retry produced a result —
+  // success or failure. Stamping superseded_at preserves the row for
+  // attempt-history (#181) while filterSupersededMessages drops it
+  // from the live UI. Skipped when the retry itself errored without
+  // producing any new attempt outcome.
+  if (outcome.kind !== "cancelled") {
+    await messagesRepo.markMessagesSuperseded([failed.id], Date.now());
+  }
 
   await deps.reloadMessages(conversation.id);
 

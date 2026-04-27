@@ -70,11 +70,10 @@ export async function handleRetry(ctx: CommandContext): Promise<CommandResult | 
       if (r.ok) anySucceeded = true;
     }),
   );
-  // #180: failed assistant rows used to be deleted here after a
-  // successful retry; recordRetry now marks their Attempt as
-  // superseded instead, and the UI's filterSupersededMessages hides
-  // them. The errorMessage filter in buildContext keeps them out of
-  // any subsequent context regardless.
+  // #180 → #206: failed assistant rows are no longer deleted; the
+  // marking lives inside retryMessage itself so the inline "retry"
+  // button on a single bubble gets the same hide-on-success
+  // behavior as this batch path.
   if (anySucceeded) await ctx.deps.reloadMessages(conversation.id);
 }
 

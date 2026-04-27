@@ -61,4 +61,9 @@ export interface Message {
   // sites (non-streamed row construction) don't need to set them.
   ttftMs?: number | null;
   streamMs?: number | null;
+  // #206: when non-null, this message has been replaced by a later
+  // replay or retry. The UI filter hides it; the context builder
+  // skips it. The row is kept in the messages table so a future
+  // attempt-history affordance (#181) can surface it. Null = visible.
+  supersededAt?: number | null;
 }

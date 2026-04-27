@@ -40,6 +40,7 @@ function rowToMessage(r: MessagesTable): Message {
     audience: parseAudience(r.audience),
     ttftMs: r.ttft_ms,
     streamMs: r.stream_ms,
+    supersededAt: r.superseded_at,
   };
 }
 
@@ -66,6 +67,7 @@ function messageToRow(msg: Message): MessagesTable {
     audience: JSON.stringify(msg.audience),
     ttft_ms: msg.ttftMs ?? null,
     stream_ms: msg.streamMs ?? null,
+    superseded_at: msg.supersededAt ?? null,
   };
 }
 
@@ -264,6 +266,24 @@ export async function setMessagePin(
 
 export async function deleteMessage(id: string): Promise<void> {
   await db.deleteFrom("messages").where("id", "=", id).execute();
+}
+
+// #206: stamp messages.superseded_at so the UI's filterSupersededMessages
+// hides these rows without removing them from the DB. Used by replay
+// (the trailing assistant rows after the edited user message) and
+// retry (the failed assistant row that's been replaced). The row
+// stays in the messages table so a future attempt-history affordance
+// (#181) can surface it.
+export async function markMessagesSuperseded(
+  ids: readonly string[],
+  at: number,
+): Promise<void> {
+  if (ids.length === 0) return;
+  await db
+    .updateTable("messages")
+    .set({ superseded_at: at })
+    .where("id", "in", ids)
+    .execute();
 }
 
 // Helper for test fixtures — build a Message without hitting the DB.

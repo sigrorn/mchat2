@@ -73,6 +73,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "audience",
     "ttft_ms",
     "stream_ms",
+    "superseded_at",
   ],
   settings: ["key", "value"],
   runs: ["id", "conversation_id", "kind", "started_at", "completed_at"],
