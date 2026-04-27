@@ -308,6 +308,19 @@ export const MIGRATIONS: string[][] = [
        SELECT c.id, CAST(j.value AS INTEGER), c.created_at
          FROM conversations c, json_each(c.context_warnings_fired) j`,
   ],
+  // 19 — Message-level superseded marker (#206 follow-up). The
+  // attempt-id-keyed superseded mechanism from #180 only worked for
+  // pre-#179 backfill rows and post-#205 sends — messages created
+  // between those points have random att_<random> ids that
+  // listSupersededMessageIds couldn't map back to a message id. A
+  // direct messages.superseded_at column makes the hide-on-replay /
+  // hide-on-retry behavior work regardless of attempt-id format.
+  // Reads (UI filter, context builder) consult this column;
+  // attempts.superseded_at retains its per-attempt-history meaning
+  // for the future #181 affordance.
+  [
+    `ALTER TABLE messages ADD COLUMN superseded_at INTEGER`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.
