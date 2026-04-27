@@ -117,7 +117,13 @@ export class HttpError extends Error {
     public status: number,
     public body: string,
   ) {
-    super(`HTTP ${status}: ${body.slice(0, 200)}`);
+    // #205: the 200-char truncation here was making trace files and
+    // the UI error bubble show only the provider error preamble,
+    // dropping the parameter-name + allowed-values detail that's the
+    // whole reason you'd read the body. Provider error bodies are
+    // bounded by what providers actually send (kilobytes at worst);
+    // the bubble is full-width and wraps. Keep the full body.
+    super(`HTTP ${status}: ${body}`);
     this.name = "HttpError";
   }
 }
