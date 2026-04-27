@@ -272,7 +272,7 @@ export async function deleteMessage(id: string): Promise<void> {
 // hides these rows without removing them from the DB. Used by replay
 // (the trailing assistant rows after the edited user message) and
 // retry (the failed assistant row that's been replaced). The row
-// stays in the messages table so a future attempt-history affordance
+// stays in the messages table so the attempt-history affordance
 // (#181) can surface it.
 export async function markMessagesSuperseded(
   ids: readonly string[],
@@ -284,6 +284,39 @@ export async function markMessagesSuperseded(
     .set({ superseded_at: at })
     .where("id", "in", ids)
     .execute();
+}
+
+// #181: superseded predecessors of `messageId` in the same
+// conversation, grouped by persona_id (or provider when persona_id
+// is null — bare-provider sends), ordered by index. Replaces
+// listAttemptHistoryForMessage's attempt-id-keyed path that returned
+// nothing for the #179-#205 random-id window. Reads
+// messages.superseded_at directly so it works for ALL data.
+export async function listMessageHistory(
+  conversationId: string,
+  messageId: string,
+): Promise<Message[]> {
+  const current = await getMessage(messageId);
+  if (!current || current.conversationId !== conversationId) return [];
+  let q = db
+    .selectFrom("messages")
+    .selectAll()
+    .where("conversation_id", "=", conversationId)
+    .where("superseded_at", "is not", null)
+    .where("idx", "<", current.index);
+  // Group by persona when the current message has one; fall back to
+  // matching provider for bare-provider rows. Mixing personas would
+  // surface unrelated history (e.g. bob's prior reply under alice's
+  // bubble), which is the wrong UX.
+  if (current.personaId !== null) {
+    q = q.where("persona_id", "=", current.personaId);
+  } else if (current.provider !== null) {
+    q = q.where("persona_id", "is", null).where("provider", "=", current.provider);
+  } else {
+    q = q.where("persona_id", "is", null).where("provider", "is", null);
+  }
+  const rows = await q.orderBy("idx").execute();
+  return rows.map(rowToMessage);
 }
 
 // Helper for test fixtures — build a Message without hitting the DB.

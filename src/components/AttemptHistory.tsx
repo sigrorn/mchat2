@@ -1,17 +1,24 @@
 // ------------------------------------------------------------------
 // Component: AttemptHistory
 // Responsibility: Inline affordance (#181) under an assistant bubble
-//                 that surfaces superseded attempts on the same
-//                 target_key. Fetch is lazy: history is loaded on
-//                 first expand, not on every render. Today most rows
-//                 have no history — the component renders nothing in
-//                 that case so it's invisible to the existing UI.
-// Collaborators: lib/persistence/runs.listAttemptHistoryForMessage.
+//                 that surfaces prior superseded replies for the same
+//                 persona/provider. Fetch is lazy: history is loaded
+//                 on mount; the count drives whether the toggle even
+//                 renders. Most bubbles have no history — the
+//                 component renders nothing in that case so it stays
+//                 invisible.
+// History:        Originally read from attempts via
+//                 listAttemptHistoryForMessage. Switched to
+//                 listMessageHistory (messages.superseded_at) in
+//                 #181-followup so it works for the #179-#205
+//                 random-attempt-id window too — the legacy lookup
+//                 returned [] for any data created in that window.
+// Collaborators: lib/persistence/messages.listMessageHistory.
 // ------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
-import type { Attempt } from "@/lib/types";
-import { listAttemptHistoryForMessage } from "@/lib/persistence/runs";
+import type { Message } from "@/lib/types";
+import { listMessageHistory } from "@/lib/persistence/messages";
 
 export function AttemptHistory({
   conversationId,
@@ -25,15 +32,15 @@ export function AttemptHistory({
   // the messages store to avoid the per-message round-trip.
   const [count, setCount] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [history, setHistory] = useState<Attempt[] | null>(null);
+  const [history, setHistory] = useState<Message[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void listAttemptHistoryForMessage(conversationId, messageId).then((attempts) => {
+    void listMessageHistory(conversationId, messageId).then((rows) => {
       if (cancelled) return;
-      setCount(attempts.length);
+      setCount(rows.length);
       // Cache: expand reveals the already-loaded list rather than re-fetching.
-      setHistory(attempts);
+      setHistory(rows);
     });
     return () => {
       cancelled = true;
@@ -54,19 +61,19 @@ export function AttemptHistory({
       </button>
       {expanded && history ? (
         <ul className="mt-2 space-y-2 border-l-2 border-neutral-200 pl-3">
-          {history.map((a) => (
-            <li key={a.id} className="text-neutral-600">
+          {history.map((m, idx) => (
+            <li key={m.id} className="text-neutral-600">
               <div className="text-[10px] uppercase tracking-wide text-neutral-400">
-                attempt {a.sequence}
-                {a.errorMessage ? <span className="ml-2 text-red-700">error</span> : null}
-                {a.supersededAt ? (
+                attempt {idx + 1}
+                {m.errorMessage ? <span className="ml-2 text-red-700">error</span> : null}
+                {m.supersededAt ? (
                   <span className="ml-2">
-                    superseded {new Date(a.supersededAt).toLocaleString()}
+                    superseded {new Date(m.supersededAt).toLocaleString()}
                   </span>
                 ) : null}
               </div>
               <div className="whitespace-pre-wrap text-xs">
-                {a.errorMessage ? `${a.errorMessage}\n${a.content}` : a.content}
+                {m.errorMessage ? `${m.errorMessage}\n${m.content}` : m.content}
               </div>
             </li>
           ))}

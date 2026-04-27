@@ -22,6 +22,16 @@ async function seedConv(id = "c_1"): Promise<void> {
   );
 }
 
+async function seedPersona(id: string, conversationId = "c_1"): Promise<void> {
+  await sql.execute(
+    `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
+                           created_at_message_index, sort_order, runs_after,
+                           visibility_defaults)
+     VALUES (?, ?, 'mock', ?, ?, 0, 0, '[]', '{}')`,
+    [id, conversationId, id, id.replace(/^p_/, "")],
+  );
+}
+
 async function seedAssistant(args: {
   id: string;
   conversationId?: string;
@@ -54,6 +64,8 @@ describe("listMessageHistory (#181)", () => {
   it("returns superseded predecessors for the same persona, ordered by index", async () => {
     handle = await createTestDb();
     await seedConv();
+    await seedPersona("p_alice");
+    await seedPersona("p_bob");
     // Three replies for persona alice in chronological order; first
     // two were superseded by replays/retries; the third is current.
     await seedAssistant({ id: "m_a1", personaId: "p_alice", idx: 1, content: "first try", supersededAt: 100 });
@@ -71,6 +83,7 @@ describe("listMessageHistory (#181)", () => {
   it("returns empty when the current message has no superseded siblings", async () => {
     handle = await createTestDb();
     await seedConv();
+    await seedPersona("p_alice");
     await seedAssistant({ id: "m_a1", personaId: "p_alice", idx: 1, content: "only attempt", supersededAt: null });
     const history = await listMessageHistory("c_1", "m_a1");
     expect(history).toEqual([]);
@@ -90,6 +103,7 @@ describe("listMessageHistory (#181)", () => {
     // directly works regardless.
     handle = await createTestDb();
     await seedConv();
+    await seedPersona("p_alice");
     await seedAssistant({ id: "m_old", personaId: "p_alice", idx: 1, content: "old reply", supersededAt: 100 });
     await seedAssistant({ id: "m_new", personaId: "p_alice", idx: 2, content: "current", supersededAt: null });
     // Insert a runs/run_targets/attempts chain with RANDOM attempt
@@ -114,7 +128,9 @@ describe("listMessageHistory (#181)", () => {
     handle = await createTestDb();
     await seedConv("c_1");
     await seedConv("c_2");
-    await seedAssistant({ id: "m_other_old", conversationId: "c_2", personaId: "p_alice", idx: 1, content: "other", supersededAt: 100 });
+    await seedPersona("p_alice", "c_1");
+    await seedPersona("p_alice_c2", "c_2");
+    await seedAssistant({ id: "m_other_old", conversationId: "c_2", personaId: "p_alice_c2", idx: 1, content: "other", supersededAt: 100 });
     await seedAssistant({ id: "m_a1", conversationId: "c_1", personaId: "p_alice", idx: 2, content: "current", supersededAt: null });
     const history = await listMessageHistory("c_1", "m_a1");
     expect(history).toEqual([]);
