@@ -5,7 +5,7 @@
 // pre-call state.
 import { describe, it, expect, afterEach } from "vitest";
 import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
-import { sql } from "@/lib/tauri/sql";
+import { sql, __setImpl } from "@/lib/tauri/sql";
 import { transaction } from "@/lib/persistence/transaction";
 
 let handle: TestDbHandle | null = null;
@@ -98,5 +98,49 @@ describe("transaction()", () => {
         });
       }),
     ).rejects.toThrow(/nested|already in/i);
+  });
+
+  // #206: a stuck flag was crippling the running app — when BEGIN
+  // IMMEDIATE itself threw (database is locked), the inTransaction
+  // flag was set BEFORE the try, so finally never ran to reset it.
+  // Every subsequent transaction() call then threw "nested" forever
+  // until the app restarted.
+  it("does not strand the inTransaction flag when BEGIN itself throws", async () => {
+    handle = await createTestDb();
+    await seedRow();
+
+    // Swap the SQL impl with one that fails BEGIN once, then succeeds.
+    const realImpl = handle.impl;
+    let beginAttempts = 0;
+    __setImpl({
+      execute: async (q, p) => {
+        if (/^\s*BEGIN/i.test(q)) {
+          beginAttempts += 1;
+          if (beginAttempts === 1) {
+            throw new Error("database is locked");
+          }
+        }
+        return realImpl.execute(q, p);
+      },
+      select: realImpl.select,
+      close: realImpl.close,
+    });
+
+    // First attempt — BEGIN throws, the helper must propagate without
+    // leaving inTransaction stuck on `true`.
+    await expect(transaction(async () => 1)).rejects.toThrow(/database is locked/i);
+
+    // Second attempt would have failed pre-#206 with the misleading
+    // "nested call detected" instead of running. Now BEGIN succeeds
+    // (second attempt) and the body runs cleanly.
+    const ret = await transaction(async () => {
+      await sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
+        "Edited",
+        "c_1",
+      ]);
+      return "ok";
+    });
+    expect(ret).toBe("ok");
+    expect(await readTitle()).toBe("Edited");
   });
 });
