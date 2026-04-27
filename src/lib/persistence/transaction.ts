@@ -25,8 +25,13 @@ export async function transaction<T>(fn: () => Promise<T>): Promise<T> {
       "transaction(): nested call detected. SQLite has no nested transactions; refactor the inner caller to run outside its own transaction.",
     );
   }
-  inTransaction = true;
+  // #206: BEGIN must run BEFORE flipping the flag — otherwise a
+  // 'database is locked' on BEGIN strands inTransaction at true and
+  // every subsequent transaction() call mistakes it for a nested
+  // entry. The finally that resets the flag only fires for entries
+  // into the try block; an error from BEGIN escapes earlier.
   await sql.execute("BEGIN IMMEDIATE");
+  inTransaction = true;
   try {
     const result = await fn();
     await sql.execute("COMMIT");
