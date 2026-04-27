@@ -5,7 +5,7 @@
 // Collaborators: lib/commands/dispatch.ts.
 // ------------------------------------------------------------------
 
-import { buildMatrixFromDefaults } from "@/lib/personas/service";
+import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
 import { formatVisibilityStatus } from "@/lib/commands/visibilityStatus";
 import type { CommandContext, CommandResult } from "./types";
 
@@ -38,8 +38,12 @@ export async function handleVisibilityDefault(
   ctx: CommandContext,
 ): Promise<CommandResult | void> {
   const { conversation } = ctx;
-  const personas = ctx.deps.getPersonas(conversation.id);
-  const matrix = buildMatrixFromDefaults([...personas]);
+  // #202: persona_visibility is the source of truth. Rebuild it
+  // from current per-persona defaults and update the in-memory store
+  // snapshot via setVisibilityMatrix so the UI re-renders without an
+  // extra refetch. The store call also dual-writes the legacy JSON
+  // column on the conversation row.
+  const matrix = await rebuildVisibilityFromPersonaDefaults(conversation.id);
   await ctx.deps.setVisibilityMatrix(conversation.id, matrix);
   await ctx.deps.appendNotice(conversation.id, "visibility: reset to persona defaults.");
 }

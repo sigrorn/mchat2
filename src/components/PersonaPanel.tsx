@@ -26,7 +26,7 @@ import {
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import * as messagesRepo from "@/lib/persistence/messages";
-import { buildMatrixFromDefaults } from "@/lib/personas/service";
+import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import * as personasRepo from "@/lib/persistence/personas";
@@ -166,12 +166,16 @@ function PersonaPanelExpanded({
           // freshly added persona without the user having to remember
           // to tick its checkbox.
           addToSelection(conversation.id, [p.id]);
-          // #94: seed the visibility matrix from all persona defaults.
-          const all = [...personas, p];
-          const matrix = buildMatrixFromDefaults(all);
-          void useConversationsStore
-            .getState()
-            .setVisibilityMatrix(conversation.id, matrix);
+          // #94 → #202: rebuild persona_visibility from current defaults
+          // and update the store with the resulting matrix so the UI
+          // re-renders. The rebuild helper also dual-writes the legacy
+          // JSON column so rollbacks remain coherent.
+          void rebuildVisibilityFromPersonaDefaults(conversation.id).then(
+            (matrix) =>
+              useConversationsStore
+                .getState()
+                .setVisibilityMatrix(conversation.id, matrix),
+          );
         }}
       />
       <ul className="flex-1 overflow-auto">
@@ -203,11 +207,12 @@ function PersonaPanelExpanded({
                 await ensureIdentityPin(conversation.id, next, history, messagesRepo);
                 await useMessagesStore.getState().load(conversation.id);
               }
-              // #94: rebuild visibility matrix after defaults change.
+              // #94 → #202: rebuild persona_visibility after defaults change.
               if (patch.visibilityDefaults !== undefined || sbe) {
-                const fresh = usePersonasStore.getState().byConversation[conversation.id] ?? [];
-                const matrix = buildMatrixFromDefaults(fresh);
-                void useConversationsStore
+                const matrix = await rebuildVisibilityFromPersonaDefaults(
+                  conversation.id,
+                );
+                await useConversationsStore
                   .getState()
                   .setVisibilityMatrix(conversation.id, matrix);
               }
@@ -215,10 +220,11 @@ function PersonaPanelExpanded({
             onDelete={async () => {
               await deletePersona(p.id);
               remove(p);
-              // #94: rebuild matrix after removal.
-              const remaining = personas.filter((x) => x.id !== p.id);
-              const matrix = buildMatrixFromDefaults(remaining);
-              void useConversationsStore
+              // #94 → #202: rebuild persona_visibility after removal.
+              const matrix = await rebuildVisibilityFromPersonaDefaults(
+                conversation.id,
+              );
+              await useConversationsStore
                 .getState()
                 .setVisibilityMatrix(conversation.id, matrix);
             }}

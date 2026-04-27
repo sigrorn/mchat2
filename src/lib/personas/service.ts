@@ -286,31 +286,8 @@ async function removeSlugFromSiblings(
   }
 }
 
-// #94: build a conversation visibility matrix from persona defaults.
-// Used by //visibility default and when seeding on persona add.
-export function buildMatrixFromDefaults(
-  personas: readonly Persona[],
-): Record<string, string[]> {
-  const matrix: Record<string, string[]> = {};
-
-  for (const persona of personas) {
-    const entries = Object.entries(persona.visibilityDefaults);
-    if (entries.length === 0) continue;
-
-    const hasAnyNo = entries.some(([, v]) => v === "n");
-    if (!hasAnyNo) continue;
-
-    // Build the row: include all personas except self that are NOT 'n'.
-    const row: string[] = [];
-    for (const other of personas) {
-      if (other.id === persona.id) continue;
-      const rule = persona.visibilityDefaults[other.nameSlug];
-      if (rule !== "n") {
-        row.push(other.id);
-      }
-    }
-    matrix[persona.id] = row;
-  }
-
-  return matrix;
-}
+// #94 → #202: buildMatrixFromDefaults removed. The matrix is now read
+// from persona_visibility, populated by rebuildVisibilityFromPersona-
+// Defaults in personas/visibilityRebuild.ts. Both call paths that
+// used the old helper (PersonaPanel side-effects and //visibility
+// default) now delegate to that rebuild function.
