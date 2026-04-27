@@ -63,10 +63,10 @@ describe("resolveTemplateUrl", () => {
 
   it("substitutes {PRODUCT_ID} with the supplied value", () => {
     expect(
-      resolveTemplateUrl("https://api.infomaniak.com/1/ai/{PRODUCT_ID}/openai/v1/chat/completions", {
+      resolveTemplateUrl("https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1/chat/completions", {
         PRODUCT_ID: "abc123",
       }),
-    ).toBe("https://api.infomaniak.com/1/ai/abc123/openai/v1/chat/completions");
+    ).toBe("https://api.infomaniak.com/2/ai/abc123/openai/v1/chat/completions");
   });
 
   it("URL-encodes the substituted value so a slash inside it doesn't break the path", () => {

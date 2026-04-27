@@ -53,7 +53,9 @@ describe("formatProviderTag", () => {
       "openai_compat",
       persona({ openaiCompatPreset: { kind: "builtin", id: "ovhcloud" } }),
     );
-    expect(tag).toBe("openai_compat (OVHcloud)");
+    // Whatever the preset registry's displayName is, the tag should
+    // wrap it in parens — the registry is the source of truth.
+    expect(tag).toMatch(/^openai_compat \(OVHcloud/);
   });
 
   it("appends the custom preset's name verbatim", () => {

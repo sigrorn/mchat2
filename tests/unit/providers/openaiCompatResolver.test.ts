@@ -55,7 +55,7 @@ describe("resolveOpenAICompatPreset (built-in presets)", () => {
     });
     const r = await resolveOpenAICompatPreset({ kind: "builtin", id: "infomaniak" });
     expect(r?.url).toBe(
-      "https://api.infomaniak.com/1/ai/p123/openai/v1/chat/completions",
+      "https://api.infomaniak.com/2/ai/p123/openai/v1/chat/completions",
     );
   });
 

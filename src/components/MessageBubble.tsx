@@ -17,6 +17,7 @@ import remarkGfm from "remark-gfm";
 import type { Message } from "@/lib/types";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
+import { formatProviderTag } from "@/lib/providers/headerTag";
 import { renderMessageBody } from "@/lib/rendering/messageBody";
 import { classify } from "@/lib/rendering/codeBlocks";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
@@ -147,7 +148,10 @@ function MessageBubbleImpl({
   if (isAssistant) {
     if (persona) headerParts.push(persona.name);
     else headerParts.push("assistant");
-    if (message.provider) headerParts.push(message.provider);
+    // #203: openai_compat alone is ambiguous — disclose which preset
+    // (Infomaniak / OVHcloud / OpenRouter / IONOS / Custom) the
+    // persona resolved through.
+    if (message.provider) headerParts.push(formatProviderTag(message.provider, persona ?? null));
     if (message.model) headerParts.push(message.model);
   } else if (message.role === "user") {
     // [N] prefix is display-only — never written to message.content,

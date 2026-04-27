@@ -83,7 +83,11 @@ export const BUILTIN_OPENAI_COMPAT_PRESETS: readonly OpenAICompatPreset[] = Obje
   {
     id: "infomaniak",
     displayName: "Infomaniak",
-    urlTemplate: "https://api.infomaniak.com/1/ai/{PRODUCT_ID}/openai/v1/chat/completions",
+    // #203: was /1/ai/... which Infomaniak's gateway answers with
+    // HTTP 404 method_not_found. The legacy `apertus` adapter (the
+    // working source of truth for the same key + product id) hits
+    // /2/ai/...; openai_compat must do the same.
+    urlTemplate: "https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1/chat/completions",
     templateVars: ["PRODUCT_ID"],
     optionalHeaders: [],
     hostingCountry: "CH",
