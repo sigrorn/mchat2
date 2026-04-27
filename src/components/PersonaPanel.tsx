@@ -309,7 +309,12 @@ function PersonaRow({
   };
 
   const modelListId = `models-${persona.id}`;
-  const modelOptions = useModelOptions(provider, editing, modelOptionsFromPricing(provider));
+  const modelOptions = useModelOptions(
+    provider,
+    editing,
+    modelOptionsFromPricing(provider),
+    { openaiCompatPreset },
+  );
 
   const color = persona.colorOverride ?? PROVIDER_COLORS[persona.provider];
   // #31: subscribe to per-persona inflight status. Persona key in the
@@ -462,7 +467,7 @@ function CreateForm({
   const [error, setError] = useState<string | null>(null);
 
   const modelListId = "create-model-list";
-  const modelOptions = useModelOptions(provider, open);
+  const modelOptions = useModelOptions(provider, open, [], { openaiCompatPreset });
 
   const submit = async (): Promise<void> => {
     setError(null);

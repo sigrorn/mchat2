@@ -8,9 +8,10 @@
 // Collaborators: tauri/http.request, providers/registry.
 // ------------------------------------------------------------------
 
-import type { ProviderId } from "../types";
+import type { Persona, ProviderId } from "../types";
 import { PRICING } from "../pricing/table";
 import { request, HttpError } from "../tauri/http";
+import { resolveOpenAICompatPreset } from "./openaiCompatResolver";
 
 export interface ModelInfo {
   id: string;
@@ -76,13 +77,40 @@ export function isChatModel(provider: ProviderId, id: string): boolean {
   }
 }
 
+// #203: extras carry per-provider context for model listing — the
+// Apertus product id (legacy) and the persona's openai_compat preset.
+// Threaded straight into fetchProviderModelInfos.
+export interface ListModelInfosExtra {
+  apertusProductId?: string | null;
+  openaiCompatPreset?: Persona["openaiCompatPreset"];
+}
+
 const infoCache = new Map<string, { at: number; infos: ModelInfo[] }>();
 const TTL_MS = 10 * 60_000;
+
+// Test seam — clear the per-provider model cache between cases so a
+// successful first call doesn't poison a follow-up that simulates a
+// failure on the same cache key.
+export function __clearModelCache(): void {
+  infoCache.clear();
+}
+
+function cacheKeyFor(provider: ProviderId, extra: ListModelInfosExtra | undefined): string {
+  if (provider === "apertus") return `apertus:${extra?.apertusProductId ?? ""}`;
+  if (provider === "openai_compat") {
+    const p = extra?.openaiCompatPreset;
+    if (!p) return "openai_compat:none";
+    return p.kind === "builtin"
+      ? `openai_compat:builtin:${p.id}`
+      : `openai_compat:custom:${p.name}`;
+  }
+  return provider;
+}
 
 export async function listModels(
   provider: ProviderId,
   apiKey: string | null,
-  extra?: { apertusProductId?: string | null },
+  extra?: ListModelInfosExtra,
 ): Promise<string[]> {
   const infos = await listModelInfos(provider, apiKey, extra);
   return infos.map((m) => m.id);
@@ -91,14 +119,18 @@ export async function listModels(
 export async function listModelInfos(
   provider: ProviderId,
   apiKey: string | null,
-  extra?: { apertusProductId?: string | null },
+  extra?: ListModelInfosExtra,
 ): Promise<ModelInfo[]> {
-  const cacheKey = provider === "apertus" ? `apertus:${extra?.apertusProductId ?? ""}` : provider;
+  const cacheKey = cacheKeyFor(provider, extra);
   const cached = infoCache.get(cacheKey);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.infos;
 
   const fallback: ModelInfo[] = Object.keys(PRICING[provider] ?? {}).map((id) => ({ id }));
-  if (!apiKey) return fallback;
+  // #203: openai_compat resolves its api key through the preset, not
+  // through the top-level keychain — so a missing top-level apiKey is
+  // fine here. The other providers still need a key to query their
+  // /models endpoints.
+  if (!apiKey && provider !== "openai_compat") return fallback;
 
   try {
     const raw = await fetchProviderModelInfos(provider, apiKey, extra);
@@ -123,34 +155,30 @@ function dedup(infos: ModelInfo[]): ModelInfo[] {
 
 async function fetchProviderModelInfos(
   provider: ProviderId,
-  apiKey: string,
-  extra?: { apertusProductId?: string | null },
+  apiKey: string | null,
+  extra?: ListModelInfosExtra,
 ): Promise<ModelInfo[]> {
   switch (provider) {
     case "openai":
-      return openAICompatList("https://api.openai.com/v1/models", apiKey);
+      return openAICompatList("https://api.openai.com/v1/models", apiKey ?? "");
     case "perplexity":
       return [];
     case "mistral":
-      return mistralList(apiKey);
+      return mistralList(apiKey ?? "");
     case "apertus": {
       const pid = extra?.apertusProductId?.trim();
       if (!pid) return [];
       return openAICompatList(
         `https://api.infomaniak.com/2/ai/${encodeURIComponent(pid)}/openai/v1/models`,
-        apiKey,
+        apiKey ?? "",
       );
     }
     case "claude":
-      return anthropicList(apiKey);
+      return anthropicList(apiKey ?? "");
     case "gemini":
-      return geminiList(apiKey);
+      return geminiList(apiKey ?? "");
     case "openai_compat":
-      // Listing requires the resolved base URL, which only the
-      // resolver knows. Phase A keeps the model field as a free
-      // string; phase C may hook this up by accepting an extra hint
-      // through the `extra` arg.
-      return [];
+      return openaiCompatPresetList(extra?.openaiCompatPreset);
     case "mock":
       return [];
   }
@@ -162,6 +190,42 @@ async function openAICompatList(url: string, apiKey: string): Promise<ModelInfo[
     method: "GET",
     headers: { authorization: `Bearer ${apiKey}` },
   });
+  if (res.status >= 400) throw new HttpError(res.status, res.body);
+  const parsed = JSON.parse(res.body) as OpenAICompatModelsResponse;
+  return (
+    parsed.data?.map((d) => ({
+      id: d.id,
+      ...(d.context_window ? { maxTokens: d.context_window } : {}),
+    })) ?? []
+  );
+}
+
+// #203: derive the /v1/models URL from the resolved chat URL by
+// replacing the trailing "/chat/completions" with "/models". Holds
+// for every preset shipping today (Infomaniak, OpenRouter, OVHcloud,
+// IONOS) and for the OpenAI-spec custom URLs users typically enter.
+// Returns null if the chat URL doesn't end in /chat/completions —
+// in that case the caller falls back to an empty list (free-text input).
+function deriveModelsUrl(chatUrl: string): string | null {
+  const suffix = "/chat/completions";
+  if (!chatUrl.endsWith(suffix)) return null;
+  return chatUrl.slice(0, -suffix.length) + "/models";
+}
+
+async function openaiCompatPresetList(
+  preset: Persona["openaiCompatPreset"] | undefined,
+): Promise<ModelInfo[]> {
+  if (!preset) return [];
+  const resolved = await resolveOpenAICompatPreset(preset);
+  if (!resolved) return [];
+  const url = deriveModelsUrl(resolved.url);
+  if (!url) return [];
+  // Build headers matching the chat-completions request shape: bearer
+  // auth when a key is set, plus the preset's extraHeaders (OpenRouter
+  // wants HTTP-Referer / X-Title even for the model listing call).
+  const headers: Record<string, string> = { ...resolved.extraHeaders };
+  if (resolved.apiKey) headers.authorization = `Bearer ${resolved.apiKey}`;
+  const res = await request({ url, method: "GET", headers });
   if (res.status >= 400) throw new HttpError(res.status, res.body);
   const parsed = JSON.parse(res.body) as OpenAICompatModelsResponse;
   return (

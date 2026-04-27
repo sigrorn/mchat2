@@ -10,12 +10,12 @@ import {
   setApiKeyForPreset,
   upsertCustomPreset,
 } from "@/lib/providers/openaiCompatStorage";
-import { listModelInfos } from "@/lib/providers/models";
+import { listModelInfos, __clearModelCache } from "@/lib/providers/models";
 
 interface MockHttpReq {
   url: string;
-  method?: string;
-  headers?: Record<string, string>;
+  method: string | undefined;
+  headers: Record<string, string> | undefined;
 }
 
 let handle: TestDbHandle | null = null;
@@ -29,7 +29,7 @@ function installHttpMock(): void {
     },
     async request(opts) {
       httpCalls.push({ url: opts.url, method: opts.method, headers: opts.headers });
-      return { status: httpResponse.status, body: httpResponse.body };
+      return { status: httpResponse.status, body: httpResponse.body, headers: {} };
     },
   });
 }
@@ -54,6 +54,7 @@ beforeEach(async () => {
   installKeychainMock();
   httpCalls = [];
   httpResponse = { status: 200, body: "" };
+  __clearModelCache();
 });
 afterEach(() => {
   handle?.restore();

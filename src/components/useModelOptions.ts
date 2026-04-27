@@ -10,7 +10,7 @@
 // ------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
-import type { ProviderId } from "@/lib/types";
+import type { Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { listModelInfos, type ModelInfo } from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
@@ -18,12 +18,25 @@ import { getSetting } from "@/lib/persistence/settings";
 import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import { PRICING } from "@/lib/pricing/table";
 
+export interface UseModelOptionsOpts {
+  // #203: persona's openai_compat preset selection. When provider is
+  // openai_compat, the model picker calls /v1/models on the resolved
+  // preset's base URL — preset null means free-text input (no list).
+  openaiCompatPreset?: Persona["openaiCompatPreset"];
+}
+
 export function useModelOptions(
   provider: ProviderId,
   enabled: boolean,
   initial: ModelInfo[] = [],
+  opts: UseModelOptionsOpts = {},
 ): ModelInfo[] {
   const [modelOptions, setModelOptions] = useState<ModelInfo[]>(initial);
+  // Stringify the preset so the effect's dep array can compare it
+  // structurally without React's referential-equality false negatives.
+  const presetKey = opts.openaiCompatPreset
+    ? JSON.stringify(opts.openaiCompatPreset)
+    : null;
 
   useEffect(() => {
     if (!enabled) return;
@@ -33,13 +46,17 @@ export function useModelOptions(
         ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
         : null;
       const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
-      const infos = await listModelInfos(provider, key, { apertusProductId: pid });
+      const extra = {
+        apertusProductId: pid,
+        ...(presetKey ? { openaiCompatPreset: JSON.parse(presetKey) as Persona["openaiCompatPreset"] } : {}),
+      };
+      const infos = await listModelInfos(provider, key, extra);
       if (!cancelled) setModelOptions(infos);
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled, provider]);
+  }, [enabled, provider, presetKey]);
 
   return modelOptions;
 }
