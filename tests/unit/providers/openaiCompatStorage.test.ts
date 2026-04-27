@@ -4,7 +4,7 @@
 // extraHeaders, templateVars, and the custom-preset list live in
 // the settings table.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
 import { __setImpl as setKc } from "@/lib/tauri/keychain";
 import {
   loadOpenAICompatConfig,
@@ -19,36 +19,8 @@ import {
   removeApiKeyForPreset,
 } from "@/lib/providers/openaiCompatStorage";
 
-let store: Map<string, string>;
+let handle: TestDbHandle | null = null;
 let keychainStore: Map<string, string>;
-
-function installInMemorySettings(): void {
-  store = new Map();
-  __setImpl({
-    async execute(sql, params = []) {
-      if (sql.includes("INSERT INTO settings")) {
-        const [k, v] = params as [string, string];
-        store.set(k, v);
-        return { rowsAffected: 1, lastInsertId: null };
-      }
-      if (sql.includes("DELETE FROM settings")) {
-        const [k] = params as [string];
-        store.delete(k);
-        return { rowsAffected: 1, lastInsertId: null };
-      }
-      return { rowsAffected: 0, lastInsertId: null };
-    },
-    async select<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-      if (sql.includes("SELECT value FROM settings")) {
-        const [k] = params as [string];
-        const v = store.get(k);
-        return v === undefined ? [] : ([{ value: v } as unknown as T]);
-      }
-      return [];
-    },
-    async close() {},
-  });
-}
 
 function installInMemoryKeychain(): void {
   keychainStore = new Map();
@@ -64,11 +36,14 @@ function installInMemoryKeychain(): void {
   });
 }
 
-beforeEach(() => {
-  installInMemorySettings();
+beforeEach(async () => {
+  handle = await createTestDb();
   installInMemoryKeychain();
 });
-afterEach(() => __resetImpl());
+afterEach(() => {
+  handle?.restore();
+  handle = null;
+});
 
 describe("loadOpenAICompatConfig / saveOpenAICompatConfig", () => {
   it("returns an empty config when nothing is stored", async () => {

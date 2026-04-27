@@ -2,7 +2,7 @@
 // config and the keychain into the bag of values the adapter reads
 // from extraConfig at call time.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { __setImpl as setSql, __resetImpl as resetSql } from "@/lib/tauri/sql";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
 import { __setImpl as setKc } from "@/lib/tauri/keychain";
 import {
   setBuiltinPresetConfig,
@@ -11,35 +11,11 @@ import {
 } from "@/lib/providers/openaiCompatStorage";
 import { resolveOpenAICompatPreset } from "@/lib/providers/openaiCompatResolver";
 
-let settings: Map<string, string>;
+let handle: TestDbHandle | null = null;
 let kc: Map<string, string>;
 
-beforeEach(() => {
-  settings = new Map();
-  setSql({
-    async execute(sql, params = []) {
-      if (sql.includes("INSERT INTO settings")) {
-        const [k, v] = params as [string, string];
-        settings.set(k, v);
-        return { rowsAffected: 1, lastInsertId: null };
-      }
-      if (sql.includes("DELETE FROM settings")) {
-        const [k] = params as [string];
-        settings.delete(k);
-        return { rowsAffected: 1, lastInsertId: null };
-      }
-      return { rowsAffected: 0, lastInsertId: null };
-    },
-    async select<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-      if (sql.includes("SELECT value FROM settings")) {
-        const [k] = params as [string];
-        const v = settings.get(k);
-        return v === undefined ? [] : [{ value: v } as unknown as T];
-      }
-      return [];
-    },
-    async close() {},
-  });
+beforeEach(async () => {
+  handle = await createTestDb();
   kc = new Map();
   setKc({
     get: async (k) => kc.get(k) ?? null,
@@ -52,7 +28,10 @@ beforeEach(() => {
     list: async () => [...kc.keys()],
   });
 });
-afterEach(() => resetSql());
+afterEach(() => {
+  handle?.restore();
+  handle = null;
+});
 
 describe("resolveOpenAICompatPreset (built-in presets)", () => {
   it("returns null for an unknown built-in id", async () => {
