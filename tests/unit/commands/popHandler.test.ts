@@ -74,21 +74,18 @@ async function seedTurn(conversationId: string, userText: string, assistantText:
 }
 
 function makeCtx(conv: Conversation, history: readonly Message[]): CommandContext {
-  const noticeAppended: { conversationId: string; content: string }[] = [];
   return {
     rawInput: "//pop",
     conversation: conv,
     retry: async () => ({ ok: true }),
+    send: async () => ({ ok: true }),
     deps: {
       getMessages: () => history,
-      getSupersededIds: () => new Set(),
+      getSupersededIds: () => new Set<string>(),
       getPersonas: () => [],
       getSelection: () => [],
-      appendNotice: async (conversationId, content) => {
-        noticeAppended.push({ conversationId, content });
-        // Mirror the production appendNotice — write a row so the
-        // transaction's COMMIT is observable.
-        return messagesRepo.appendMessage({
+      appendNotice: async (conversationId: string, content: string) =>
+        messagesRepo.appendMessage({
           conversationId,
           role: "notice",
           content,
@@ -105,8 +102,7 @@ function makeCtx(conv: Conversation, history: readonly Message[]): CommandContex
           outputTokens: 0,
           usageEstimated: false,
           audience: [],
-        });
-      },
+        }),
       reloadMessages: async () => {},
       setPinned: async () => {},
       setEditing: () => {},
@@ -117,7 +113,7 @@ function makeCtx(conv: Conversation, history: readonly Message[]): CommandContex
       setVisibilityMatrix: async () => {},
       setDisplayMode: async () => {},
     } as unknown as CommandContext["deps"],
-  };
+  } as CommandContext;
 }
 
 describe("//pop integration (#regression report 2026-04-27)", () => {

@@ -53,20 +53,49 @@ interface SqliteDatabase {
   close(): Promise<boolean>;
 }
 
+// #206: Tauri's plugin-sql v2 wraps sqlx::SqlitePool with multiple
+// connections (default 10), offers no after_connect hook, no
+// `connect_with(SqliteConnectOptions)`, and rejects busy_timeout /
+// journal_mode as URL params. Two pool connections concurrently
+// running BEGIN IMMEDIATE collide as 'database is locked'; a stuck
+// transaction on one pool connection from a prior failed COMMIT
+// surfaces as 'cannot start a transaction within a transaction'.
+//
+// Workaround: serialize every db operation through one async queue.
+// With no concurrent demand, sqlx's pool keeps returning its idle
+// most-recently-released connection — effectively a single-connection
+// pool from the JS side. Reads pay a small latency penalty (no
+// parallelism) but the production runtime had no readers competing
+// with writers anyway. The proper fix is upstream: a tauri-plugin-sql
+// hook that lets us run `PRAGMA busy_timeout / journal_mode` on every
+// connection. Until then this guarantees correctness.
+let opQueue: Promise<unknown> = Promise.resolve();
+function serializeOp<T>(fn: () => Promise<T>): Promise<T> {
+  const next = opQueue.then(fn, fn);
+  opQueue = next.catch(() => undefined);
+  return next;
+}
+
 const defaultImpl: SqlImpl = {
   async execute(sql, params) {
-    const db = await openDb();
-    const r = await db.execute(sql, params);
-    return { rowsAffected: r.rowsAffected, lastInsertId: r.lastInsertId ?? null };
+    return serializeOp(async () => {
+      const db = await openDb();
+      const r = await db.execute(sql, params);
+      return { rowsAffected: r.rowsAffected, lastInsertId: r.lastInsertId ?? null };
+    });
   },
-  async select(sql, params) {
-    const db = await openDb();
-    return db.select(sql, params);
+  async select<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
+    return serializeOp(async () => {
+      const db = await openDb();
+      return db.select<T>(sql, params);
+    });
   },
   async close() {
-    if (!cached) return;
-    await (cached as SqliteDatabase).close();
-    cached = null;
+    return serializeOp(async () => {
+      if (!cached) return;
+      await (cached as SqliteDatabase).close();
+      cached = null;
+    });
   },
 };
 
