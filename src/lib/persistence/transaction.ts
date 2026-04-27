@@ -10,7 +10,7 @@
 //                run their writes inside it.
 // ------------------------------------------------------------------
 
-import { sql } from "../tauri/sql";
+import { sql, withSerializedSection } from "../tauri/sql";
 
 // SQLite has no nested transactions (only SAVEPOINTs, which we don't
 // expose). Calling transaction() while already inside one is almost
@@ -25,26 +25,28 @@ export async function transaction<T>(fn: () => Promise<T>): Promise<T> {
       "transaction(): nested call detected. SQLite has no nested transactions; refactor the inner caller to run outside its own transaction.",
     );
   }
-  // #206: BEGIN must run BEFORE flipping the flag — otherwise a
-  // 'database is locked' on BEGIN strands inTransaction at true and
-  // every subsequent transaction() call mistakes it for a nested
-  // entry. The finally that resets the flag only fires for entries
-  // into the try block; an error from BEGIN escapes earlier.
-  await sql.execute("BEGIN IMMEDIATE");
-  inTransaction = true;
-  try {
-    const result = await fn();
-    await sql.execute("COMMIT");
-    return result;
-  } catch (err) {
+  // #206: hold the SQL op queue for the entire BEGIN/.../COMMIT
+  // section. Without this, parallel transactions can interleave at
+  // the per-statement queue level (BEGIN_A, BEGIN_B → 'database is
+  // locked'). Individual sql.execute calls inside fn bypass the
+  // queue because they're already protected by the held section.
+  return withSerializedSection(async () => {
+    await sql.execute("BEGIN IMMEDIATE");
+    inTransaction = true;
     try {
-      await sql.execute("ROLLBACK");
-    } catch {
-      // If ROLLBACK itself fails we have nothing to recover with —
-      // surface the original error, not the secondary one.
+      const result = await fn();
+      await sql.execute("COMMIT");
+      return result;
+    } catch (err) {
+      try {
+        await sql.execute("ROLLBACK");
+      } catch {
+        // If ROLLBACK itself fails we have nothing to recover with —
+        // surface the original error, not the secondary one.
+      }
+      throw err;
+    } finally {
+      inTransaction = false;
     }
-    throw err;
-  } finally {
-    inTransaction = false;
-  }
+  });
 }

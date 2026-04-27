@@ -64,16 +64,41 @@ interface SqliteDatabase {
 // Workaround: serialize every db operation through one async queue.
 // With no concurrent demand, sqlx's pool keeps returning its idle
 // most-recently-released connection — effectively a single-connection
-// pool from the JS side. Reads pay a small latency penalty (no
-// parallelism) but the production runtime had no readers competing
-// with writers anyway. The proper fix is upstream: a tauri-plugin-sql
-// hook that lets us run `PRAGMA busy_timeout / journal_mode` on every
-// connection. Until then this guarantees correctness.
+// pool from the JS side.
+//
+// Per-statement serialization ALONE doesn't atomically group multi-
+// statement transactions: parallel transactions could interleave as
+// BEGIN_A, BEGIN_B, DELETE_A, COMMIT_B, ... To handle that,
+// `withSerializedSection` holds the queue for the entire duration of
+// a multi-statement section (i.e. transaction(BEGIN/.../COMMIT)),
+// and individual ops inside that section bypass the queue (they're
+// already protected by the held lock).
 let opQueue: Promise<unknown> = Promise.resolve();
+let inSerializedSection = false;
+
 function serializeOp<T>(fn: () => Promise<T>): Promise<T> {
+  if (inSerializedSection) return fn();
   const next = opQueue.then(fn, fn);
   opQueue = next.catch(() => undefined);
   return next;
+}
+
+/**
+ * Hold the global op queue for the duration of `fn`, so multi-step
+ * transactions land sequentially and atomically on a single sqlx
+ * pool connection. While inside the section, individual sql.execute
+ * / sql.select calls bypass the queue (they would otherwise re-enter
+ * and deadlock waiting on the queue they themselves hold).
+ */
+export function withSerializedSection<T>(fn: () => Promise<T>): Promise<T> {
+  return serializeOp(async () => {
+    inSerializedSection = true;
+    try {
+      return await fn();
+    } finally {
+      inSerializedSection = false;
+    }
+  });
 }
 
 const defaultImpl: SqlImpl = {
