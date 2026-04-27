@@ -52,9 +52,31 @@ export function buildOutboundRows(
   return formatTraceLines(ts, "O", payloads);
 }
 
-// Inbound row(s) for the accumulated reply. Empty content yields no
-// rows so silent-failed runs don't leave a stray timestamp in the file.
-export function buildInboundRows(ts: Date, content: string): string[] {
-  if (!content) return [];
-  return formatTraceLines(ts, "I", [content]);
+// #205: an adapter-reported error tagged onto the inbound row so
+// failed runs (HTTP 400, validation errors, etc.) actually show up
+// in the trace file for diagnosis. Pre-#205 traces dropped these
+// because content was empty and silent-failure suppression also
+// suppressed the error.
+export interface TraceInboundError {
+  message: string;
+  transient: boolean;
+}
+
+// Inbound row(s) for one stream's reply. Combines accumulated content
+// (when the stream produced tokens) with any adapter-reported error
+// under a single timestamp. Empty content + no error still yields no
+// rows so genuinely silent failures don't pollute the trace.
+export function buildInboundRows(
+  ts: Date,
+  content: string,
+  error?: TraceInboundError | null,
+): string[] {
+  const payloads: string[] = [];
+  if (content) payloads.push(content);
+  if (error) {
+    const tag = error.transient ? "transient" : "permanent";
+    payloads.push(`[error/${tag}] ${error.message}`);
+  }
+  if (payloads.length === 0) return [];
+  return formatTraceLines(ts, "I", payloads);
 }

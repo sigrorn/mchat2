@@ -287,10 +287,14 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   }
 
   // #40: inbound rows mirror the old mchat one-row-per-reply convention
-  // (multiline splits happen inside buildInboundRows). Empty content
-  // emits nothing so silent-failed runs don't add a stray timestamp.
+  // (multiline splits happen inside buildInboundRows). Empty content +
+  // no error still emits nothing so genuinely silent failures don't
+  // add a stray timestamp.
+  // #205: pass finalError so HTTP 400 / validation failures land in
+  // the trace for diagnosis instead of leaving the file with only
+  // outbound requests.
   if (input.traceSink) {
-    await input.traceSink.inbound(buildInboundRows(new Date(), accumulated));
+    await input.traceSink.inbound(buildInboundRows(new Date(), accumulated, finalError));
   }
 
   await messagesRepo.updateMessageContent(
