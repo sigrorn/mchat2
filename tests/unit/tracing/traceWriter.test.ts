@@ -77,7 +77,48 @@ describe("buildInboundRows", () => {
     ]);
   });
 
-  it("returns no rows for empty content (silent runs leave the file alone)", () => {
+  it("returns no rows for empty content + no error (silent runs leave the file alone)", () => {
     expect(buildInboundRows(ts, "")).toEqual([]);
+    expect(buildInboundRows(ts, "", null)).toEqual([]);
+  });
+
+  // #205: error-only runs (HTTP 400, validation failures, etc.) need
+  // an inbound row so the trace file is useful for diagnosis. Without
+  // this, debugging a failing send means the trace is just outbound
+  // requests with no reply visible at all.
+  it("emits an [error/...] I row when only an error is present (no tokens accumulated)", () => {
+    expect(
+      buildInboundRows(ts, "", { message: "HTTP 400: bad request", transient: false }),
+    ).toEqual(["123045.678 I [error/permanent] HTTP 400: bad request"]);
+  });
+
+  it("tags the error transient/permanent according to the error flag", () => {
+    expect(
+      buildInboundRows(ts, "", { message: "HTTP 503", transient: true }),
+    ).toEqual(["123045.678 I [error/transient] HTTP 503"]);
+  });
+
+  it("emits both content and error under one timestamp when a stream partially succeeded then failed", () => {
+    expect(
+      buildInboundRows(ts, "partial reply", {
+        message: "stream cut short",
+        transient: true,
+      }),
+    ).toEqual([
+      "123045.678 I partial reply",
+      "123045.678 I [error/transient] stream cut short",
+    ]);
+  });
+
+  it("splits a multi-line error body across rows like content does", () => {
+    expect(
+      buildInboundRows(ts, "", {
+        message: 'HTTP 400: {"error":\n"validation_failed"}',
+        transient: false,
+      }),
+    ).toEqual([
+      '123045.678 I [error/permanent] HTTP 400: {"error":',
+      '123045.678 I "validation_failed"}',
+    ]);
   });
 });
