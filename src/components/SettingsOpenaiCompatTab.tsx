@@ -32,6 +32,7 @@ import {
 } from "@/lib/providers/openaiCompatStorage";
 import { formatHostingTag } from "@/lib/providers/derived";
 import { shell } from "@/lib/tauri/shell";
+import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 import type {
   BuiltinPresetConfig,
   CustomPresetConfig,
@@ -354,36 +355,20 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
       <div className="flex justify-between gap-2 pt-2">
         <div>
           {selected?.ref?.kind === "custom" ? (
-            <button
-              onClick={() => void deleteCurrent()}
-              className="rounded border border-red-600 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
-            >
-              Delete
-            </button>
+            <DangerButton onClick={() => void deleteCurrent()}>Delete</DangerButton>
           ) : null}
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => void applyDraft()}
-            className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
-          >
-            Apply
-          </button>
-          <button
+          <OutlineButton onClick={onClose}>Cancel</OutlineButton>
+          <OutlineButton onClick={() => void applyDraft()}>Apply</OutlineButton>
+          <PrimaryButton
             onClick={async () => {
               await applyDraft();
               onClose();
             }}
-            className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700"
           >
             OK
-          </button>
+          </PrimaryButton>
         </div>
       </div>
     </div>
@@ -561,13 +546,9 @@ function CustomForm({
                   placeholder="value"
                   className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={() => removeHeaderRow(idx)}
-                  className="rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100"
-                >
+                <OutlineButton onClick={() => removeHeaderRow(idx)} size="xs">
                   ✕
-                </button>
+                </OutlineButton>
               </div>
             ))}
           </div>

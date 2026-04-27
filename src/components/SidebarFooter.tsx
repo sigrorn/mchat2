@@ -15,24 +15,27 @@ import { useState } from "react";
 import { useUiStore } from "@/stores/uiStore";
 import { SettingsDialog } from "./SettingsDialog";
 import { SettingsGeneralDialog } from "./SettingsGeneralDialog";
+import { OutlineButton } from "@/components/ui/Button";
 
 export function SidebarFooter(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [generalOpen, setGeneralOpen] = useState(false);
   return (
     <>
-      <button
+      <OutlineButton
         onClick={() => setGeneralOpen(true)}
-        className="mx-2 mt-2 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
+        size="md"
+        className="mx-2 mt-2 !text-xs"
       >
         Settings · General
-      </button>
-      <button
+      </OutlineButton>
+      <OutlineButton
         onClick={() => setSettingsOpen(true)}
-        className="mx-2 mt-1 rounded border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-100"
+        size="md"
+        className="mx-2 mt-1 !text-xs"
       >
         Settings · Providers
-      </button>
+      </OutlineButton>
       <StreamToggle />
       <DebugToggle />
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}

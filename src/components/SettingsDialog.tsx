@@ -18,6 +18,7 @@ import { getSetting, setSetting } from "@/lib/persistence/settings";
 import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import { shell } from "@/lib/tauri/shell";
 import { SettingsOpenaiCompatTab } from "./SettingsOpenaiCompatTab";
+import { OutlineButton, PrimaryButton } from "@/components/ui/Button";
 
 // Module-scope so the useEffect dependency is a stable reference.
 const KEY_PROVIDERS = ALL_PROVIDER_IDS.filter(
@@ -188,12 +189,12 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
                     spellCheck={false}
                     className="flex-1 rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
                   />
-                  <button
+                  <OutlineButton
                     onClick={() => setReveal((r) => ({ ...r, [id]: !shown }))}
-                    className="rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100"
+                    size="xs"
                   >
                     {shown ? "hide" : "show"}
-                  </button>
+                  </OutlineButton>
                 </div>
                 {id === "apertus" ? (
                   <div className="mt-2">
@@ -222,19 +223,10 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
         </div>
       ) : null}
       <div className="mt-5 flex justify-end gap-2">
-        <button
-          onClick={onClose}
-          className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
-        >
-          Close
-        </button>
-        <button
-          onClick={() => void save()}
-          disabled={loading || saving}
-          className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-50"
-        >
+        <OutlineButton onClick={onClose}>Close</OutlineButton>
+        <PrimaryButton onClick={() => void save()} disabled={loading || saving}>
           {saving ? "Saving…" : "Save"}
-        </button>
+        </PrimaryButton>
       </div>
     </>
   );

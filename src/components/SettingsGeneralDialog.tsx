@@ -18,6 +18,7 @@ import {
   DEFAULT_MAX_RETRY_ATTEMPTS,
 } from "@/lib/settings/keys";
 import { useUiStore } from "@/stores/uiStore";
+import { PrimaryButton } from "@/components/ui/Button";
 
 export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const [value, setValue] = useState("");
@@ -164,13 +165,9 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
         />
         {error ? <div className="mt-2 text-sm text-red-700">{error}</div> : null}
         <div className="mt-3 flex items-center gap-2">
-          <button
-            onClick={() => void save()}
-            disabled={saving || loading}
-            className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-50"
-          >
+          <PrimaryButton onClick={() => void save()} disabled={saving || loading}>
             {saving ? "Saving..." : "Save"}
-          </button>
+          </PrimaryButton>
           {savedAt ? (
             <span className="text-xs text-neutral-500">
               Saved at {new Date(savedAt).toLocaleTimeString()}

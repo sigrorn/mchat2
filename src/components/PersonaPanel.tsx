@@ -34,6 +34,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore, type StreamStatus } from "@/stores/sendStore";
 import { useUiStore } from "@/stores/uiStore";
+import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 
 const EMPTY_STATUS: Readonly<Record<string, StreamStatus>> = Object.freeze({});
 
@@ -418,18 +419,12 @@ function PersonaRow({
           </Field>
           {error ? <div className="text-red-600">{error}</div> : null}
           <div className="flex gap-2">
-            <button
-              onClick={() => void save()}
-              className="rounded bg-neutral-900 px-2 py-1 text-white hover:bg-neutral-700"
-            >
+            <PrimaryButton onClick={() => void save()} size="sm">
               Save
-            </button>
-            <button
-              onClick={() => void onDelete()}
-              className="rounded border border-red-600 px-2 py-1 text-red-600 hover:bg-red-50"
-            >
+            </PrimaryButton>
+            <DangerButton onClick={() => void onDelete()} size="sm">
               Delete
-            </button>
+            </DangerButton>
           </div>
         </div>
       ) : null}
@@ -607,22 +602,18 @@ function CreateForm({
       </Field>
       {error ? <div className="text-red-600">{error}</div> : null}
       <div className="flex gap-2">
-        <button
-          onClick={() => void submit()}
-          disabled={!name.trim()}
-          className="rounded bg-neutral-900 px-2 py-1 text-white hover:bg-neutral-700 disabled:opacity-50"
-        >
+        <PrimaryButton onClick={() => void submit()} disabled={!name.trim()} size="sm">
           Create
-        </button>
-        <button
+        </PrimaryButton>
+        <OutlineButton
           onClick={() => {
             setOpen(false);
             setError(null);
           }}
-          className="rounded border border-neutral-300 px-2 py-1 text-neutral-700 hover:bg-neutral-100"
+          size="sm"
         >
           Cancel
-        </button>
+        </OutlineButton>
       </div>
     </div>
   );

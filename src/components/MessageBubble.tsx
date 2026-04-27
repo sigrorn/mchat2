@@ -24,6 +24,7 @@ import { formatUserHeader } from "@/lib/conversations/userHeader";
 import { DiagramBlock } from "./DiagramBlock";
 import { areBubblePropsEqual, type BubbleProps } from "./messageBubbleMemo";
 import { AttemptHistory } from "./AttemptHistory";
+import { DangerButton } from "@/components/ui/Button";
 
 // #63: render #N patterns in notice text as clickable scroll-links.
 function NoticeContent({ content }: { content: string }): JSX.Element {
@@ -197,13 +198,14 @@ function MessageBubbleImpl({
         <div className="flex items-start justify-between gap-2">
           <div className="text-sm text-red-700">error: {message.errorMessage}</div>
           {onRetry && message.role === "assistant" ? (
-            <button
+            <DangerButton
               onClick={onRetry}
-              className="shrink-0 rounded border border-red-600 px-2 py-0.5 text-xs text-red-700 hover:bg-red-50"
+              size="xs"
+              className="shrink-0"
               title="Retry this request with the same persona and context"
             >
               retry
-            </button>
+            </DangerButton>
           ) : null}
         </div>
       ) : (

@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { shouldSubmit } from "./composerKeys";
+import { OutlineButton, PrimaryButton } from "@/components/ui/Button";
 
 export function EditReplayEditor({
   initial,
@@ -49,18 +50,12 @@ export function EditReplayEditor({
         className="block w-full resize-y rounded border border-neutral-300 px-2 py-1.5 text-sm"
       />
       <div className="mt-2 flex items-center gap-2">
-        <button
-          onClick={() => void onCommit(value)}
-          className="rounded bg-neutral-900 px-2 py-0.5 text-xs text-white hover:bg-neutral-700"
-        >
+        <PrimaryButton onClick={() => void onCommit(value)} size="xs">
           Replay (Enter)
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded border border-neutral-300 px-2 py-0.5 text-xs hover:bg-neutral-100"
-        >
+        </PrimaryButton>
+        <OutlineButton onClick={onCancel} size="xs">
           Cancel (Esc)
-        </button>
+        </OutlineButton>
       </div>
     </div>
   );

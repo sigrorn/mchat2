@@ -17,6 +17,7 @@ import { makeCommandDeps } from "@/hooks/commandDeps";
 import { usePersonasStore } from "@/stores/personasStore";
 import { shouldSubmit } from "./composerKeys";
 import { buildPlaceholder } from "@/lib/ui/composerPlaceholder";
+import { PrimaryButton, DangerButton } from "@/components/ui/Button";
 
 const EMPTY_ACTIVE: readonly ActiveStream[] = Object.freeze([]);
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
@@ -156,21 +157,10 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       />
       {hint ? <div className="mt-2 text-xs text-amber-700">{hint}</div> : null}
       <div className="mt-2 flex gap-2">
-        <button
-          onClick={() => void onSend()}
-          disabled={busy || !text.trim()}
-          className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-50"
-        >
+        <PrimaryButton onClick={() => void onSend()} disabled={busy || !text.trim()}>
           Send
-        </button>
-        {active.length > 0 ? (
-          <button
-            onClick={onCancel}
-            className="rounded border border-red-600 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-          >
-            Cancel
-          </button>
-        ) : null}
+        </PrimaryButton>
+        {active.length > 0 ? <DangerButton onClick={onCancel}>Cancel</DangerButton> : null}
       </div>
     </div>
   );

@@ -20,6 +20,7 @@ import { ContextMenu } from "./ContextMenu";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { SidebarFooter } from "./SidebarFooter";
 import { useConversationExports } from "./useConversationExports";
+import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 
 interface MenuPos {
   id: string;
@@ -102,19 +103,17 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
         </button>
       </div>
       <div className="m-2 mt-1 flex gap-2">
-        <button
-          onClick={onNew}
-          className="flex-1 rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700"
-        >
+        <PrimaryButton onClick={onNew} size="lg" className="flex-1">
           New conversation
-        </button>
-        <button
+        </PrimaryButton>
+        <OutlineButton
           onClick={() => void exports.importSnapshot()}
-          className="rounded border border-neutral-300 px-2 py-2 text-xs text-neutral-700 hover:bg-neutral-100"
+          size="sm"
+          className="py-2"
           title="Import snapshot"
         >
           Import
-        </button>
+        </OutlineButton>
       </div>
       <ul className="flex-1 overflow-auto">
         {conversations.map((c) => (
@@ -135,21 +134,18 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
             ) : confirmDelete === c.id ? (
               <div className="flex items-center gap-2 px-3 py-2 text-xs">
                 <span className="text-neutral-700">Delete?</span>
-                <button
+                <DangerButton
                   onClick={async () => {
                     await removeConv(c.id);
                     setConfirmDelete(null);
                   }}
-                  className="rounded border border-red-600 px-2 py-0.5 text-red-700 hover:bg-red-50"
+                  size="xs"
                 >
                   Delete
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(null)}
-                  className="rounded border border-neutral-300 px-2 py-0.5 text-neutral-700 hover:bg-neutral-100"
-                >
+                </DangerButton>
+                <OutlineButton onClick={() => setConfirmDelete(null)} size="xs">
                   Cancel
-                </button>
+                </OutlineButton>
               </div>
             ) : (
               <button

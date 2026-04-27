@@ -21,6 +21,7 @@ import {
   type VisibilityRole,
 } from "@/lib/personas/visibilityPresets";
 import { useOpenAICompatPresets } from "./useOpenAICompatPresets";
+import { OutlineButton } from "@/components/ui/Button";
 
 // Native providers, minus the openai_compat meta-provider — that one
 // is fanned out into per-preset entries below.
@@ -377,10 +378,9 @@ function PresetButton({
   children: React.ReactNode;
 }): JSX.Element {
   return (
-    <button
-      type="button"
+    <OutlineButton
       onClick={() => onApply(applyVisibilityPreset(role, siblings))}
-      className="rounded border border-neutral-300 px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100"
+      size="xs"
       title={
         role === "speaker"
           ? "Sees no other persona's replies; everyone hears this one."
@@ -390,6 +390,6 @@ function PresetButton({
       }
     >
       {children}
-    </button>
+    </OutlineButton>
   );
 }
