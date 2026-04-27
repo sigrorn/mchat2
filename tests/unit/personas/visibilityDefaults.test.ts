@@ -1,15 +1,52 @@
-// #94 — Per-persona visibility defaults and matrix building.
-import { describe, it, expect } from "vitest";
-import { buildMatrixFromDefaults } from "@/lib/personas/service";
-import type { Persona } from "@/lib/types";
+// #94 → #202 — Per-persona visibility defaults are normalized into
+// the persona_visibility table at backfill time (#194), and
+// rebuildVisibilityFromPersonaDefaults rewrites the table from the
+// current per-persona defaults. The legacy in-memory helper
+// buildMatrixFromDefaults was removed in #202; this suite tests the
+// equivalent behavior through a real DB.
+import { describe, it, expect, afterEach } from "vitest";
+import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
+import { createConversation, getConversation } from "@/lib/persistence/conversations";
+import { createPersona } from "@/lib/persistence/personas";
+import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
+import type { Conversation, Persona } from "@/lib/types";
 
-function persona(over: Partial<Persona> & { id: string; name: string }): Persona {
-  return {
-    id: over.id,
-    conversationId: over.conversationId ?? "c_1",
-    provider: over.provider ?? "mock",
-    name: over.name,
-    nameSlug: over.nameSlug ?? over.name.toLowerCase(),
+let handle: TestDbHandle | null = null;
+afterEach(() => {
+  handle?.restore();
+  handle = null;
+});
+
+async function freshConv(id = "c_1"): Promise<Conversation> {
+  return createConversation({
+    id,
+    title: "t",
+    systemPrompt: null,
+    lastProvider: null,
+    limitMarkIndex: null,
+    displayMode: "lines",
+    visibilityMode: "separated",
+    visibilityMatrix: {},
+    limitSizeTokens: null,
+    selectedPersonas: [],
+    compactionFloorIndex: null,
+    autocompactThreshold: null,
+    contextWarningsFired: [],
+  });
+}
+
+async function makePersona(
+  conversationId: string,
+  id: string,
+  name: string,
+  visibilityDefaults: Record<string, "y" | "n"> = {},
+): Promise<Persona> {
+  return createPersona({
+    id,
+    conversationId,
+    provider: "mock",
+    name,
+    nameSlug: name.toLowerCase(),
     systemPromptOverride: null,
     modelOverride: null,
     colorOverride: null,
@@ -18,86 +55,66 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: over.visibilityDefaults ?? {}, openaiCompatPreset: null,
-  };
+    visibilityDefaults,
+    openaiCompatPreset: null,
+  });
 }
 
-describe("buildMatrixFromDefaults", () => {
-  it("returns empty matrix when no persona has defaults", () => {
-    const ps = [persona({ id: "p_a", name: "Alice" }), persona({ id: "p_b", name: "Bob" })];
-    expect(buildMatrixFromDefaults(ps)).toEqual({});
+describe("rebuildVisibilityFromPersonaDefaults", () => {
+  it("returns empty matrix when no persona has 'n' defaults", async () => {
+    handle = await createTestDb();
+    const conv = await freshConv();
+    await makePersona(conv.id, "p_a", "Alice");
+    await makePersona(conv.id, "p_b", "Bob");
+    const matrix = await rebuildVisibilityFromPersonaDefaults(conv.id);
+    expect(matrix).toEqual({});
+    const reloaded = await getConversation(conv.id);
+    expect(reloaded?.visibilityMatrix).toEqual({});
   });
 
-  it("returns empty matrix when defaults are all 'y'", () => {
-    const ps = [
-      persona({ id: "p_a", name: "Alice", visibilityDefaults: { bob: "y" } }),
-      persona({ id: "p_b", name: "Bob", visibilityDefaults: { alice: "y" } }),
-    ];
-    expect(buildMatrixFromDefaults(ps)).toEqual({});
-  });
-
-  it("language coach: sees all, seen by none", () => {
-    // Alice and Bob should have Coach hidden (not in their row).
-    // Cross-editing would have set alice.sees[coach]='n' and bob.sees[coach]='n',
-    // but buildMatrixFromDefaults just reads what's stored.
-    // To test the full scenario, Alice and Bob need coach='n' in their defaults.
-    const psWithCross = [
-      persona({
-        id: "p_a",
-        name: "Alice",
-        visibilityDefaults: { coach: "n" },
-      }),
-      persona({
-        id: "p_b",
-        name: "Bob",
-        visibilityDefaults: { coach: "n" },
-      }),
-      persona({
-        id: "p_c",
-        name: "Coach",
-        visibilityDefaults: { alice: "y", bob: "y" },
-      }),
-    ];
-    const matrix = buildMatrixFromDefaults(psWithCross);
-    // Alice sees Bob but not Coach
+  it("language coach: sees all, seen by none", async () => {
+    handle = await createTestDb();
+    const conv = await freshConv();
+    await makePersona(conv.id, "p_a", "Alice", { coach: "n" });
+    await makePersona(conv.id, "p_b", "Bob", { coach: "n" });
+    await makePersona(conv.id, "p_c", "Coach", { alice: "y", bob: "y" });
+    const matrix = await rebuildVisibilityFromPersonaDefaults(conv.id);
     expect(matrix["p_a"]).toEqual(["p_b"]);
-    // Bob sees Alice but not Coach
     expect(matrix["p_b"]).toEqual(["p_a"]);
-    // Coach has no 'n' entries, so no matrix row (full visibility)
     expect(matrix["p_c"]).toBeUndefined();
   });
 
-  it("asymmetric: A sees B, B does not see A", () => {
-    const ps = [
-      persona({
-        id: "p_a",
-        name: "Alice",
-        visibilityDefaults: { bob: "y" },
-      }),
-      persona({
-        id: "p_b",
-        name: "Bob",
-        visibilityDefaults: { alice: "n" },
-      }),
-    ];
-    const matrix = buildMatrixFromDefaults(ps);
-    // Alice has no 'n' → no matrix row
+  it("asymmetric: A sees B, B does not see A", async () => {
+    handle = await createTestDb();
+    const conv = await freshConv();
+    await makePersona(conv.id, "p_a", "Alice", { bob: "y" });
+    await makePersona(conv.id, "p_b", "Bob", { alice: "n" });
+    const matrix = await rebuildVisibilityFromPersonaDefaults(conv.id);
     expect(matrix["p_a"]).toBeUndefined();
-    // Bob has alice='n' → matrix row excluding Alice
     expect(matrix["p_b"]).toEqual([]);
   });
 
-  it("ignores unknown slugs in defaults", () => {
-    const ps = [
-      persona({
-        id: "p_a",
-        name: "Alice",
-        visibilityDefaults: { ghost: "n" },
-      }),
-    ];
-    const matrix = buildMatrixFromDefaults(ps);
-    // 'ghost' doesn't match any persona, so Alice's row is empty
-    // (but she has a 'n' entry, so she gets a matrix row)
-    expect(matrix["p_a"]).toEqual([]);
+  it("ignores unknown slugs in defaults", async () => {
+    handle = await createTestDb();
+    const conv = await freshConv();
+    await makePersona(conv.id, "p_a", "Alice", { ghost: "n" });
+    const matrix = await rebuildVisibilityFromPersonaDefaults(conv.id);
+    // Alice has a 'n' entry on a non-existent slug; her row is empty
+    // (no real source matches), but she still gets a row marker.
+    // The persona_visibility table can't represent "n on unknown slug",
+    // so the row is simply absent — full visibility.
+    expect(matrix["p_a"]).toBeUndefined();
+  });
+});
+
+describe("Conversation.visibilityMatrix is loaded from persona_visibility (#202)", () => {
+  it("reflects the relational rows, not the JSON column", async () => {
+    handle = await createTestDb();
+    const conv = await freshConv();
+    await makePersona(conv.id, "p_a", "Alice", { bob: "n" });
+    await makePersona(conv.id, "p_b", "Bob");
+    await rebuildVisibilityFromPersonaDefaults(conv.id);
+    const reloaded = await getConversation(conv.id);
+    expect(reloaded?.visibilityMatrix["p_a"]).toEqual([]);
   });
 });
