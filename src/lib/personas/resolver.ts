@@ -62,6 +62,18 @@ export function resolveTargets(input: ResolveInput): ResolveResult {
     };
   }
 
+  // #216: @convo is flow-aware. The resolver itself stays pure —
+  // targets are empty here; resolveTargetsWithFlow inflates them from
+  // the conversation's flow.
+  if (names.includes("convo")) {
+    return {
+      mode: "convo",
+      targets: [],
+      strippedText,
+      unknown: [],
+    };
+  }
+
   if (names.includes("others")) {
     const selectionSet = new Set(selection);
     const targets = personas.filter((p) => !selectionSet.has(p.id)).map(personaToTarget);

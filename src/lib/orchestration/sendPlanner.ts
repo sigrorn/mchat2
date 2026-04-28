@@ -17,8 +17,12 @@ export interface PlanSendInput {
   runId: number;
 }
 
-// Targeted and 'others' modes ignore DAG — the user's explicit list is
-// exactly what runs, in parallel. 'all' and 'implicit' honor runsAfter.
+// Targeted, 'others', and 'convo' modes ignore DAG — the user's
+// explicit list (or the flow step's persona-set) is exactly what runs,
+// in parallel. 'all' and 'implicit' honor runsAfter. #216: 'convo'
+// always lists a single flow step's set, which by construction has no
+// runs_after-driven ordering between members in v1 (sub-step DAG is a
+// future enhancement).
 export function planSend(input: PlanSendInput): SendPlan | null {
   const { mode, personas } = input;
   if (input.targets.length === 0) return null;

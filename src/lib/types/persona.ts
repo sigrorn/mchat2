@@ -64,7 +64,11 @@ export interface Persona {
 // - "others": @others — ignores DAG.
 // - "implicit": no prefix, use current selection — DAG-active iff
 //   selection spans multiple personas.
-export type ResolveMode = "targeted" | "all" | "others" | "implicit";
+// - "convo": @convo — flow-aware. Resolver returns empty targets;
+//   the resolveTargetsWithFlow wrapper inflates to the flow's next
+//   personas-step (#216). When no flow is attached the wrapper
+//   leaves targets empty so sendMessage rejects the send.
+export type ResolveMode = "targeted" | "all" | "others" | "implicit" | "convo";
 
 // One resolved send destination. `personaId` is null for bare-provider
 // sends (e.g. "@claude" with no persona of that name in the convo).

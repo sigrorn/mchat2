@@ -38,7 +38,10 @@ export const PROVIDER_DISPLAY_NAMES: Readonly<Record<ProviderId, string>> = Obje
 // Reserved names cannot be used as persona names: provider prefixes,
 // "all", "others". Matched case-insensitively against the slug form.
 export const RESERVED_PERSONA_NAMES: ReadonlySet<string> = (() => {
-  const set = new Set<string>(["all", "others"]);
+  // #216: 'convo' joins 'all' and 'others' as a flow-aware @-token.
+  // Reserving prevents a persona literally named "convo" from
+  // shadowing the keyword.
+  const set = new Set<string>(["all", "others", "convo"]);
   for (const id of ALL_PROVIDER_IDS) {
     const meta = PROVIDER_REGISTRY[id];
     set.add(meta.prefix);
