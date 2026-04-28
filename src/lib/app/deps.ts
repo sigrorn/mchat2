@@ -13,6 +13,7 @@ import type {
   ActiveStream,
   AutocompactThreshold,
   Conversation,
+  Flow,
   Message,
   Persona,
   ProviderId,
@@ -114,6 +115,16 @@ export interface SendStateDeps {
   clearTargetStatus: (conversationId: string, key: string) => void;
 }
 
+// #217: flow read/write surface. Use cases never import flowsRepo
+// directly so faking + replacement remain trivial. The shapes mirror
+// flowsRepo getFlow/setStepIndex 1:1.
+export interface FlowReadDeps {
+  getFlow: (conversationId: string) => Promise<Flow | null>;
+}
+export interface FlowWriteDeps {
+  setFlowStepIndex: (flowId: string, index: number) => Promise<void>;
+}
+
 // -----------------------------------------------------------------
 // Infrastructure deps — keychain, settings, adapters, RAF, tracing
 // (#168). Replaces direct imports of lib/tauri/keychain,
@@ -201,7 +212,9 @@ export type SendMessageDeps = RunPlannedSendDeps &
   Pick<MessagesWriteDeps, "appendUserMessage"> &
   Pick<ConversationsWriteDeps, "rename"> &
   KeychainDeps &
-  AdapterRegistryDeps;
+  AdapterRegistryDeps &
+  FlowReadDeps &
+  FlowWriteDeps;
 
 export type RunPlannedSendDeps = RunOneTargetDeps & Pick<MessagesWriteDeps, "reloadMessages">;
 

@@ -12,6 +12,7 @@ import type { SendMessageDeps } from "@/lib/app/deps";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
+import * as flowsRepo from "@/lib/persistence/flows";
 import { makeRunPlannedSendDeps } from "./runOneTargetDeps";
 import { makePostResponseCheckDeps } from "./postResponseCheckDeps";
 // #168: KeychainDeps + AdapterRegistryDeps already wired by
@@ -38,5 +39,9 @@ export function makeSendMessageDeps(): SendMessageDeps {
     },
     rename: (conversationId, title) =>
       useConversationsStore.getState().rename(conversationId, title),
+    // #217: flow read/write surface plumbed through deps so the use
+    // case never imports flowsRepo directly.
+    getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
+    setFlowStepIndex: (flowId, index) => flowsRepo.setStepIndex(flowId, index),
   };
 }

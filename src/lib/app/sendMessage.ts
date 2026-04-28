@@ -6,19 +6,26 @@
 //                 autocompact / context-warning check, and kicks off
 //                 the auto-title flow on first reply (#54). Originally
 //                 part of useSend.send; lifted here in #151.
-// Collaborators: lib/personas/resolver, lib/conversations/autoTitle,
-//                lib/app/runPlannedSend, lib/app/postResponseCheck,
-//                lib/app/sendSelection, hooks/useSend (wires deps).
+//                 #217: when a conversation flow is attached and the
+//                 resolved targets match the next personas-step, the
+//                 cursor advances and recordSend stamps flow_step_id
+//                 so #219's edit-replay rewind can find its way back.
+// Collaborators: lib/personas/resolver, lib/personas/resolveWithFlow,
+//                lib/conversations/autoTitle, lib/app/runPlannedSend,
+//                lib/app/postResponseCheck, lib/app/sendSelection,
+//                lib/app/flowDispatch, hooks/useSend (wires deps).
 // ------------------------------------------------------------------
 
-import type { Conversation } from "@/lib/types";
-import { resolveTargets } from "@/lib/personas/resolver";
+import type { Conversation, Flow, FlowStep, Persona, PersonaTarget } from "@/lib/types";
+import { resolveTargets, type ResolveResult } from "@/lib/personas/resolver";
+import { resolveTargetsWithFlow } from "@/lib/personas/resolveWithFlow";
 import { generateTitle } from "@/lib/conversations/autoTitle";
 import { modelForTarget } from "@/lib/orchestration/streamRunner";
 import { recordSend } from "@/lib/orchestration/recordSend";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import { postResponseCheck } from "./postResponseCheck";
+import { planFlowDispatch, shouldAdvanceCursor } from "./flowDispatch";
 import type { SendMessageDeps } from "./deps";
 
 export interface SendMessageArgs {
@@ -39,19 +46,29 @@ export async function sendMessage(
   const personas = deps.getPersonas(conversation.id);
   const selection = deps.getSelection(conversation.id);
 
-  const resolved = resolveTargets({
+  const resolvedRaw = resolveTargets({
     text,
     personas: [...personas],
     selection: [...selection],
   });
-  if (resolved.unknown.length > 0) {
+  if (resolvedRaw.unknown.length > 0) {
     return {
       ok: false,
-      reason: `unknown target${resolved.unknown.length === 1 ? "" : "s"}: ${resolved.unknown
+      reason: `unknown target${resolvedRaw.unknown.length === 1 ? "" : "s"}: ${resolvedRaw.unknown
         .map((u) => `@${u}`)
         .join(", ")}`,
     };
   }
+
+  // #216/#217: flow-aware target wrapper. Inflates @convo to the next
+  // personas-step's set; narrows @all to the same when a flow is
+  // attached. Other modes pass through.
+  const flow = await deps.getFlow(conversation.id);
+  const resolved = resolveTargetsWithFlow(resolvedRaw, {
+    flow,
+    personas: [...personas],
+  });
+
   if (resolved.targets.length === 0) return { ok: false, reason: "no targets" };
 
   if (resolved.mode !== "implicit") {
@@ -72,19 +89,174 @@ export async function sendMessage(
     pinned: pinned ?? false,
   });
 
-  const result = await runPlannedSend(deps, { conversation, resolved, personas });
-  if (!result.ok) return { ok: false, reason: result.reason };
+  // #217: detect flow-managed dispatch. Set-equality check against the
+  // next personas-step. Mismatch (or single-target send) falls through
+  // to today's runPlannedSend with runs_after-driven ordering intact.
+  const dispatchPlan = planFlowDispatch(flow, resolved.targets);
+  const lastTitleTarget = await runDispatch(deps, {
+    conversation,
+    personas: [...personas],
+    initialResolved: resolved,
+    flow,
+    dispatchPlan,
+  });
 
-  // #210/#214: write the send to the Run/RunTarget/Attempt model.
-  // Failures here propagate — the orchestration model is authoritative
-  // for lineage, and a silent miss would leave the messages projection
-  // ahead of the run history. Per-target outcomes from runPlannedSend
-  // identify exactly which assistant rows belong to this send (no more
-  // diffing the message ids before / after).
+  // #105: post-response autocompact / context warnings.
+  void postResponseCheck(deps, conversation.id);
+
+  // #54: auto-title — fire-and-forget after the first user/assistant
+  // exchange of a fresh conversation.
+  if (conversation.title === "New conversation" && lastTitleTarget) {
+    const freshHistory = deps.getMessages(conversation.id);
+    const firstUser = freshHistory.find((m) => m.role === "user" && !m.pinned);
+    const firstAssistant = freshHistory.find(
+      (m) => m.role === "assistant" && !m.errorMessage && m.content,
+    );
+    if (firstUser && firstAssistant) {
+      void (async () => {
+        try {
+          const ak = await deps.getApiKey(lastTitleTarget.provider);
+          const title = await generateTitle(
+            deps.getAdapter(lastTitleTarget.provider),
+            ak,
+            modelForTarget(lastTitleTarget, [...personas]),
+            firstUser.content,
+            firstAssistant.content,
+          );
+          if (title) {
+            await deps.rename(conversation.id, title);
+          }
+        } catch {
+          // Silent discard — auto-title is best-effort.
+        }
+      })();
+    }
+  }
+
+  return { ok: true };
+}
+
+interface DispatchInput {
+  conversation: Conversation;
+  personas: Persona[];
+  initialResolved: ResolveResult;
+  flow: Flow | null;
+  dispatchPlan: ReturnType<typeof planFlowDispatch>;
+}
+
+// Either runs today's single dispatch (no flow / no match) or chains
+// through consecutive personas-steps until the cursor reaches a `user`
+// step or wraps to step 0. Returns the last target seen — used to
+// pick the auto-title generator.
+async function runDispatch(
+  deps: SendMessageDeps,
+  input: DispatchInput,
+): Promise<PersonaTarget | null> {
+  const { conversation, personas, initialResolved, flow, dispatchPlan } = input;
+
+  if (!dispatchPlan.shouldDispatchAsFlow || !flow || !dispatchPlan.nextStep) {
+    // Today's path. runs_after edges still apply via planSend.
+    const result = await runPlannedSend(deps, {
+      conversation,
+      resolved: initialResolved,
+      personas,
+    });
+    if (!result.ok) return null;
+    await persistRunRows(deps, conversation, personas, result.outcomes, null);
+    return result.allTargets[0] ?? null;
+  }
+
+  // Flow-managed dispatch loop.
+  let activeFlow: Flow = flow;
+  let activeStep: FlowStep = dispatchPlan.nextStep;
+  let activeStepIndex = dispatchPlan.nextStepIndex!;
+  let lastTarget: PersonaTarget | null = null;
+
+  // Advance cursor onto the first personas step before running it,
+  // so a mid-stream crash leaves the cursor at the step that was
+  // actually executing (matches today's "no in-flight persistence"
+  // stance — the user re-types and the step re-runs).
+  await deps.setFlowStepIndex(activeFlow.id, activeStepIndex);
+
+  // First iteration uses the user's resolved targets (which equal
+  // the step by the planFlowDispatch invariant). Subsequent
+  // iterations build the resolved set from the step's persona ids
+  // directly.
+  let resolved: ResolveResult = initialResolved;
+
+  for (;;) {
+    const result = await runPlannedSend(deps, {
+      conversation,
+      resolved,
+      personas,
+    });
+    if (!result.ok) return lastTarget;
+    await persistRunRows(deps, conversation, personas, result.outcomes, activeStep.id);
+    lastTarget = result.allTargets[0] ?? lastTarget;
+
+    if (!shouldAdvanceCursor(result.outcomes)) {
+      // Stay at this personas-step; user can re-type to retry.
+      return lastTarget;
+    }
+
+    // Advance cursor. If we wrap to 0, stop — the cycle hands
+    // control back to the user even if step 0 happens to be a
+    // personas step.
+    const nextIndex = (activeStepIndex + 1) % activeFlow.steps.length;
+    if (nextIndex === 0) {
+      await deps.setFlowStepIndex(activeFlow.id, nextIndex);
+      return lastTarget;
+    }
+
+    const nextStep = activeFlow.steps[nextIndex];
+    if (!nextStep) {
+      await deps.setFlowStepIndex(activeFlow.id, nextIndex);
+      return lastTarget;
+    }
+    if (nextStep.kind === "user") {
+      // Park here; next user message will trigger the following
+      // personas step.
+      await deps.setFlowStepIndex(activeFlow.id, nextIndex);
+      return lastTarget;
+    }
+
+    // Consecutive personas step — auto-chain. Build the resolved
+    // set from the step's persona ids.
+    activeStep = nextStep;
+    activeStepIndex = nextIndex;
+    activeFlow = { ...activeFlow, currentStepIndex: nextIndex };
+    await deps.setFlowStepIndex(activeFlow.id, activeStepIndex);
+    resolved = stepToResolved(activeStep, personas);
+  }
+}
+
+function stepToResolved(step: FlowStep, personas: readonly Persona[]): ResolveResult {
+  const personaById = new Map(personas.map((p) => [p.id, p] as const));
+  const targets: PersonaTarget[] = [];
+  for (const id of step.personaIds) {
+    const p = personaById.get(id);
+    if (!p) continue;
+    targets.push({
+      provider: p.provider,
+      personaId: p.id,
+      key: p.id,
+      displayName: p.name,
+    });
+  }
+  return { mode: "convo", targets, strippedText: "", unknown: [] };
+}
+
+async function persistRunRows(
+  deps: SendMessageDeps,
+  conversation: Conversation,
+  personas: readonly Persona[],
+  outcomes: ReadonlyArray<{ messageId: string | null; targetKey: string; kind: string }>,
+  flowStepId: string | null,
+): Promise<void> {
   const messagesById = new Map(
     deps.getMessages(conversation.id).map((m) => [m.id, m] as const),
   );
-  const newAssistantMessages = result.outcomes
+  const newAssistantMessages = outcomes
     .filter((o) => o.messageId !== null)
     .map((o) => messagesById.get(o.messageId!))
     .filter((m): m is NonNullable<typeof m> => m !== undefined && m.role === "assistant")
@@ -108,42 +280,6 @@ export async function sendMessage(
     conversationId: conversation.id,
     now: Date.now(),
     newAssistantMessages,
+    flowStepId,
   });
-
-  // #105: post-response autocompact / context warnings.
-  void postResponseCheck(deps, conversation.id);
-
-  // #54: auto-title — fire-and-forget after the first user/assistant
-  // exchange of a fresh conversation.
-  if (conversation.title === "New conversation") {
-    const freshHistory = deps.getMessages(conversation.id);
-    const firstUser = freshHistory.find((m) => m.role === "user" && !m.pinned);
-    const firstAssistant = freshHistory.find(
-      (m) => m.role === "assistant" && !m.errorMessage && m.content,
-    );
-    if (firstUser && firstAssistant) {
-      const titleTarget = result.allTargets[0];
-      if (titleTarget) {
-        void (async () => {
-          try {
-            const ak = await deps.getApiKey(titleTarget.provider);
-            const title = await generateTitle(
-              deps.getAdapter(titleTarget.provider),
-              ak,
-              modelForTarget(titleTarget, [...personas]),
-              firstUser.content,
-              firstAssistant.content,
-            );
-            if (title) {
-              await deps.rename(conversation.id, title);
-            }
-          } catch {
-            // Silent discard — auto-title is best-effort.
-          }
-        })();
-      }
-    }
-  }
-
-  return { ok: true };
 }
