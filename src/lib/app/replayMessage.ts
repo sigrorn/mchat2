@@ -16,10 +16,12 @@ import type { Conversation } from "@/lib/types";
 import { resolveTargets } from "@/lib/personas/resolver";
 import { planReplay } from "@/lib/conversations/replay";
 import * as messagesRepo from "@/lib/persistence/messages";
+import * as runsRepo from "@/lib/persistence/runs";
 import { transaction } from "@/lib/persistence/transaction";
 import { recordReplay } from "@/lib/orchestration/recordReplay";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
+import { computeFlowRewindIndex } from "./flowRewind";
 import type { ReplayMessageDeps } from "./deps";
 
 export interface ReplayMessageArgs {
@@ -104,6 +106,23 @@ export async function replayMessage(
     }
   });
   await deps.reloadMessages(conversation.id);
+
+  // #219: if the conversation has a flow attached, rewind the cursor
+  // to the user step that fed the earliest truncated personas-step.
+  // The runPlannedSend below stays unchanged — replay does not
+  // auto-chain consecutive personas-steps the way sendMessage does;
+  // the user re-types one step at a time. (This matches today's
+  // "edit re-runs the next response, then stops" feel.)
+  const flow = await deps.getFlow(conversation.id);
+  if (flow && supersededAssistantIds.length > 0) {
+    const truncatedStepIds = await runsRepo.listFlowStepIdsForMessages(
+      supersededAssistantIds,
+    );
+    const rewindIndex = computeFlowRewindIndex(flow, truncatedStepIds);
+    if (rewindIndex !== null) {
+      await deps.setFlowStepIndex(flow.id, rewindIndex);
+    }
+  }
 
   if (resolved.mode !== "implicit") {
     const nextSelection = selectionAfterResolve(resolved, [...selection]);

@@ -302,6 +302,37 @@ export async function listAttempts(runTargetId: string): Promise<Attempt[]> {
   return rows.map(mapAttempt);
 }
 
+// #219: look up which flow steps produced the given assistant
+// messages. Used by the edit/replay rewind to position the flow
+// cursor before re-executing the truncated personas-steps. Returns
+// the distinct, non-null flow_step_id values across all matching
+// runs. The mapping goes message → att_<msg_id> attempt →
+// run_target.run_id → run.flow_step_id, but the simpler path is to
+// list runs in the conversation and intersect against the messages
+// they produced.
+export async function listFlowStepIdsForMessages(
+  messageIds: readonly string[],
+): Promise<string[]> {
+  if (messageIds.length === 0) return [];
+  // Convention: attempts created by recordSend / recordReplay /
+  // recordRetry use id = `att_<msg_id>`. For messages that pre-date
+  // #205 the id is random — those rows have no flow_step_id set
+  // anyway, so missing them is the right answer.
+  const attemptIds = messageIds.map((m) => `att_${m}`);
+  const rows = await db
+    .selectFrom("attempts")
+    .innerJoin("run_targets", "run_targets.id", "attempts.run_target_id")
+    .innerJoin("runs", "runs.id", "run_targets.run_id")
+    .select("runs.flow_step_id")
+    .where("attempts.id", "in", attemptIds)
+    .execute();
+  const out = new Set<string>();
+  for (const r of rows) {
+    if (r.flow_step_id) out.add(r.flow_step_id);
+  }
+  return [...out];
+}
+
 // #180 → #206: returns the set of message ids that are currently
 // superseded (replaced by a later replay/retry). Reads
 // messages.superseded_at directly so the result is correct

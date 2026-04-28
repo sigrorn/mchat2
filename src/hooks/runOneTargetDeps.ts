@@ -28,6 +28,7 @@ import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/settings/registry";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
 import * as messagesRepo from "@/lib/persistence/messages";
+import * as flowsRepo from "@/lib/persistence/flows";
 import { readCachedMessages, readCachedPersonas } from "./cacheReaders";
 
 const EMPTY_SUPERSEDED: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
@@ -86,7 +87,8 @@ export function makeRunPlannedSendDeps(): RunPlannedSendDeps {
 
 // Replay needs runPlannedSend's deps plus persona reads and
 // setSelection (no auto-title, no postResponseCheck — narrower than
-// SendMessage).
+// SendMessage). #219: also reads/writes the flow cursor so an edit
+// can rewind to the user step that fed the truncated runs.
 export function makeReplayMessageDeps(): ReplayMessageDeps {
   return {
     ...makeRunPlannedSendDeps(),
@@ -95,6 +97,8 @@ export function makeReplayMessageDeps(): ReplayMessageDeps {
       usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
     setSelection: (conversationId, selection) =>
       usePersonasStore.getState().setSelection(conversationId, [...selection]),
+    getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
+    setFlowStepIndex: (flowId, index) => flowsRepo.setStepIndex(flowId, index),
   };
 }
 

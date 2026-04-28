@@ -224,8 +224,14 @@ export type RetryMessageDeps = RunOneTargetDeps &
 
 // Replay does NOT auto-title or fire postResponseCheck — it just
 // re-runs an already-titled conversation past the edited message —
-// so deps stay narrower than SendMessageDeps.
-export type ReplayMessageDeps = RunPlannedSendDeps & PersonasReadDeps & PersonasWriteDeps;
+// so deps stay narrower than SendMessageDeps. #219: reads/writes the
+// flow cursor so an edit can rewind to the user step that fed the
+// truncated runs.
+export type ReplayMessageDeps = RunPlannedSendDeps &
+  PersonasReadDeps &
+  PersonasWriteDeps &
+  FlowReadDeps &
+  FlowWriteDeps;
 
 // Surface needed by the //command handlers (#154). Spans every store
 // the command dispatcher reaches into. Each handler should access
