@@ -156,7 +156,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
       <div className="m-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-900">
               Conversation flow
             </h2>
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-800">
@@ -165,7 +165,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
           </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-900"
+            className="text-neutral-500 hover:text-neutral-900"
             aria-label="Close"
           >
             ✕
@@ -186,9 +186,16 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
           ) : null}
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-neutral-500">
+            <h3 className="mb-1 text-xs font-semibold uppercase text-neutral-700">
               Steps ({draft.steps.length})
             </h3>
+            <p className="mb-3 text-xs text-neutral-700">
+              The conversation cycles through these steps in order, then
+              loops back to step #0. <strong>User</strong> steps wait for
+              the human to send a message; <strong>personas</strong> steps
+              dispatch to the listed personas in parallel before
+              advancing.
+            </p>
             <ol className="space-y-2">
               {draft.steps.map((step, idx) => (
                 <StepRow
@@ -216,13 +223,16 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
           </section>
 
           <section className="mt-6">
-            <h3 className="mb-2 text-xs font-semibold uppercase text-neutral-500">
+            <h3 className="mb-1 text-xs font-semibold uppercase text-neutral-700">
               Role lens — per persona
             </h3>
-            <p className="mb-2 text-xs text-neutral-500">
-              Pick which speakers (other personas + the human user) appear
-              as user-role for each persona's context. Leave empty for the
-              default (everyone except self → assistant-with-name-prefix).
+            <p className="mb-3 text-xs text-neutral-700">
+              By default, a persona sees the human as <em>user</em> and
+              every other persona as <em>assistant</em> (prefixed with
+              the speaker's name). Tick a box below to flip a specific
+              speaker to the <em>user</em> role for this persona's
+              context — useful when, e.g., a coach persona should treat
+              another persona's reply as input to react to.
             </p>
             <div className="space-y-3">
               {personas.map((p) => (
@@ -238,7 +248,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
           </section>
 
           {showImportButton ? (
-            <div className="mt-4 flex items-center gap-2 text-xs text-neutral-600">
+            <div className="mt-4 flex items-center gap-2 text-xs text-neutral-800">
               <input
                 type="checkbox"
                 checked={clearRunsAfterOnSave}
@@ -301,18 +311,17 @@ interface StepRowProps {
 
 function StepRow(props: StepRowProps): JSX.Element {
   const { step, personas, isCursor } = props;
-  const personaById = new Map(personas.map((p) => [p.id, p] as const));
   return (
     <li
       className={`rounded border ${isCursor ? "border-blue-300 bg-blue-50" : "border-neutral-200 bg-white"} p-2`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-neutral-500">#{props.index}</span>
+          <span className="text-xs text-neutral-700">#{props.index}</span>
           <button
             onClick={props.onToggleKind}
-            className="rounded bg-neutral-100 px-2 py-0.5 text-xs font-medium hover:bg-neutral-200"
-            title="Toggle step kind"
+            className="rounded border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-900 hover:bg-neutral-200"
+            title="Click to switch between 'user' and 'personas'"
           >
             {step.kind === "user" ? "user" : "personas"}
           </button>
@@ -323,21 +332,21 @@ function StepRow(props: StepRowProps): JSX.Element {
         <div className="flex gap-1">
           <button
             onClick={props.onMoveUp}
-            className="text-xs text-neutral-500 hover:text-neutral-900"
+            className="text-xs text-neutral-600 hover:text-neutral-900"
             aria-label="Move up"
           >
             ↑
           </button>
           <button
             onClick={props.onMoveDown}
-            className="text-xs text-neutral-500 hover:text-neutral-900"
+            className="text-xs text-neutral-600 hover:text-neutral-900"
             aria-label="Move down"
           >
             ↓
           </button>
           <button
             onClick={props.onRemove}
-            className="text-xs text-red-500 hover:text-red-700"
+            className="text-xs text-red-600 hover:text-red-800"
             aria-label="Remove step"
           >
             ✕
@@ -345,45 +354,45 @@ function StepRow(props: StepRowProps): JSX.Element {
         </div>
       </div>
       {step.kind === "personas" ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {personas.map((p) => {
-            const checked = step.personaIds.includes(p.id);
-            return (
-              <label
-                key={p.id}
-                className={`flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${
-                  checked
-                    ? "border-blue-400 bg-blue-50"
-                    : "border-neutral-300 bg-white"
-                }`}
-              >
+        <>
+          <div className="mt-2 text-[11px] text-neutral-700">
+            Personas that reply at this step (parallel — all run before
+            the flow advances):
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {personas.map((p) => {
+              const checked = step.personaIds.includes(p.id);
+              return (
+                <label
+                  key={p.id}
+                  className={`flex items-center gap-1 rounded border px-2 py-0.5 text-xs text-neutral-900 ${
+                    checked
+                      ? "border-blue-400 bg-blue-50"
+                      : "border-neutral-300 bg-white"
+                  }`}
+                >
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={() => props.onTogglePersona(p.id)}
                 />
-                {p.name}
-              </label>
-            );
-          })}
-          {personas.length === 0 ? (
-            <span className="text-xs text-neutral-500">
-              (no personas — add some in the panel first)
-            </span>
-          ) : null}
-        </div>
+                  {p.name}
+                </label>
+              );
+            })}
+            {personas.length === 0 ? (
+              <span className="text-xs text-neutral-700">
+                (no personas — add some in the panel first)
+              </span>
+            ) : null}
+          </div>
+        </>
       ) : (
-        <div className="mt-1 text-xs text-neutral-500">
-          waits for the user to send a message
+        <div className="mt-2 text-[11px] text-neutral-700">
+          Waits here until the human sends a message. The flow advances
+          to the next step on send.
         </div>
       )}
-      {step.kind === "personas" && step.personaIds.length > 0 ? (
-        <div className="mt-1 text-xs text-neutral-500">
-          {step.personaIds
-            .map((id) => personaById.get(id)?.name ?? id)
-            .join(", ")}
-        </div>
-      ) : null}
     </li>
   );
 }
@@ -399,12 +408,13 @@ function LensRow({ persona, others, draft, onToggle }: LensRowProps): JSX.Elemen
   return (
     <div className="rounded border border-neutral-200 bg-white p-2">
       <div className="text-xs font-medium text-neutral-900">{persona.name}</div>
-      <div className="mt-1 text-[11px] text-neutral-500">
-        Sees as user-role:
+      <div className="mt-1 text-[11px] text-neutral-700">
+        Treat these speakers as <em>user</em> (instead of the default
+        <em> assistant</em>) when {persona.name} reads context:
       </div>
       <div className="mt-1 flex flex-wrap gap-1">
         <label
-          className={`flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${
+          className={`flex items-center gap-1 rounded border px-2 py-0.5 text-xs text-neutral-900 ${
             draft.user === "user"
               ? "border-blue-400 bg-blue-50"
               : "border-neutral-300 bg-white"
@@ -420,7 +430,7 @@ function LensRow({ persona, others, draft, onToggle }: LensRowProps): JSX.Elemen
         {others.map((o) => (
           <label
             key={o.id}
-            className={`flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${
+            className={`flex items-center gap-1 rounded border px-2 py-0.5 text-xs text-neutral-900 ${
               draft[o.id] === "user"
                 ? "border-blue-400 bg-blue-50"
                 : "border-neutral-300 bg-white"
