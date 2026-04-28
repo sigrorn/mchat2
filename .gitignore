@@ -11,10 +11,14 @@ build/
 *.tsbuildinfo
 # tsc -b emits .js / .d.ts next to .ts config files under the node
 # project root. Vite/Vitest/Playwright never consume these; they're
-# strictly build-byproducts.
-/playwright.config.{js,d.ts}
-/vite.config.{js,d.ts}
-/vitest.config.{js,d.ts}
+# strictly build-byproducts. Patterns must be one-per-line — git's
+# gitignore does not support shell brace expansion (#208).
+/playwright.config.js
+/playwright.config.d.ts
+/vite.config.js
+/vite.config.d.ts
+/vitest.config.js
+/vitest.config.d.ts
 
 # Tauri / Rust
 src-tauri/target/
@@ -60,4 +64,3 @@ playwright/.cache/
 *.sqlite
 *.sqlite-journal
 src-tauri/gen/
-vite.config.js
