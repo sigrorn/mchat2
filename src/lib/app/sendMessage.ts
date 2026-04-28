@@ -72,21 +72,22 @@ export async function sendMessage(
     pinned: pinned ?? false,
   });
 
-  // #179: snapshot the message ids that exist before the send so we
-  // can diff afterwards and write the new assistant rows into the
-  // Run/Attempt model.
-  const beforeIds = new Set(deps.getMessages(conversation.id).map((m) => m.id));
-
   const result = await runPlannedSend(deps, { conversation, resolved, personas });
   if (!result.ok) return { ok: false, reason: result.reason };
 
-  // #210: write the send to the Run/RunTarget/Attempt model. Failures
-  // here propagate — the orchestration model is authoritative for
-  // lineage, and a silent miss would leave the messages projection
-  // ahead of the run history.
-  const after = deps.getMessages(conversation.id);
-  const newAssistantMessages = after
-    .filter((m) => m.role === "assistant" && !beforeIds.has(m.id))
+  // #210/#214: write the send to the Run/RunTarget/Attempt model.
+  // Failures here propagate — the orchestration model is authoritative
+  // for lineage, and a silent miss would leave the messages projection
+  // ahead of the run history. Per-target outcomes from runPlannedSend
+  // identify exactly which assistant rows belong to this send (no more
+  // diffing the message ids before / after).
+  const messagesById = new Map(
+    deps.getMessages(conversation.id).map((m) => [m.id, m] as const),
+  );
+  const newAssistantMessages = result.outcomes
+    .filter((o) => o.messageId !== null)
+    .map((o) => messagesById.get(o.messageId!))
+    .filter((m): m is NonNullable<typeof m> => m !== undefined && m.role === "assistant")
     .sort((a, b) => a.index - b.index)
     .map((m) => ({
       id: m.id,

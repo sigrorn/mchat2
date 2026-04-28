@@ -13,12 +13,22 @@ import type { ResolveResult } from "@/lib/personas/resolver";
 import { planSend } from "@/lib/orchestration/sendPlanner";
 import { executeDag } from "@/lib/orchestration/dagExecutor";
 import type { StreamRunOutcome } from "@/lib/orchestration/streamRunner";
+import {
+  aggregateDagOutcomes,
+  type TargetOutcome,
+} from "@/lib/orchestration/outcomeAggregation";
 import { runOneTarget } from "./runOneTarget";
 import { shouldBufferTokens } from "./shouldBufferTokens";
 import type { RunPlannedSendDeps } from "./deps";
 
 export type RunPlannedSendResult =
-  | { ok: true; allTargets: readonly PersonaTarget[] }
+  | {
+      ok: true;
+      allTargets: readonly PersonaTarget[];
+      // #214: per-target outcomes. Lets sendMessage / a flow wrapper
+      // act on the result without diffing the messages table.
+      outcomes: readonly TargetOutcome[];
+    }
   | { ok: false; reason: string };
 
 export async function runPlannedSend(
@@ -66,22 +76,39 @@ export async function runPlannedSend(
       bufferTokens,
     });
 
+  const outcomes: TargetOutcome[] = [];
   if (plan.kind === "single") {
-    await runOne(plan.target);
+    const o = await runOne(plan.target);
+    outcomes.push({ targetKey: plan.target.key, kind: o.kind, messageId: o.messageId });
   } else if (plan.kind === "parallel") {
-    await Promise.all(plan.targets.map(runOne));
+    const results = await Promise.all(
+      plan.targets.map(async (t): Promise<TargetOutcome> => {
+        const o = await runOne(t);
+        return { targetKey: t.key, kind: o.kind, messageId: o.messageId };
+      }),
+    );
+    outcomes.push(...results);
   } else {
+    const recordedOutcomes = new Map<
+      string,
+      { kind: "completed" | "failed" | "cancelled"; messageId: string }
+    >();
     await executeDag({
       plan: plan.plan,
       runNode: async (n: DagNode) => {
         const outcome = await runOne(n.target);
+        recordedOutcomes.set(n.key, {
+          kind: outcome.kind,
+          messageId: outcome.messageId,
+        });
         await deps.reloadMessages(conversation.id);
         return outcome.kind;
       },
     });
+    outcomes.push(...aggregateDagOutcomes(plan.plan, recordedOutcomes));
   }
 
   await deps.reloadMessages(conversation.id);
 
-  return { ok: true, allTargets };
+  return { ok: true, allTargets, outcomes };
 }

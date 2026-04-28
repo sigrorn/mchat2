@@ -35,6 +35,10 @@ export interface RecordSendInput {
   conversationId: string;
   now: number;
   newAssistantMessages: readonly RecordSendNewMessage[];
+  // #214: stamp the resulting runs row with the active flow step
+  // when this send was dispatched as part of a conversation flow.
+  // Null/omitted = out-of-flow send (today's behavior).
+  flowStepId?: string | null;
 }
 
 export async function recordSend(input: RecordSendInput): Promise<void> {
@@ -43,6 +47,7 @@ export async function recordSend(input: RecordSendInput): Promise<void> {
     conversationId: input.conversationId,
     kind: "send",
     startedAt: input.now,
+    flowStepId: input.flowStepId ?? null,
   });
   for (const m of input.newAssistantMessages) {
     const target = await addRunTarget({
