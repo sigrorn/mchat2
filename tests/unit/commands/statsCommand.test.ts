@@ -35,7 +35,7 @@ function persona(id: string, name: string, provider: "openai" | "claude"): Perso
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {}, openaiCompatPreset: null,
+    visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   };
 }
 

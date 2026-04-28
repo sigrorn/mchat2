@@ -49,6 +49,13 @@ export interface Persona {
     | { kind: "builtin"; id: string }
     | { kind: "custom"; name: string }
     | null;
+  // #213: per-persona role lens. Maps a source-speaker key (a persona-id
+  // or the literal "user") to the role this persona should see for
+  // that speaker. Default empty map = today's behavior (target's own
+  // messages → assistant, everything else → assistant with name prefix,
+  // human user → user). Lets one persona treat another persona's (or
+  // the user's) messages as user-role for review/coaching scenarios.
+  roleLens: Record<string, "user" | "assistant">;
 }
 
 // How the user's send intent was resolved.

@@ -61,16 +61,36 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     created.push(p);
   }
 
-  // Patch runsAfter now that all IDs exist.
+  // Patch runsAfter + roleLens now that all IDs exist.
   for (let i = 0; i < snapshot.personas.length; i++) {
     const sp = snapshot.personas[i]!;
-    if (!sp.runsAfter || sp.runsAfter.length === 0) continue;
-    const parentIds = sp.runsAfter
-      .map((name) => nameToId.get(name.toLowerCase()))
-      .filter((id): id is string => id !== undefined);
-    if (parentIds.length === 0) continue;
     const p = created[i]!;
-    await updatePersona({ id: p.id, runsAfter: parentIds });
+    const updates: { id: string; runsAfter?: string[]; roleLens?: Record<string, "user" | "assistant"> } = { id: p.id };
+    if (sp.runsAfter && sp.runsAfter.length > 0) {
+      const parentIds = sp.runsAfter
+        .map((name) => nameToId.get(name.toLowerCase()))
+        .filter((id): id is string => id !== undefined);
+      if (parentIds.length > 0) updates.runsAfter = parentIds;
+    }
+    if (sp.roleLens && Object.keys(sp.roleLens).length > 0) {
+      // #213: lens entries are name-keyed on disk; remap to fresh ids.
+      // The literal "user" passes through unchanged. Names that don't
+      // resolve are dropped silently (the speaker simply isn't part of
+      // the imported conversation any more).
+      const remapped: Record<string, "user" | "assistant"> = {};
+      for (const [key, value] of Object.entries(sp.roleLens)) {
+        if (key === "user") {
+          remapped.user = value;
+        } else {
+          const id = nameToId.get(key.toLowerCase());
+          if (id) remapped[id] = value;
+        }
+      }
+      if (Object.keys(remapped).length > 0) updates.roleLens = remapped;
+    }
+    if (updates.runsAfter !== undefined || updates.roleLens !== undefined) {
+      await updatePersona(updates);
+    }
   }
 
   // 3. Resolve visibility matrix (names → IDs).

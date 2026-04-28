@@ -36,6 +36,7 @@ function rowToPersona(r: PersonasTable, runsAfter: string[]): Persona {
     apertusProductId: r.apertus_product_id ?? null,
     visibilityDefaults: parseVisibilityDefaults(r.visibility_defaults),
     openaiCompatPreset: parseOpenaiCompatPreset(r.openai_compat_preset),
+    roleLens: parseRoleLens(r.role_lens),
   };
 }
 
@@ -93,6 +94,23 @@ function parseOpenaiCompatPreset(
     // ignore — soft-fail to null below
   }
   return null;
+}
+
+function parseRoleLens(raw: string): Record<string, "user" | "assistant"> {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const out: Record<string, "user" | "assistant"> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (v === "user" || v === "assistant") out[k] = v;
+      }
+      return out;
+    }
+  } catch {
+    // ignore — return empty on malformed JSON
+  }
+  return {};
 }
 
 function parseVisibilityDefaults(raw: string): Record<string, "y" | "n"> {
@@ -156,6 +174,7 @@ function personaToRow(p: Persona): PersonasTable {
     openai_compat_preset: p.openaiCompatPreset
       ? JSON.stringify(p.openaiCompatPreset)
       : null,
+    role_lens: JSON.stringify(p.roleLens ?? {}),
   };
 }
 
@@ -185,6 +204,7 @@ export async function updatePersona(p: Persona): Promise<void> {
       apertus_product_id: row.apertus_product_id,
       visibility_defaults: row.visibility_defaults,
       openai_compat_preset: row.openai_compat_preset,
+      role_lens: row.role_lens,
     })
     .where("id", "=", p.id)
     .execute();

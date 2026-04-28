@@ -19,7 +19,7 @@ function persona(id: string, name: string, runsAfter: string[] = []): Persona {
     runsAfter,
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {}, openaiCompatPreset: null,
+    visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   };
 }
 

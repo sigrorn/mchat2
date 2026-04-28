@@ -54,6 +54,10 @@ export interface PersonasTable {
   apertus_product_id: string | null;
   visibility_defaults: string; // JSON-encoded
   openai_compat_preset: string | null; // JSON-encoded or null
+  // #213: per-persona role lens. JSON map
+  // { speakerKey -> "user" | "assistant" }. speakerKey = persona-id
+  // or literal "user". Empty '{}' default preserves today's mapping.
+  role_lens: string;
 }
 
 export interface MessagesTable {

@@ -43,6 +43,8 @@ describe("context builder: notice exclusion", () => {
       messages,
       personas: [],
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["hi", "again"]);
+    // #213: notice row is skipped, leaving two adjacent user-role
+    // entries which collapse into one.
+    expect(r.messages.map((m) => m.content)).toEqual(["hi\n\nagain"]);
   });
 });

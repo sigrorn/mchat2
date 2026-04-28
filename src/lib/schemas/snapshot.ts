@@ -25,6 +25,10 @@ const personaSchema = z.object({
   runsAfter: z.array(z.string()),
   sortOrder: z.number(),
   createdAtMessageIndex: z.number(),
+  // #213: optional for back-compat with pre-#213 snapshots.
+  roleLens: z
+    .record(z.union([z.literal("user"), z.literal("assistant")]))
+    .optional(),
 });
 
 const messageSchema = z.object({

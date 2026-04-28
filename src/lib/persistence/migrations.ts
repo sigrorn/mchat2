@@ -321,6 +321,13 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE messages ADD COLUMN superseded_at INTEGER`,
   ],
+  // 20 — Persona role lens (#213, slice 1 of #212). JSON map
+  // { speakerKey -> "user" | "assistant" } where speakerKey is either
+  // a persona-id or the literal "user". Default '{}' = no overrides;
+  // buildContext's role mapping is unchanged for empty lenses.
+  [
+    `ALTER TABLE personas ADD COLUMN role_lens TEXT NOT NULL DEFAULT '{}'`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

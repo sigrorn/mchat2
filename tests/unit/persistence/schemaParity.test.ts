@@ -50,6 +50,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "apertus_product_id",
     "visibility_defaults",
     "openai_compat_preset",
+    "role_lens",
   ],
   messages: [
     "id",

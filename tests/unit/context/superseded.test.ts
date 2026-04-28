@@ -40,7 +40,7 @@ function makePersona(): Persona {
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},
-    openaiCompatPreset: null,
+    openaiCompatPreset: null, roleLens: {},
   };
 }
 

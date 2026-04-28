@@ -56,7 +56,7 @@ async function makePersona(
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults,
-    openaiCompatPreset: null,
+    openaiCompatPreset: null, roleLens: {},
   });
 }
 

@@ -36,7 +36,7 @@ function persona(id: string): Persona {
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {}, openaiCompatPreset: null,
+    visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   };
 }
 
@@ -81,9 +81,9 @@ describe("context builder — audience-based visibility", () => {
       personas,
     });
     // #73: user message reordered to end when 2+ assistants follow.
+    // #213: adjacent assistants collapse.
     expect(r.messages.map((m) => m.content)).toEqual([
-      "claudio says hi",
-      "p_gepetto: gepetto says hi",
+      "claudio says hi\n\np_gepetto: gepetto says hi",
       "hello",
     ]);
   });
@@ -147,7 +147,8 @@ describe("context builder — audience-based visibility", () => {
       messages,
       personas,
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["a speaks", "p_b: b speaks"]);
+    // #213: adjacent assistants collapse.
+    expect(r.messages.map((m) => m.content)).toEqual(["a speaks\n\np_b: b speaks"]);
   });
 
   it("audience restriction applies regardless of matrix (#75)", () => {

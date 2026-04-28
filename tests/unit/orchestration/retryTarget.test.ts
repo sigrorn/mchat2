@@ -17,7 +17,7 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {}, openaiCompatPreset: null,
+    visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
     ...over,
   };
 }

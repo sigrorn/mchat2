@@ -46,6 +46,8 @@ export interface CreatePersonaInput {
   // #171: which openai-compat preset this persona resolves to.
   // Required when provider === "openai_compat", null otherwise.
   openaiCompatPreset?: Persona["openaiCompatPreset"];
+  // #213: per-persona role lens. See Persona.roleLens.
+  roleLens?: Persona["roleLens"];
 }
 
 export async function createPersona(input: CreatePersonaInput): Promise<Persona> {
@@ -91,6 +93,7 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     apertusProductId: input.apertusProductId?.trim() || null,
     visibilityDefaults: visDefaults,
     openaiCompatPreset: input.openaiCompatPreset ?? null,
+    roleLens: input.roleLens ?? {},
   });
 }
 
@@ -109,6 +112,7 @@ export interface UpdatePersonaInput {
   sortOrder?: number;
   apertusProductId?: string | null;
   openaiCompatPreset?: Persona["openaiCompatPreset"];
+  roleLens?: Persona["roleLens"];
 }
 
 export async function updatePersona(input: UpdatePersonaInput): Promise<Persona> {
@@ -178,6 +182,7 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
       input.openaiCompatPreset !== undefined
         ? input.openaiCompatPreset
         : current.openaiCompatPreset,
+    roleLens: input.roleLens !== undefined ? input.roleLens : current.roleLens,
   };
   await repo.updatePersona(next);
 

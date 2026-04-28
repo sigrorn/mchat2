@@ -35,7 +35,7 @@ function persona(over: Partial<Persona> = {}): Persona {
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {}, openaiCompatPreset: null,
+    visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
     ...over,
   };
 }
@@ -105,7 +105,8 @@ describe("buildContext", () => {
       messages,
       personas: [persona()],
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["pin-old", "new"]);
+    // #213: two consecutive user-role rows collapse into one entry.
+    expect(r.messages.map((m) => m.content)).toEqual(["pin-old\n\nnew"]);
   });
 
   it("applies persona cutoff (rule 4)", () => {
@@ -201,7 +202,9 @@ describe("buildContext", () => {
       messages,
       personas: [persona()],
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["alice says", "bob says"]);
+    // #213: adjacent assistants collapse. p_bob has no persona row in
+    // the fixture, so no name-prefix is applied to its content.
+    expect(r.messages.map((m) => m.content)).toEqual(["alice says\n\nbob says"]);
   });
 
   it("joined visibility keeps all assistant rows", () => {
@@ -229,7 +232,9 @@ describe("buildContext", () => {
       messages,
       personas: [persona()],
     });
-    expect(r.messages.map((m) => m.content)).toEqual(["a", "b"]);
+    // #213: adjacent assistants collapse. p_bob has no persona row so
+    // no "<name>: " prefix is applied.
+    expect(r.messages.map((m) => m.content)).toEqual(["a\n\nb"]);
   });
 
   it("DAG child: last message is user even when sibling responses follow (#73)", () => {
@@ -270,9 +275,9 @@ describe("buildContext", () => {
     });
     const roles = r.messages.map((m) => m.role);
     expect(roles[roles.length - 1]).toBe("user");
+    // #213: adjacent assistants collapse, prefixes preserved.
     expect(r.messages.map((m) => m.content)).toEqual([
-      "Bob: sibling A reply",
-      "Carol: sibling B reply",
+      "Bob: sibling A reply\n\nCarol: sibling B reply",
       "question",
     ]);
   });

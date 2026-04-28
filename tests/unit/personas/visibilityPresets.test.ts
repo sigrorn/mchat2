@@ -22,7 +22,7 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},
-    openaiCompatPreset: null,
+    openaiCompatPreset: null, roleLens: {},
   };
 }
 

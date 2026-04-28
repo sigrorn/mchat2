@@ -15,7 +15,7 @@ const persona = (overrides: Partial<Persona> & { id: string; name: string }): Pe
   runsAfter: [],
   deletedAt: null,
   apertusProductId: null,
-  visibilityDefaults: {}, openaiCompatPreset: null,
+  visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   ...overrides,
 });
 

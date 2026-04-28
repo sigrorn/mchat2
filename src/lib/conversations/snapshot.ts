@@ -21,6 +21,10 @@ export interface SnapshotPersona {
   runsAfter: string[];
   sortOrder: number;
   createdAtMessageIndex: number;
+  // #213: per-persona role lens, keyed by speaker *name* (not id) for
+  // portability. The literal "user" key is preserved as-is. Optional
+  // for back-compat with snapshots predating the role lens.
+  roleLens?: Record<string, "user" | "assistant">;
 }
 
 export interface SnapshotMessage {
@@ -56,6 +60,25 @@ export interface SnapshotEnvelope {
   selectedPersonas: string[];
   personas: SnapshotPersona[];
   messages: SnapshotMessage[];
+}
+
+// #213: lens entries are stored on disk keyed by speaker name (not id)
+// for portability. The literal "user" key passes through unchanged.
+// Persona-id keys that don't resolve to a live persona are dropped.
+function serializeRoleLens(
+  lens: Record<string, "user" | "assistant">,
+  idToName: ReadonlyMap<string, string>,
+): Record<string, "user" | "assistant"> {
+  const out: Record<string, "user" | "assistant"> = {};
+  for (const [key, value] of Object.entries(lens)) {
+    if (key === "user") {
+      out.user = value;
+    } else {
+      const name = idToName.get(key);
+      if (name) out[name] = value;
+    }
+  }
+  return out;
 }
 
 export function serializeSnapshot(
@@ -106,6 +129,7 @@ export function serializeSnapshot(
         .filter((n): n is string => n !== undefined),
       sortOrder: p.sortOrder,
       createdAtMessageIndex: p.createdAtMessageIndex,
+      roleLens: serializeRoleLens(p.roleLens, idToName),
     })),
     messages: messages.map((m) => ({
       role: m.role,

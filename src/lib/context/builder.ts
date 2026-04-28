@@ -44,6 +44,20 @@ export interface BuildContextResult {
   firstSurvivingUserNumber: number | null;
 }
 
+// #213: intermediate shape unifying the role-projected message + the
+// per-row metadata the truncator needs. Lens application, normalization
+// and the trailing-user shuffle all transform ProjectedEntry[] in
+// lockstep so the parallel ChatMessage[] + SourceInfo[] arrays can't
+// drift out of sync the way they used to.
+interface ProjectedEntry {
+  role: "user" | "assistant";
+  content: string;
+  // Source persona-id or the literal "user". Becomes "merged" after
+  // normalization collapses adjacent same-role entries.
+  speakerKey: string;
+  sourceInfo: SourceInfo;
+}
+
 // The eight rules, applied in this order:
 //
 //  1. systemPrompt = persona.systemPromptOverride ?? conversation.systemPrompt
@@ -60,9 +74,10 @@ export interface BuildContextResult {
 //     are only visible to the listed persona keys.
 //  7. Apply visibilityMode ('separated') — drop assistant rows produced
 //     by a different persona key. ('joined' keeps all assistant rows.)
-//  8. Collapse to ChatMessage[] with roles 'user'/'assistant'; empty
-//     content or role 'system' rows are dropped (system prompt is
-//     attached separately in step 1).
+//  8. Project to ProjectedEntry[]: apply persona.roleLens (#213), then
+//     prefix other personas' content with "<name>: ", then collapse
+//     adjacent same-role entries (Anthropic 400s on consecutive
+//     same-role messages).
 export function buildContext(input: BuildContextInput): BuildContextResult {
   const { conversation, target, messages, personas } = input;
   const persona = target.personaId
@@ -76,7 +91,7 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   // as belt-and-suspenders. Bare-provider sends (no personaId) skip
   // this — there's no persona name to assert.
   const identityLine = persona
-    ? `You are ${persona.name}. Only respond as yourself \u2014 do not include or generate responses for other personas.`
+    ? `You are ${persona.name}. Only respond as yourself — do not include or generate responses for other personas.`
     : null;
   // Order matches old mchat: identity first (the persona's core), then
   // global preference, then local override. Tracing both apps with the
@@ -89,7 +104,10 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   const cutoff = persona?.createdAtMessageIndex ?? 0;
 
   const supersededIds = input.supersededIds ?? null;
-  const out: ChatMessage[] = [];
+  const lens = persona?.roleLens ?? {};
+  const userNumbers = userNumberByIndex(messages);
+
+  const entries: ProjectedEntry[] = [];
   for (const m of messages) {
     if (m.role === "system" || m.role === "notice") continue;
     if (m.role === "assistant" && m.errorMessage !== null) continue;
@@ -128,14 +146,41 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     }
 
     if (!m.content) continue;
-    // #87: prefix other personas' assistant messages with their name
-    // so the receiving LLM knows who said what.
+
+    const sourceKey = m.role === "user" ? "user" : messageKey(m);
+    // #213: persona role lens. Default mapping is preserved (user-row
+    // → user, target's own assistant → assistant, other personas →
+    // assistant). Lens entries flip the role for a specific source
+    // speaker. The target's own messages are never re-projected — a
+    // self-referential lens entry is meaningless and ignored.
+    let projectedRole: "user" | "assistant";
+    if (m.role === "assistant" && m.personaId === target.personaId) {
+      projectedRole = "assistant";
+    } else {
+      const override = lens[sourceKey];
+      projectedRole = override ?? (m.role === "user" ? "user" : "assistant");
+    }
+
+    // #87: prefix other personas' messages with their name so the
+    // receiving LLM knows who said what. Decision is keyed off the
+    // SOURCE row (not the projected role): a persona reply projected
+    // to user-role still keeps "<name>: ", but the human user's own
+    // messages stay raw.
     let content = m.content;
     if (m.role === "assistant" && m.personaId && m.personaId !== target.personaId) {
       const name = personas.find((p) => p.id === m.personaId)?.name;
       if (name) content = `${name}: ${content}`;
     }
-    out.push({ role: m.role, content });
+
+    entries.push({
+      role: projectedRole,
+      content,
+      speakerKey: sourceKey,
+      sourceInfo: {
+        pinned: m.pinned,
+        userNumber: m.role === "user" ? (userNumbers.get(m.index) ?? null) : null,
+      },
+    });
   }
 
   // #73: DAG children in joined visibility may see sibling assistant
@@ -144,54 +189,56 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   // last message to be 'user'. Detect this pattern (2+ trailing
   // assistants after the last user) and move the user message to the
   // end. A single trailing assistant is normal alternation and left
-  // alone.
-  if (out.length >= 3 && out[out.length - 1]!.role === "assistant") {
+  // alone. Runs *before* normalization so the moved user can collapse
+  // with adjacent user-role entries cleanly.
+  if (entries.length >= 3 && entries[entries.length - 1]!.role === "assistant") {
     let lastUserIdx = -1;
-    for (let i = out.length - 1; i >= 0; i--) {
-      if (out[i]!.role === "user") {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (entries[i]!.role === "user") {
         lastUserIdx = i;
         break;
       }
     }
-    const trailingAssistants = out.length - 1 - lastUserIdx;
+    const trailingAssistants = entries.length - 1 - lastUserIdx;
     if (lastUserIdx >= 0 && trailingAssistants >= 2) {
-      const [userMsg] = out.splice(lastUserIdx, 1);
-      out.push(userMsg!);
+      const [userEntry] = entries.splice(lastUserIdx, 1);
+      entries.push(userEntry!);
     }
   }
 
-  // #55: automatic context truncation. Build SourceInfo[] so the
-  // turn-aware truncator knows which output rows are pinned and
-  // carries user-message numbers for the notice text.
+  // #213: normalization. Anthropic 400s on consecutive same-role
+  // messages; OpenAI tolerates it but undocumented. Collapse runs of
+  // same-role entries into one — content joined with "\n\n", name-
+  // prefixes preserved, sourceInfo merged (any-source-pinned,
+  // userNumber dropped because the collapsed entry no longer maps to
+  // a single user message).
+  const normalized: ProjectedEntry[] = [];
+  for (const e of entries) {
+    const last = normalized[normalized.length - 1];
+    if (last && last.role === e.role) {
+      last.content = `${last.content}\n\n${e.content}`;
+      last.sourceInfo = {
+        pinned: last.sourceInfo.pinned || e.sourceInfo.pinned,
+        userNumber: null,
+      };
+      last.speakerKey = "merged";
+    } else {
+      normalized.push({ ...e, sourceInfo: { ...e.sourceInfo } });
+    }
+  }
+
+  const out: ChatMessage[] = normalized.map((e) => ({ role: e.role, content: e.content }));
+
+  // #55: automatic context truncation. SourceInfo[] travels alongside
+  // the messages from the same ProjectedEntry source so the truncator
+  // can never disagree with the role-mapped output about pinned-ness
+  // or user-message numbers.
   // #64: limitSizeTokens narrows the budget further.
   const providerMax = input.maxContextTokens ?? Infinity;
   const convLimit = conversation.limitSizeTokens ?? Infinity;
   const maxTokens = Math.min(providerMax, convLimit);
   if (maxTokens && maxTokens !== Infinity) {
-    const userNumbers = userNumberByIndex(messages);
-    const sourceInfos: SourceInfo[] = [];
-    for (const m of messages) {
-      if (m.role === "system" || m.role === "notice") continue;
-      if (m.role === "assistant" && m.errorMessage !== null) continue;
-      if (limitMark !== null && m.index < limitMark && !m.pinned) continue;
-      if (m.index < cutoff && !m.pinned) continue;
-      if (m.pinned && m.pinTarget !== null && m.pinTarget !== personaKey) continue;
-      if (m.role === "user" && m.addressedTo.length > 0 && !m.addressedTo.includes(personaKey))
-        continue;
-      if (m.role === "assistant") {
-        if (m.audience.length > 0 && !m.audience.includes(personaKey)) continue;
-        const matrixRow = conversation.visibilityMatrix[personaKey];
-        if (matrixRow !== undefined) {
-          const sourceKey = messageKey(m);
-          if (sourceKey !== personaKey && !matrixRow.includes(sourceKey)) continue;
-        }
-      }
-      if (!m.content) continue;
-      sourceInfos.push({
-        pinned: m.pinned,
-        userNumber: m.role === "user" ? (userNumbers.get(m.index) ?? null) : null,
-      });
-    }
+    const sourceInfos: SourceInfo[] = normalized.map((e) => e.sourceInfo);
     const r = truncateToFit(systemPrompt, out, maxTokens, sourceInfos);
     return {
       systemPrompt,

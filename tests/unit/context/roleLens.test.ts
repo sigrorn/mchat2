@@ -1,4 +1,4 @@
-// buildContext role-lens projection + normalization — slice 1 of #212 (#213).
+﻿// buildContext role-lens projection + normalization â€” slice 1 of #212 (#213).
 //
 // Persona.roleLens maps a source-speaker key (a persona-id or the literal
 // "user") to "user" | "assistant". When set, buildContext projects the
@@ -8,7 +8,7 @@
 //
 // Anthropic 400s on consecutive same-role messages, so after lens
 // application a normalization pass collapses runs of same-role entries
-// into one — content joined with "\n\n", name-prefixes preserved.
+// into one â€” content joined with "\n\n", name-prefixes preserved.
 import { describe, it, expect } from "vitest";
 import { buildContext } from "@/lib/context";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -109,7 +109,7 @@ describe("buildContext role lens (#213)", () => {
     });
     // After lens: bob's reply becomes user-role with "bob: " prefix
     // preserved. The original user message + the bob entry are now
-    // both user-role and adjacent — normalization collapses them.
+    // both user-role and adjacent â€” normalization collapses them.
     expect(r.messages).toHaveLength(1);
     expect(r.messages[0]!.role).toBe("user");
     expect(r.messages[0]!.content).toContain("let's argue");
@@ -148,8 +148,8 @@ describe("buildContext role lens (#213)", () => {
       messages,
       personas,
     });
-    // user-role: u1, "bob: b1" — collapsed into one user entry.
-    // assistant-role: "carol: c1" — left alone (no override for carol).
+    // user-role: u1, "bob: b1" â€” collapsed into one user entry.
+    // assistant-role: "carol: c1" â€” left alone (no override for carol).
     // Result has alternating roles after collapse: ['user', 'assistant'].
     expect(r.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
     expect(r.messages[0]!.content).toContain("u1");
@@ -198,7 +198,7 @@ describe("buildContext role lens (#213)", () => {
     expect(r.messages[0]!.content).toContain("carol: from carol");
   });
 
-  it("the human user's own messages stay raw — no '<name>: ' prefix", () => {
+  it("the human user's own messages stay raw â€” no '<name>: ' prefix", () => {
     // Even when projected (no-op since user is already user-role), the
     // user message itself never gains a prefix. This is the
     // speaker-identity rule for the human speaker.
@@ -216,7 +216,7 @@ describe("buildContext role lens (#213)", () => {
   });
 
   it("collapses consecutive same-role entries that would otherwise 400 on Anthropic", () => {
-    // No lens — but joined visibility lets alice see two prior
+    // No lens â€” but joined visibility lets alice see two prior
     // assistant replies. Pre-#213, builder.ts had an ad-hoc trailing-
     // user shuffle for this. Post-#213, normalization collapses runs
     // generally; trailing-user shuffle still composes on top.
@@ -265,7 +265,7 @@ describe("buildContext role lens (#213)", () => {
   it("does not project the active target's own messages (target is always assistant-of-self)", () => {
     // alice's lens has no entry for herself; her own messages stay
     // assistant-role with no prefix (existing rule). Pin: an entry like
-    // { p_a: "user" } is the target trying to override its own role —
+    // { p_a: "user" } is the target trying to override its own role â€”
     // that's a meaningless config, the projector ignores it.
     const personas = [persona("p_a", "alice", { p_a: "user" })];
     const messages = [

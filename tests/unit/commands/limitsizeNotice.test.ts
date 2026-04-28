@@ -18,7 +18,7 @@ function persona(name: string, provider: Persona["provider"]): Persona {
     runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {}, openaiCompatPreset: null,
+    visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   };
 }
 
