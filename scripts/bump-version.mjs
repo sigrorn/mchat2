@@ -10,8 +10,10 @@
 //   - Loads .build-counter.json (initialises to 0.0.0 if missing).
 //   - Computes the next version per the never-go-backwards rule.
 //   - Writes the new version into package.json, tauri.conf.json,
-//     and Cargo.toml, and updates .build-counter.json.
-//   - Stages all four files with `git add`.
+//     Cargo.toml, and Cargo.lock (the [[package]] mchat2 entry —
+//     #207, otherwise cargo rewrites it on next build and dirties
+//     the working tree), and updates .build-counter.json.
+//   - Stages all five files with `git add`.
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -21,6 +23,7 @@ import {
   parseIssueNumber,
   computeNextVersion,
   formatVersion,
+  updateCargoLockMchat2Version,
 } from "./bumpLogic.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -28,6 +31,7 @@ const COUNTER = resolve(ROOT, ".build-counter.json");
 const PKG = resolve(ROOT, "package.json");
 const TAURI_CONF = resolve(ROOT, "src-tauri", "tauri.conf.json");
 const CARGO_TOML = resolve(ROOT, "src-tauri", "Cargo.toml");
+const CARGO_LOCK = resolve(ROOT, "src-tauri", "Cargo.lock");
 
 function readCounter() {
   if (!existsSync(COUNTER)) return { major: 0, minor: 0, build: 0 };
@@ -54,6 +58,11 @@ function setTomlVersion(path, newVersion) {
     (_, a, b, c) => `${a}version${b}=${c}"${newVersion}"`,
   );
   writeFileSync(path, updated, "utf8");
+}
+
+function setCargoLockVersion(path, newVersion) {
+  const raw = readFileSync(path, "utf8");
+  writeFileSync(path, updateCargoLockMchat2Version(raw, newVersion), "utf8");
 }
 
 function parseArgs(argv) {
@@ -98,10 +107,12 @@ function main() {
   setJsonVersion(PKG, versionStr);
   setJsonVersion(TAURI_CONF, versionStr);
   setTomlVersion(CARGO_TOML, versionStr);
+  setCargoLockVersion(CARGO_LOCK, versionStr);
   try {
-    execSync(`git add "${COUNTER}" "${PKG}" "${TAURI_CONF}" "${CARGO_TOML}"`, {
-      stdio: "inherit",
-    });
+    execSync(
+      `git add "${COUNTER}" "${PKG}" "${TAURI_CONF}" "${CARGO_TOML}" "${CARGO_LOCK}"`,
+      { stdio: "inherit" },
+    );
   } catch {
     console.warn("bump-version: git add failed (not fatal). Stage the files manually.");
   }

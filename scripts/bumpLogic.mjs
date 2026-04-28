@@ -41,3 +41,15 @@ export function computeNextVersion(current, issueNumber) {
 export function formatVersion(v) {
   return `${v.major}.${v.minor}.${v.build}`;
 }
+
+// Cargo rewrites the [[package]] name = "mchat2" / version = "..."
+// pair on every build, so the bump script must pre-update it to keep
+// the working tree clean (#207). This is a pure helper so the test
+// suite can exercise it without filesystem IO.
+export function updateCargoLockMchat2Version(raw, newVersion) {
+  const pattern = /(name = "mchat2"(\r?\n)version = ")([^"]*)(")/;
+  if (!pattern.test(raw)) {
+    throw new Error('updateCargoLockMchat2Version: no [[package]] entry for "mchat2" found in Cargo.lock');
+  }
+  return raw.replace(pattern, (_, prefix, _eol, _old, suffix) => `${prefix}${newVersion}${suffix}`);
+}
