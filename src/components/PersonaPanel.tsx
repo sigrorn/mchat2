@@ -36,6 +36,7 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore, type StreamStatus } from "@/stores/sendStore";
 import { useUiStore } from "@/stores/uiStore";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
+import { FlowEditor } from "./FlowEditor";
 
 const EMPTY_STATUS: Readonly<Record<string, StreamStatus>> = Object.freeze({});
 
@@ -143,6 +144,12 @@ function PersonaPanelExpanded({
     setSelection(conversation.id, next);
   };
 
+  // #218: flow editor opens on click of the "Edit conversation flow"
+  // link at the bottom. Closes on save/cancel and when the persona
+  // list changes underneath us so the editor never points at stale
+  // ids.
+  const [showFlowEditor, setShowFlowEditor] = useState(false);
+
   return (
     <aside
       style={counterScaleStyle}
@@ -238,6 +245,28 @@ function PersonaPanelExpanded({
           <li className="px-3 py-3 text-xs text-neutral-500">No personas yet.</li>
         ) : null}
       </ul>
+      {/* #218: small link to the experimental flow editor. Hidden when
+          there are no personas (nothing meaningful to flow yet). */}
+      {personas.length > 0 ? (
+        <div className="border-t border-neutral-200 px-3 py-2">
+          <button
+            onClick={() => setShowFlowEditor(true)}
+            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            Edit conversation flow
+          </button>
+          <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium uppercase text-amber-800">
+            experimental
+          </span>
+        </div>
+      ) : null}
+      {showFlowEditor ? (
+        <FlowEditor
+          conversationId={conversation.id}
+          personas={personas}
+          onClose={() => setShowFlowEditor(false)}
+        />
+      ) : null}
     </aside>
   );
 }
