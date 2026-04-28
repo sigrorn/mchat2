@@ -42,14 +42,14 @@ describe("planFlowDispatch (#217)", () => {
       ],
       0,
     );
-    const plan = planFlowDispatch(f, [target("p_a"), target("p_b")]);
+    const plan = planFlowDispatch(f, [target("p_a"), target("p_b")], "convo");
     expect(plan.shouldDispatchAsFlow).toBe(true);
     expect(plan.nextStepIndex).toBe(1);
     expect(plan.nextStep?.id).toBe("s_1");
   });
 
   it("no-op when no flow attached", () => {
-    const plan = planFlowDispatch(null, [target("p_a")]);
+    const plan = planFlowDispatch(null, [target("p_a")], "convo");
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
@@ -61,7 +61,7 @@ describe("planFlowDispatch (#217)", () => {
       ],
       0,
     );
-    const plan = planFlowDispatch(f, [target("p_a")]);
+    const plan = planFlowDispatch(f, [target("p_a")], "convo");
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
@@ -73,7 +73,7 @@ describe("planFlowDispatch (#217)", () => {
       ],
       0,
     );
-    const plan = planFlowDispatch(f, [target("p_a")]);
+    const plan = planFlowDispatch(f, [target("p_a")], "convo");
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
@@ -85,7 +85,7 @@ describe("planFlowDispatch (#217)", () => {
       ],
       0,
     );
-    const plan = planFlowDispatch(f, [target("p_a"), target("p_b")]);
+    const plan = planFlowDispatch(f, [target("p_a"), target("p_b")], "convo");
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
@@ -97,14 +97,14 @@ describe("planFlowDispatch (#217)", () => {
       ],
       0,
     );
-    const plan = planFlowDispatch(f, [target("p_a")]);
+    const plan = planFlowDispatch(f, [target("p_a")], "convo");
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
-  it("single-target invocation does not advance the flow", () => {
-    // Even when the step has a single persona and the user @-targets
-    // that persona, a single-target send leaves the flow paused.
-    // This is the explicit semantics from #216.
+  it("explicit @persona (mode='targeted') does not advance the flow", () => {
+    // Single-target via @persona: the user wants to talk to that
+    // persona without disturbing the flow. Even if the next step
+    // contains only that persona, the cursor stays put.
     const f = flow(
       [
         { kind: "user", personaIds: [] },
@@ -112,7 +112,66 @@ describe("planFlowDispatch (#217)", () => {
       ],
       0,
     );
-    const plan = planFlowDispatch(f, [target("p_a")]);
+    const plan = planFlowDispatch(f, [target("p_a")], "targeted");
+    expect(plan.shouldDispatchAsFlow).toBe(false);
+  });
+
+  it("@convo with single-persona next step DOES advance the flow (#221)", () => {
+    // Bugfix for #221: NVC-style flows alternate single-persona
+    // steps. @convo gets narrowed to that single persona by the
+    // resolveTargetsWithFlow wrapper; the dispatch gate must use
+    // mode (not count) so this case isn't blocked.
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      0,
+    );
+    const plan = planFlowDispatch(f, [target("p_a")], "convo");
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+  });
+
+  it("@all with single-persona next step DOES advance the flow (#221)", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      0,
+    );
+    const plan = planFlowDispatch(f, [target("p_a")], "all");
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+  });
+
+  it("implicit (no prefix) does not advance the flow even with matching selection (#221)", () => {
+    // Implicit means the user typed without an @-prefix and the
+    // selection happens to match. Per the original #216 contract,
+    // only explicit flow tokens (@convo / @all) advance.
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      0,
+    );
+    const plan = planFlowDispatch(f, [target("p_a")], "implicit");
+    expect(plan.shouldDispatchAsFlow).toBe(false);
+  });
+
+  it("@others does not advance the flow (#221)", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a", "p_b"] },
+      ],
+      0,
+    );
+    const plan = planFlowDispatch(
+      f,
+      [target("p_a"), target("p_b")],
+      "others",
+    );
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
@@ -127,7 +186,7 @@ describe("planFlowDispatch (#217)", () => {
       ],
       2,
     );
-    const plan = planFlowDispatch(f, [target("p_a"), target("p_b")]);
+    const plan = planFlowDispatch(f, [target("p_a"), target("p_b")], "convo");
     // From cursor=2 (user), the immediately next step is index 0 (also
     // user) → no match. The wrap-around scan keeps going to find the
     // first non-user, but the contract says only the *immediate* next
