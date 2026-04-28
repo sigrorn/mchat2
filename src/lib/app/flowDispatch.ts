@@ -8,7 +8,7 @@
 // Collaborators: lib/app/sendMessage (consumer).
 // ------------------------------------------------------------------
 
-import type { Flow, FlowStep, PersonaTarget } from "../types";
+import type { Flow, FlowStep, PersonaTarget, ResolveMode } from "../types";
 import type { TargetOutcome } from "../orchestration/outcomeAggregation";
 
 export interface FlowDispatchPlan {
@@ -23,13 +23,20 @@ export interface FlowDispatchPlan {
 export function planFlowDispatch(
   flow: Flow | null,
   resolvedTargets: readonly PersonaTarget[],
+  mode: ResolveMode,
 ): FlowDispatchPlan {
   if (!flow) return { shouldDispatchAsFlow: false };
 
-  // #216 / #217: only multi-target invocations interact with the flow.
-  // A single @persona send leaves the cursor where it is, even if the
-  // step happens to contain only that persona.
-  if (resolvedTargets.length < 2) return { shouldDispatchAsFlow: false };
+  // #221: gate on the resolved mode, not on target count. Only the
+  // explicit flow-aware tokens (@convo, @all) interact with the cursor.
+  // @persona / no-prefix (implicit) / @others stay out of the flow
+  // even when their target set happens to match the next step. The
+  // original count-based check (#216 / #217) blocked single-persona
+  // steps from being flow-managed altogether — a real bug for NVC-
+  // style flows where steps alternate single personas.
+  if (mode !== "convo" && mode !== "all") {
+    return { shouldDispatchAsFlow: false };
+  }
 
   const currentStep = flow.steps[flow.currentStepIndex];
   if (!currentStep || currentStep.kind !== "user") {

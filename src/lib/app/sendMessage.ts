@@ -92,7 +92,7 @@ export async function sendMessage(
   // #217: detect flow-managed dispatch. Set-equality check against the
   // next personas-step. Mismatch (or single-target send) falls through
   // to today's runPlannedSend with runs_after-driven ordering intact.
-  const dispatchPlan = planFlowDispatch(flow, resolved.targets);
+  const dispatchPlan = planFlowDispatch(flow, resolved.targets, resolved.mode);
   const lastTitleTarget = await runDispatch(deps, {
     conversation,
     personas: [...personas],
