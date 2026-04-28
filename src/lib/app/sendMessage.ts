@@ -25,7 +25,7 @@ import { recordSend } from "@/lib/orchestration/recordSend";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import { postResponseCheck } from "./postResponseCheck";
-import { planFlowDispatch, shouldAdvanceCursor } from "./flowDispatch";
+import { planFlowDispatch, shouldAdvanceCursor, wrapNextIndex } from "./flowDispatch";
 import type { SendMessageDeps } from "./deps";
 
 export interface SendMessageArgs {
@@ -199,11 +199,15 @@ async function runDispatch(
       return lastTarget;
     }
 
-    // Advance cursor. If we wrap to 0, stop — the cycle hands
-    // control back to the user even if step 0 happens to be a
-    // personas step.
-    const nextIndex = (activeStepIndex + 1) % activeFlow.steps.length;
-    if (nextIndex === 0) {
+    // Advance cursor. #220: a wrap (past last step) lands at
+    // flow.loopStartIndex and always pauses, regardless of what
+    // step kind the loop-start happens to be — the cycle hands
+    // control back to the user at the cycle boundary.
+    const { index: nextIndex, wrapped } = wrapNextIndex(
+      activeFlow,
+      activeStepIndex,
+    );
+    if (wrapped) {
       await deps.setFlowStepIndex(activeFlow.id, nextIndex);
       return lastTarget;
     }

@@ -27,6 +27,12 @@ export interface Flow {
   id: string;
   conversationId: string;
   currentStepIndex: number;
+  // #220: cycle wraps back to this index (not always 0) when the
+  // cursor advances past the last step. Defaults to 0 — preserves
+  // today's wrap-to-step-0 behaviour. Steps with sequence < this
+  // index act as a one-shot setup phase that runs only on the first
+  // cycle.
+  loopStartIndex: number;
   steps: FlowStep[];
 }
 
@@ -40,5 +46,9 @@ export interface FlowDraftStep {
 
 export interface FlowDraft {
   currentStepIndex: number;
+  // #220: optional. Omitted (or undefined) ⇒ resets to 0 on upsert,
+  // matching omit-means-default semantics for every other field
+  // here. Pass an explicit value to keep a non-zero loop-start.
+  loopStartIndex?: number;
   steps: FlowDraftStep[];
 }

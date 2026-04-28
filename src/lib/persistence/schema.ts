@@ -110,6 +110,9 @@ export interface FlowsTable {
   id: string;
   conversation_id: string;
   current_step_index: number;
+  // #220: cycle wraps back to this index (instead of 0) at end of
+  // flow. Default 0 preserves today's wrap-to-step-0 behaviour.
+  loop_start_index: number;
 }
 
 // #215: ordered steps within a flow. UNIQUE(flow_id, sequence).

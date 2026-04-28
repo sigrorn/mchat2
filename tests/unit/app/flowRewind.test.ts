@@ -16,6 +16,7 @@ function flow(
     id: "f_1",
     conversationId: "c_1",
     currentStepIndex: cursor,
+    loopStartIndex: 0,
     steps: steps.map((s, i) => ({
       id: `s_${i}`,
       flowId: "f_1",

@@ -17,7 +17,10 @@ describe("migration v21 — flow tables + runs.flow_step_id", () => {
   });
 
   it("creates the flows table with the expected columns", async () => {
-    handle = await createTestDb();
+    // Pin the v21 schema by stopping migrations at 21 — later
+    // migrations (v22 added loop_start_index) shouldn't perturb what
+    // this test asserts about v21's contribution.
+    handle = await createTestDb({ stopAt: 21 });
     const cols = await sql.select<{ name: string; type: string; notnull: number }>(
       "PRAGMA table_info(flows)",
     );

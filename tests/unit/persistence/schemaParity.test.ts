@@ -113,7 +113,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
   persona_visibility: ["conversation_id", "observer_slug", "source_slug", "visible"],
   persona_runs_after: ["child_id", "parent_id"],
   conversation_context_warnings: ["conversation_id", "threshold", "fired_at"],
-  flows: ["id", "conversation_id", "current_step_index"],
+  flows: ["id", "conversation_id", "current_step_index", "loop_start_index"],
   flow_steps: ["id", "flow_id", "sequence", "kind"],
   flow_step_personas: ["flow_step_id", "persona_id"],
 };

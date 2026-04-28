@@ -56,6 +56,9 @@ export interface SnapshotFlowStep {
 export interface SnapshotFlow {
   currentStepIndex: number;
   steps: SnapshotFlowStep[];
+  // #220: optional for back-compat with pre-#220 snapshots — defaults
+  // to 0 on import (today's wrap-to-step-0 behaviour).
+  loopStartIndex?: number;
 }
 
 export interface SnapshotEnvelope {
@@ -180,6 +183,7 @@ export function serializeSnapshot(
   if (options?.flow) {
     envelope.flow = {
       currentStepIndex: options.flow.currentStepIndex,
+      loopStartIndex: options.flow.loopStartIndex,
       steps: options.flow.steps.map((s) => ({
         kind: s.kind,
         personas: s.personaIds

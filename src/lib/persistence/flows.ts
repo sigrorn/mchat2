@@ -59,6 +59,7 @@ export async function getFlow(conversationId: string): Promise<Flow | null> {
     id: flowRow.id,
     conversationId: flowRow.conversation_id,
     currentStepIndex: flowRow.current_step_index,
+    loopStartIndex: flowRow.loop_start_index,
     steps,
   };
 }
@@ -71,6 +72,20 @@ function validateDraft(draft: FlowDraft): void {
     }
     if (i > 0 && s.kind === "user" && draft.steps[i - 1]?.kind === "user") {
       throw new Error(`flow step ${i}: consecutive 'user' steps`);
+    }
+  }
+  // #220: loopStartIndex must point at a real step. Empty flows are
+  // allowed (no cycle yet) — loopStartIndex is meaningless and we
+  // accept any value (the upsert below will store 0).
+  if (draft.steps.length > 0 && draft.loopStartIndex !== undefined) {
+    if (
+      draft.loopStartIndex < 0 ||
+      draft.loopStartIndex >= draft.steps.length ||
+      !Number.isInteger(draft.loopStartIndex)
+    ) {
+      throw new Error(
+        `flow.loopStartIndex out of range: ${draft.loopStartIndex} (steps: ${draft.steps.length})`,
+      );
     }
   }
 }
@@ -88,11 +103,15 @@ export async function upsertFlow(
     .executeTakeFirst();
 
   const flowId = existing?.id ?? newFlowId();
+  const loopStart = draft.loopStartIndex ?? 0;
 
   if (existing) {
     await db
       .updateTable("flows")
-      .set({ current_step_index: draft.currentStepIndex })
+      .set({
+        current_step_index: draft.currentStepIndex,
+        loop_start_index: loopStart,
+      })
       .where("id", "=", flowId)
       .execute();
     // CASCADE deletes step rows + step-persona junction rows.
@@ -104,6 +123,7 @@ export async function upsertFlow(
         id: flowId,
         conversation_id: conversationId,
         current_step_index: draft.currentStepIndex,
+        loop_start_index: loopStart,
       })
       .execute();
   }

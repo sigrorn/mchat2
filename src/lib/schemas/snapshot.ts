@@ -59,6 +59,9 @@ const flowStepSchema = z.object({
 const flowSchema = z.object({
   currentStepIndex: z.number(),
   steps: z.array(flowStepSchema),
+  // #220: optional for back-compat with pre-#220 snapshots; defaults
+  // to 0 on import.
+  loopStartIndex: z.number().optional(),
 });
 
 const envelopeSchema = z.object({

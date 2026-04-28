@@ -70,3 +70,23 @@ export function shouldAdvanceCursor(outcomes: readonly TargetOutcome[]): boolean
   if (outcomes.length === 0) return false;
   return outcomes.every((o) => o.kind === "completed");
 }
+
+// #220: compute the next cursor position from the given index. When
+// advancing past the last step, wrap to flow.loopStartIndex (which
+// defaults to 0). The `wrapped` flag tells callers whether the wrap
+// just happened — sendMessage's dispatch loop pauses on wrap so the
+// user always gets control back at the cycle boundary, regardless of
+// whether the loop start happens to be a personas-step.
+export function wrapNextIndex(
+  flow: Flow,
+  fromIndex: number,
+): { index: number; wrapped: boolean } {
+  if (flow.steps.length === 0) {
+    return { index: 0, wrapped: false };
+  }
+  const next = fromIndex + 1;
+  if (next >= flow.steps.length) {
+    return { index: flow.loopStartIndex, wrapped: true };
+  }
+  return { index: next, wrapped: false };
+}

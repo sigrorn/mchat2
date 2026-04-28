@@ -161,8 +161,16 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
       (s) => !(s.kind === "personas" && s.personaIds.length === 0),
     );
     if (cleaned.length > 0) {
+      // #220: bound loopStartIndex to the cleaned step count. If a
+      // remap dropped enough steps to push the saved value past the
+      // new array bounds, fall back to 0 — better than tripping the
+      // upsert's validation.
+      const rawLoopStart = snapshot.flow.loopStartIndex ?? 0;
+      const safeLoopStart =
+        rawLoopStart >= 0 && rawLoopStart < cleaned.length ? rawLoopStart : 0;
       await flowsRepo.upsertFlow(conv.id, {
         currentStepIndex: snapshot.flow.currentStepIndex,
+        loopStartIndex: safeLoopStart,
         steps: cleaned,
       });
     }

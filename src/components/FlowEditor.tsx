@@ -22,7 +22,11 @@ interface FlowEditorProps {
 }
 
 export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProps): JSX.Element {
-  const [draft, setDraft] = useState<FlowDraft>({ currentStepIndex: 0, steps: [] });
+  const [draft, setDraft] = useState<FlowDraft>({
+    currentStepIndex: 0,
+    loopStartIndex: 0,
+    steps: [],
+  });
   const [existingFlow, setExistingFlow] = useState<Flow | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,6 +45,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
       if (f) {
         setDraft({
           currentStepIndex: f.currentStepIndex,
+          loopStartIndex: f.loopStartIndex,
           steps: f.steps.map((s) => ({ kind: s.kind, personaIds: [...s.personaIds] })),
         });
       }
@@ -64,7 +69,18 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
     setDraft((d) => ({ ...d, steps: [...d.steps, { kind, personaIds: [] }] }));
   };
   const onRemoveStep = (idx: number): void => {
-    setDraft((d) => ({ ...d, steps: d.steps.filter((_, i) => i !== idx) }));
+    setDraft((d) => {
+      const nextSteps = d.steps.filter((_, i) => i !== idx);
+      // #220: keep loopStartIndex valid as steps shrink. If we
+      // removed the loop-start step itself or anything before it,
+      // shift back by one (clamped at 0). If the loop-start would
+      // fall off the end, clamp to the new last index.
+      const cur = d.loopStartIndex ?? 0;
+      let next = cur;
+      if (idx < cur) next = cur - 1;
+      if (next >= nextSteps.length) next = Math.max(0, nextSteps.length - 1);
+      return { ...d, steps: nextSteps, loopStartIndex: next };
+    });
   };
   const onMoveStep = (idx: number, dir: -1 | 1): void => {
     setDraft((d) => {
@@ -72,8 +88,18 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
       const target = idx + dir;
       if (target < 0 || target >= next.length) return d;
       [next[idx]!, next[target]!] = [next[target]!, next[idx]!];
-      return { ...d, steps: next };
+      // #220: if the moved step was the loop-start, follow it to its
+      // new position. Same goes for swaps that displace the
+      // loop-start step.
+      const cur = d.loopStartIndex ?? 0;
+      let nextLoop = cur;
+      if (cur === idx) nextLoop = target;
+      else if (cur === target) nextLoop = idx;
+      return { ...d, steps: next, loopStartIndex: nextLoop };
     });
+  };
+  const onSetLoopStart = (idx: number): void => {
+    setDraft((d) => ({ ...d, loopStartIndex: idx }));
   };
   const onToggleStepKind = (idx: number): void => {
     setDraft((d) => {
@@ -190,11 +216,14 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
               Steps ({draft.steps.length})
             </h3>
             <p className="mb-3 text-xs text-neutral-700">
-              The conversation cycles through these steps in order, then
-              loops back to step #0. <strong>User</strong> steps wait for
-              the human to send a message; <strong>personas</strong> steps
+              The conversation runs through these steps in order; at the
+              end it loops back to the step marked <strong>↻ loop
+              start</strong>. <strong>User</strong> steps wait for the
+              human to send a message; <strong>personas</strong> steps
               dispatch to the listed personas in parallel before
-              advancing.
+              advancing. Steps before the loop start run only on the
+              first cycle — useful for one-shot setup like a system
+              briefing.
             </p>
             <ol className="space-y-2">
               {draft.steps.map((step, idx) => (
@@ -204,11 +233,13 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
                   step={step}
                   personas={personas}
                   isCursor={idx === draft.currentStepIndex}
+                  isLoopStart={idx === (draft.loopStartIndex ?? 0)}
                   onToggleKind={() => onToggleStepKind(idx)}
                   onTogglePersona={(pid) => onTogglePersona(idx, pid)}
                   onMoveUp={() => onMoveStep(idx, -1)}
                   onMoveDown={() => onMoveStep(idx, 1)}
                   onRemove={() => onRemoveStep(idx)}
+                  onSetLoopStart={() => onSetLoopStart(idx)}
                 />
               ))}
             </ol>
@@ -302,21 +333,27 @@ interface StepRowProps {
   step: FlowDraftStep;
   personas: readonly Persona[];
   isCursor: boolean;
+  isLoopStart: boolean;
   onToggleKind: () => void;
   onTogglePersona: (id: string) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
+  onSetLoopStart: () => void;
 }
 
 function StepRow(props: StepRowProps): JSX.Element {
-  const { step, personas, isCursor } = props;
+  const { step, personas, isCursor, isLoopStart } = props;
+  // Combine highlights when the cursor is sitting on the loop-start.
+  const borderClass = isLoopStart
+    ? "border-amber-400 bg-amber-50"
+    : isCursor
+      ? "border-blue-300 bg-blue-50"
+      : "border-neutral-200 bg-white";
   return (
-    <li
-      className={`rounded border ${isCursor ? "border-blue-300 bg-blue-50" : "border-neutral-200 bg-white"} p-2`}
-    >
+    <li className={`rounded border ${borderClass} p-2`}>
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-neutral-700">#{props.index}</span>
           <button
             onClick={props.onToggleKind}
@@ -328,6 +365,19 @@ function StepRow(props: StepRowProps): JSX.Element {
           {isCursor ? (
             <span className="text-[10px] uppercase text-blue-600">cursor</span>
           ) : null}
+          {isLoopStart ? (
+            <span className="text-[10px] font-medium uppercase text-amber-700">
+              ↻ loop start
+            </span>
+          ) : (
+            <button
+              onClick={props.onSetLoopStart}
+              className="text-[10px] uppercase text-neutral-500 hover:text-amber-700"
+              title="The cycle wraps back to this step at end of flow. Steps before this one run once as setup."
+            >
+              ↻ set as loop start
+            </button>
+          )}
         </div>
         <div className="flex gap-1">
           <button

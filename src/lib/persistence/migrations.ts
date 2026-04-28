@@ -359,6 +359,14 @@ export const MIGRATIONS: string[][] = [
     // ADD COLUMN with REFERENCES is supported here.
     `ALTER TABLE runs ADD COLUMN flow_step_id TEXT REFERENCES flow_steps(id) ON DELETE SET NULL`,
   ],
+  // 22 — Configurable flow loop-back step (#220). The cycle wraps to
+  // `loop_start_index` instead of always 0, letting the leading
+  // [0, loop_start_index) steps run once as a setup phase before the
+  // repeating cycle takes over. Default 0 preserves today's
+  // wrap-to-step-0 behaviour for every existing flow.
+  [
+    `ALTER TABLE flows ADD COLUMN loop_start_index INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

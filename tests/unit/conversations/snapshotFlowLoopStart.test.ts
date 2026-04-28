@@ -83,10 +83,11 @@ describe("snapshot round-trip preserves flow.loopStartIndex (#220)", () => {
     });
     await flowsRepo.upsertFlow(conv.id, {
       currentStepIndex: 0,
-      loopStartIndex: 1,
+      loopStartIndex: 2,
       steps: [
-        { kind: "user", personaIds: [] },
-        { kind: "user", personaIds: [] },
+        { kind: "user", personaIds: [] }, // setup
+        { kind: "personas", personaIds: [a.id] }, // setup
+        { kind: "user", personaIds: [] }, // ← loop start
         { kind: "personas", personaIds: [a.id] },
       ],
     });
@@ -98,7 +99,7 @@ describe("snapshot round-trip preserves flow.loopStartIndex (#220)", () => {
     if (!parsed.ok) return;
     const result = await importSnapshot(parsed.snapshot);
     const newFlow = await flowsRepo.getFlow(result.conversation.id);
-    expect(newFlow?.loopStartIndex).toBe(1);
+    expect(newFlow?.loopStartIndex).toBe(2);
   });
 
   it("legacy snapshot without loopStartIndex defaults to 0", async () => {

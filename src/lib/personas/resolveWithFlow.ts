@@ -61,16 +61,22 @@ function nextPersonasStepTargets(
   return out;
 }
 
-// Walk the flow forward from current_step_index, wrapping to step 0 at
-// the end, and return the first `personas` step encountered. Returns
-// null if no `personas` step exists in the flow.
+// Walk the flow forward from current_step_index and return the first
+// `personas` step encountered. #220: when the walk passes the last
+// step, it wraps to flow.loopStartIndex so the setup phase
+// [0, loopStartIndex) is never re-entered. Returns null if no
+// `personas` step exists in the cyclical range.
 function nextPersonasStep(flow: Flow): Flow["steps"][number] | null {
   const n = flow.steps.length;
   if (n === 0) return null;
+  const loopStart = flow.loopStartIndex;
+  // Cap the walk at one full loop to avoid infinite scans on a flow
+  // whose cycle has no personas-steps.
+  let idx = flow.currentStepIndex;
   for (let i = 0; i < n; i++) {
-    const idx = (flow.currentStepIndex + i) % n;
     const step = flow.steps[idx];
     if (step?.kind === "personas") return step;
+    idx = idx + 1 >= n ? loopStart : idx + 1;
   }
   return null;
 }
