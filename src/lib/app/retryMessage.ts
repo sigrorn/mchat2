@@ -51,30 +51,25 @@ export async function retryMessage(
 
   await deps.reloadMessages(conversation.id);
 
-  // #178: parallel-write the retry's side-effects onto the failed
-  // message's RunTarget. Tolerated to fail silently — the messages
-  // table remains authoritative until #180 flips that.
-  try {
-    const newMsg = deps.getMessages(conversation.id).find((m) => m.id === outcome.messageId);
-    if (newMsg) {
-      await recordRetry({
-        failedMessageId: failed.id,
-        now: Date.now(),
-        newAssistantMessage: {
-          id: newMsg.id,
-          content: newMsg.content,
-          createdAt: newMsg.createdAt,
-          inputTokens: newMsg.inputTokens,
-          outputTokens: newMsg.outputTokens,
-          ttftMs: newMsg.ttftMs ?? null,
-          streamMs: newMsg.streamMs ?? null,
-          errorMessage: newMsg.errorMessage,
-          errorTransient: newMsg.errorTransient,
-        },
-      });
-    }
-  } catch (err) {
-    console.warn("recordRetry failed (parallel-write; non-fatal)", err);
+  // #210: write the retry's side-effects onto the failed message's
+  // RunTarget. Failures propagate — see sendMessage for rationale.
+  const newMsg = deps.getMessages(conversation.id).find((m) => m.id === outcome.messageId);
+  if (newMsg) {
+    await recordRetry({
+      failedMessageId: failed.id,
+      now: Date.now(),
+      newAssistantMessage: {
+        id: newMsg.id,
+        content: newMsg.content,
+        createdAt: newMsg.createdAt,
+        inputTokens: newMsg.inputTokens,
+        outputTokens: newMsg.outputTokens,
+        ttftMs: newMsg.ttftMs ?? null,
+        streamMs: newMsg.streamMs ?? null,
+        errorMessage: newMsg.errorMessage,
+        errorTransient: newMsg.errorTransient,
+      },
+    });
   }
 
   return { ok: true };

@@ -20,7 +20,6 @@ import {
   listRunsForConversation,
   listAttempts,
   listSupersededMessageIds,
-  listAttemptHistoryForMessage,
 } from "@/lib/persistence/runs";
 import { sql } from "@/lib/tauri/sql";
 
@@ -262,71 +261,6 @@ describe("runs repo — listSupersededMessageIds (#180 → #206)", () => {
     const ids = await listSupersededMessageIds("c_1");
     expect(ids.has("m_random")).toBe(true);
     expect(ids.size).toBe(1);
-  });
-});
-
-describe("runs repo — listAttemptHistoryForMessage (#181)", () => {
-  it("returns superseded sibling attempts on the same target_key, ordered by sequence", async () => {
-    handle = await createTestDb();
-    await seedConversation();
-    await seedPersona();
-    // Two RunTargets share target_key "alice": the original send
-    // (rt_a, with two attempts — first superseded by retry) and a
-    // later replay (rt_b, with one attempt). The "current" message
-    // is m_curr on rt_a, sequence=2. listAttemptHistoryForMessage
-    // returns the two superseded older attempts (across both targets).
-    await sql.execute(
-      `INSERT INTO runs (id, conversation_id, kind, started_at) VALUES
-         ('run_a', 'c_1', 'send', 1),
-         ('run_b', 'c_1', 'replay', 5)`,
-    );
-    await sql.execute(
-      `INSERT INTO run_targets (id, run_id, target_key, persona_id, provider, model, status) VALUES
-         ('rt_a', 'run_a', 'alice', 'p_1', 'openai', 'gpt-4', 'complete'),
-         ('rt_b', 'run_b', 'alice', 'p_1', 'openai', 'gpt-4', 'complete')`,
-    );
-    await sql.execute(
-      `INSERT INTO attempts (id, run_target_id, sequence, content, started_at, superseded_at,
-                              error_transient, input_tokens, output_tokens) VALUES
-         ('att_m_old', 'rt_a', 1, 'old send', 1, 5, 0, 0, 0),
-         ('att_m_curr', 'rt_a', 2, 'retried send', 2, NULL, 0, 0, 0),
-         ('att_m_replayed', 'rt_b', 1, 'replayed', 5, NULL, 0, 0, 0)`,
-    );
-    const history = await listAttemptHistoryForMessage("c_1", "m_curr");
-    // m_curr's target is rt_a (target_key=alice). Same-target_key
-    // attempts in this conversation are: m_old (superseded), m_curr
-    // (current), m_replayed (current on rt_b). History excludes the
-    // current message's own attempt; superseded-only.
-    expect(history).toHaveLength(1);
-    expect(history[0]?.id).toBe("att_m_old");
-    expect(history[0]?.content).toBe("old send");
-  });
-
-  it("returns empty when the message has no att_<msgid> backing", async () => {
-    handle = await createTestDb();
-    await seedConversation();
-    const history = await listAttemptHistoryForMessage("c_1", "m_unknown");
-    expect(history).toEqual([]);
-  });
-
-  it("returns empty when there are no superseded siblings", async () => {
-    handle = await createTestDb();
-    await seedConversation();
-    await seedPersona();
-    await sql.execute(
-      `INSERT INTO runs (id, conversation_id, kind, started_at) VALUES ('run_a', 'c_1', 'send', 1)`,
-    );
-    await sql.execute(
-      `INSERT INTO run_targets (id, run_id, target_key, persona_id, provider, model, status)
-       VALUES ('rt_a', 'run_a', 'alice', 'p_1', 'openai', 'gpt-4', 'complete')`,
-    );
-    await sql.execute(
-      `INSERT INTO attempts (id, run_target_id, sequence, content, started_at, superseded_at,
-                              error_transient, input_tokens, output_tokens) VALUES
-         ('att_m_only', 'rt_a', 1, 'lonely', 1, NULL, 0, 0, 0)`,
-    );
-    const history = await listAttemptHistoryForMessage("c_1", "m_only");
-    expect(history).toEqual([]);
   });
 });
 

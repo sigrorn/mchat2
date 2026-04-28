@@ -295,39 +295,6 @@ export async function listAttempts(runTargetId: string): Promise<Attempt[]> {
   return rows.map(mapAttempt);
 }
 
-// #181: superseded sibling attempts on the same target_key as the
-// given message's RunTarget. Per-target_key (not per-RunTarget) so
-// replay's new RunTarget can still surface the prior send's history
-// under the same persona. Returns [] when the message has no
-// att_<msgid> backing or no superseded siblings exist.
-export async function listAttemptHistoryForMessage(
-  conversationId: string,
-  messageId: string,
-): Promise<Attempt[]> {
-  const targetKeyRow = await db
-    .selectFrom("attempts as a")
-    .innerJoin("run_targets as rt", "rt.id", "a.run_target_id")
-    .innerJoin("runs as r", "r.id", "rt.run_id")
-    .select("rt.target_key")
-    .where("a.id", "=", `att_${messageId}`)
-    .where("r.conversation_id", "=", conversationId)
-    .executeTakeFirst();
-  const targetKey = targetKeyRow?.target_key;
-  if (!targetKey) return [];
-  const rows = await db
-    .selectFrom("attempts as a")
-    .innerJoin("run_targets as rt", "rt.id", "a.run_target_id")
-    .innerJoin("runs as r", "r.id", "rt.run_id")
-    .selectAll("a")
-    .where("r.conversation_id", "=", conversationId)
-    .where("rt.target_key", "=", targetKey)
-    .where("a.superseded_at", "is not", null)
-    .where("a.id", "!=", `att_${messageId}`)
-    .orderBy("a.sequence")
-    .execute();
-  return rows.map(mapAttempt);
-}
-
 // #180 → #206: returns the set of message ids that are currently
 // superseded (replaced by a later replay/retry). Reads
 // messages.superseded_at directly so the result is correct
