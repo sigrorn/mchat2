@@ -99,6 +99,32 @@ export interface RunsTable {
   kind: string;
   started_at: number;
   completed_at: number | null;
+  // #215: nullable flow step. Stamped when the run was triggered as
+  // part of a conversation flow's `personas` step; null otherwise.
+  flow_step_id: string | null;
+}
+
+// #215: per-conversation cyclic flow definition. One row per
+// conversation (UNIQUE on conversation_id).
+export interface FlowsTable {
+  id: string;
+  conversation_id: string;
+  current_step_index: number;
+}
+
+// #215: ordered steps within a flow. UNIQUE(flow_id, sequence).
+// kind ∈ {"user", "personas"} (CHECK in migration).
+export interface FlowStepsTable {
+  id: string;
+  flow_id: string;
+  sequence: number;
+  kind: string;
+}
+
+// #215: junction of personas participating in a `personas` step.
+export interface FlowStepPersonasTable {
+  flow_step_id: string;
+  persona_id: string;
 }
 
 export interface RunTargetsTable {
@@ -175,6 +201,9 @@ export interface Database {
   persona_visibility: PersonaVisibilityTable;
   persona_runs_after: PersonaRunsAfterTable;
   conversation_context_warnings: ConversationContextWarningsTable;
+  flows: FlowsTable;
+  flow_steps: FlowStepsTable;
+  flow_step_personas: FlowStepPersonasTable;
 }
 
 // Re-export for callers that need the Generated marker (auto-incremented

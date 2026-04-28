@@ -61,7 +61,8 @@ describe("snapshot round-trip preserves conversation flow (#215)", () => {
     });
     const ps = await listPersonas(conv.id);
 
-    const json = serializeSnapshot(conv, ps, [], { conversationId: conv.id });
+    const flow = await flowsRepo.getFlow(conv.id);
+    const json = serializeSnapshot(conv, ps, [], { flow });
     const parsed = JSON.parse(json) as {
       flow?: { currentStepIndex: number; steps: { kind: string; personas: string[] }[] };
     };
@@ -107,7 +108,8 @@ describe("snapshot round-trip preserves conversation flow (#215)", () => {
       ],
     });
     const ps = await listPersonas(conv.id);
-    const json = serializeSnapshot(conv, ps, [], { conversationId: conv.id });
+    const flow = await flowsRepo.getFlow(conv.id);
+    const json = serializeSnapshot(conv, ps, [], { flow });
     const parsed = parseSnapshot(json);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;

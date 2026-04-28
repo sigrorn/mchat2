@@ -7,6 +7,7 @@
 
 import { fs } from "../tauri/filesystem";
 import { serializeSnapshot, compressSnapshot, decompressSnapshot, parseSnapshot } from "./snapshot";
+import * as flowsRepo from "../persistence/flows";
 import type { Conversation, Message, Persona } from "../types";
 import type { SnapshotEnvelope } from "./snapshot";
 
@@ -33,7 +34,10 @@ export async function exportSnapshot(
   messages: readonly Message[],
   workingDir: string | null,
 ): Promise<SnapshotExportOutcome> {
-  const json = serializeSnapshot(conversation, personas, messages);
+  // #215: include the conversation's flow if one is attached so the
+  // editor's saved definition round-trips through the snapshot file.
+  const flow = await flowsRepo.getFlow(conversation.id);
+  const json = serializeSnapshot(conversation, personas, messages, { flow });
   const compressed = await compressSnapshot(json);
   const defaultPath = prefixWorkingDir(snapshotFilename(conversation.title), workingDir);
   const chosen = await fs.saveDialog({

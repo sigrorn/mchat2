@@ -12,6 +12,7 @@ import { createPersona, updatePersona } from "../personas/service";
 import { slugify } from "../personas/slug";
 import * as convRepo from "../persistence/conversations";
 import * as messagesRepo from "../persistence/messages";
+import * as flowsRepo from "../persistence/flows";
 import { PROVIDER_REGISTRY } from "../providers/registry";
 import { keychain } from "../tauri/keychain";
 
@@ -143,6 +144,28 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
       usageEstimated: sm.usageEstimated,
       audience: resolveIds(sm.audience),
     });
+  }
+
+  // 5b. Recreate the flow if bundled. Persona names are remapped to
+  // freshly-assigned ids; names that don't resolve are dropped.
+  if (snapshot.flow) {
+    const remappedSteps = snapshot.flow.steps.map((s) => ({
+      kind: s.kind,
+      personaIds: s.personas
+        .map((n) => nameToId.get(n.toLowerCase()))
+        .filter((id): id is string => id !== undefined),
+    }));
+    // Defensive: if a `personas` step lost all members in remap, drop
+    // the step rather than trip the empty-personas validation.
+    const cleaned = remappedSteps.filter(
+      (s) => !(s.kind === "personas" && s.personaIds.length === 0),
+    );
+    if (cleaned.length > 0) {
+      await flowsRepo.upsertFlow(conv.id, {
+        currentStepIndex: snapshot.flow.currentStepIndex,
+        steps: cleaned,
+      });
+    }
   }
 
   // 6. Validate API keys.

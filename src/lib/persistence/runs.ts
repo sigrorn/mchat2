@@ -67,6 +67,7 @@ function mapRun(rawRun: unknown, rawTargets: unknown[]): Run {
     replacementPolicy: defaultPolicyFor(r.kind),
     startedAt: r.started_at,
     completedAt: r.completed_at,
+    flowStepId: r.flow_step_id ?? null,
     targets,
   };
 }
@@ -109,6 +110,10 @@ export async function createRun(input: {
   replacementPolicy?: ReplacementPolicy;
   startedAt?: number;
   id?: string;
+  // #215: optional flow step that triggered this run. Stamped when
+  // the run was dispatched as part of a conversation flow's
+  // `personas` step.
+  flowStepId?: string | null;
 }): Promise<Run> {
   const id = input.id ?? newRunId();
   const startedAt = input.startedAt ?? Date.now();
@@ -120,6 +125,7 @@ export async function createRun(input: {
       kind: input.kind,
       started_at: startedAt,
       completed_at: null,
+      flow_step_id: input.flowStepId ?? null,
     })
     .execute();
   return {
@@ -129,6 +135,7 @@ export async function createRun(input: {
     replacementPolicy: input.replacementPolicy ?? defaultPolicyFor(input.kind),
     startedAt,
     completedAt: null,
+    flowStepId: input.flowStepId ?? null,
     targets: [],
   };
 }

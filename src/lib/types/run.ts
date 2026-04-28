@@ -35,6 +35,9 @@ export interface Run {
   replacementPolicy: ReplacementPolicy;
   startedAt: number;
   completedAt: number | null;
+  // #215: flow step that produced this run (only set when the run was
+  // dispatched as part of a conversation flow). Null otherwise.
+  flowStepId: string | null;
   targets: RunTarget[];
 }
 

@@ -328,6 +328,37 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE personas ADD COLUMN role_lens TEXT NOT NULL DEFAULT '{}'`,
   ],
+  // 21 — Conversation flow tables + runs.flow_step_id (#215, slice 3
+  // of #212). Per-conversation cyclic ordered list of steps, each
+  // either 'user' (pause for input) or 'personas' (parallel set of
+  // personas that all run before the flow advances). Runs gain a
+  // nullable flow_step_id so edit/replay (#219) can rewind the cursor
+  // to the user step that fed a given Run.
+  [
+    `CREATE TABLE flows (
+      id                 TEXT PRIMARY KEY,
+      conversation_id    TEXT NOT NULL UNIQUE REFERENCES conversations(id) ON DELETE CASCADE,
+      current_step_index INTEGER NOT NULL DEFAULT 0
+    )`,
+    `CREATE TABLE flow_steps (
+      id        TEXT PRIMARY KEY,
+      flow_id   TEXT NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+      sequence  INTEGER NOT NULL,
+      kind      TEXT NOT NULL CHECK (kind IN ('user', 'personas')),
+      UNIQUE (flow_id, sequence)
+    )`,
+    `CREATE INDEX idx_flow_steps_flow ON flow_steps(flow_id)`,
+    `CREATE TABLE flow_step_personas (
+      flow_step_id TEXT NOT NULL REFERENCES flow_steps(id) ON DELETE CASCADE,
+      persona_id   TEXT NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+      PRIMARY KEY (flow_step_id, persona_id)
+    )`,
+    // SQLite doesn't support ADD COLUMN with FK on older versions; use
+    // a nullable TEXT and rely on the runtime CASCADE/SET NULL via the
+    // application layer. v8 / v14 already mix in FK constraints so
+    // ADD COLUMN with REFERENCES is supported here.
+    `ALTER TABLE runs ADD COLUMN flow_step_id TEXT REFERENCES flow_steps(id) ON DELETE SET NULL`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

@@ -77,7 +77,14 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "superseded_at",
   ],
   settings: ["key", "value"],
-  runs: ["id", "conversation_id", "kind", "started_at", "completed_at"],
+  runs: [
+    "id",
+    "conversation_id",
+    "kind",
+    "started_at",
+    "completed_at",
+    "flow_step_id",
+  ],
   run_targets: [
     "id",
     "run_id",
@@ -106,6 +113,9 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
   persona_visibility: ["conversation_id", "observer_slug", "source_slug", "visible"],
   persona_runs_after: ["child_id", "parent_id"],
   conversation_context_warnings: ["conversation_id", "threshold", "fired_at"],
+  flows: ["id", "conversation_id", "current_step_index"],
+  flow_steps: ["id", "flow_id", "sequence", "kind"],
+  flow_step_personas: ["flow_step_id", "persona_id"],
 };
 
 describe("schema.ts agrees with migrations on column lists", () => {

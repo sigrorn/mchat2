@@ -30,6 +30,9 @@ export const runRowSchema = z.object({
   kind: runKindSchema,
   started_at: z.number(),
   completed_at: z.number().nullable(),
+  // #215: nullable flow_step_id added in migration v21. Optional in
+  // the schema for back-compat with snapshots / fixtures pre-#215.
+  flow_step_id: z.string().nullable().optional(),
 });
 
 export const runTargetRowSchema = z.object({

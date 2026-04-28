@@ -18,3 +18,10 @@ export type {
   RunTarget,
   Attempt,
 } from "./run";
+export type {
+  Flow,
+  FlowStep,
+  FlowStepKind,
+  FlowDraft,
+  FlowDraftStep,
+} from "./flow";

@@ -6,7 +6,7 @@
 // Collaborators: fileOps, Sidebar (import button), context menu (export).
 // ------------------------------------------------------------------
 
-import type { Conversation, Message, Persona, ProviderId } from "../types";
+import type { Conversation, Flow, Message, Persona, ProviderId } from "../types";
 
 export const SNAPSHOT_VERSION = 1;
 
@@ -47,6 +47,17 @@ export interface SnapshotMessage {
   usageEstimated: boolean;
 }
 
+// #215: flow definition bundled when the conversation has one. Steps
+// reference participating personas by name (not id) for portability.
+export interface SnapshotFlowStep {
+  kind: "user" | "personas";
+  personas: string[];
+}
+export interface SnapshotFlow {
+  currentStepIndex: number;
+  steps: SnapshotFlowStep[];
+}
+
 export interface SnapshotEnvelope {
   version: typeof SNAPSHOT_VERSION;
   title: string;
@@ -60,6 +71,9 @@ export interface SnapshotEnvelope {
   selectedPersonas: string[];
   personas: SnapshotPersona[];
   messages: SnapshotMessage[];
+  // #215: optional. Absent = no flow attached (legacy or not yet
+  // configured). Present = round-trips the editor's saved flow.
+  flow?: SnapshotFlow;
 }
 
 // #213: lens entries are stored on disk keyed by speaker name (not id)
@@ -81,10 +95,18 @@ function serializeRoleLens(
   return out;
 }
 
+export interface SerializeSnapshotOptions {
+  // #215: optional flow definition to bundle. If omitted, the
+  // resulting snapshot has no `flow` field (back-compat with pre-#215
+  // serialization).
+  flow?: Flow | null;
+}
+
 export function serializeSnapshot(
   conversation: Conversation,
   personas: readonly Persona[],
   messages: readonly Message[],
+  options?: SerializeSnapshotOptions,
 ): string {
   const live = personas.filter((p) => p.deletedAt === null);
   const idToName = new Map(live.map((p) => [p.id, p.name] as const));
@@ -151,6 +173,21 @@ export function serializeSnapshot(
       usageEstimated: m.usageEstimated,
     })),
   };
+
+  // #215: bundle the flow when present. Steps reference participating
+  // personas by name; ids that don't resolve (e.g. persona deleted but
+  // step still references it) are dropped silently.
+  if (options?.flow) {
+    envelope.flow = {
+      currentStepIndex: options.flow.currentStepIndex,
+      steps: options.flow.steps.map((s) => ({
+        kind: s.kind,
+        personas: s.personaIds
+          .map((id) => idToName.get(id))
+          .filter((n): n is string => n !== undefined),
+      })),
+    };
+  }
 
   return JSON.stringify(envelope, null, 2);
 }

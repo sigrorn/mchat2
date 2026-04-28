@@ -51,6 +51,16 @@ const messageSchema = z.object({
   usageEstimated: z.boolean(),
 });
 
+// #215: flow definition. Optional so legacy snapshots parse cleanly.
+const flowStepSchema = z.object({
+  kind: z.union([z.literal("user"), z.literal("personas")]),
+  personas: z.array(z.string()),
+});
+const flowSchema = z.object({
+  currentStepIndex: z.number(),
+  steps: z.array(flowStepSchema),
+});
+
 const envelopeSchema = z.object({
   version: z.literal(SNAPSHOT_VERSION),
   title: z.string(),
@@ -64,6 +74,7 @@ const envelopeSchema = z.object({
   selectedPersonas: z.array(z.string()),
   personas: z.array(personaSchema),
   messages: z.array(messageSchema),
+  flow: flowSchema.optional(),
 });
 
 export type ParseSnapshotResult =
