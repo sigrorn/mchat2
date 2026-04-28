@@ -112,6 +112,24 @@ describe("repoQueryCache", () => {
     expect(calls).toBe(1);
   });
 
+  it("get(key) returns the cached value synchronously, undefined if not present (#211)", async () => {
+    const cache = createRepoQueryCache();
+    expect(cache.get(["x"])).toBeUndefined();
+    await cache.fetch(["x"], async () => "hello");
+    expect(cache.get<string>(["x"])).toBe("hello");
+    // Different key — independent cache entry.
+    expect(cache.get(["y"])).toBeUndefined();
+    // After invalidate, get returns undefined again.
+    cache.invalidate(["x"]);
+    expect(cache.get(["x"])).toBeUndefined();
+  });
+
+  it("get(key) reflects a value installed via set() without a fetch (#211)", async () => {
+    const cache = createRepoQueryCache();
+    cache.set(["x"], 42);
+    expect(cache.get<number>(["x"])).toBe(42);
+  });
+
   it("propagates the underlying promise rejection without caching it", async () => {
     const cache = createRepoQueryCache();
     let calls = 0;

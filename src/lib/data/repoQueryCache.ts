@@ -12,6 +12,14 @@ export type QueryKey = readonly unknown[];
 
 export interface RepoQueryCache {
   /**
+   * Synchronous read of the cached value for `key`. Returns
+   * `undefined` if not present. Used by orchestration deps that need
+   * to read entities synchronously (e.g. commandDeps reading the
+   * current message list inside a slash-command handler) without
+   * triggering a fetch (#211).
+   */
+  get: <T>(key: QueryKey) => T | undefined;
+  /**
    * Returns the cached value for `key`, or invokes `fn` to produce it
    * (caching the result on success). Concurrent calls with the same
    * key share a single in-flight promise.
@@ -76,6 +84,9 @@ export function createRepoQueryCache(): RepoQueryCache {
   }
 
   return {
+    get<T>(key: QueryKey): T | undefined {
+      return resolved.get(serializeKey(key)) as T | undefined;
+    },
     async fetch<T>(key: QueryKey, fn: () => Promise<T>): Promise<T> {
       const k = serializeKey(key);
       if (resolved.has(k)) return resolved.get(k) as T;

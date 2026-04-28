@@ -15,7 +15,6 @@ import type {
   RunOneTargetDeps,
   RunPlannedSendDeps,
 } from "@/lib/app/deps";
-import type { Persona } from "@/lib/types";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
@@ -29,15 +28,13 @@ import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/settings/registry";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
 import * as messagesRepo from "@/lib/persistence/messages";
+import { readCachedMessages, readCachedPersonas } from "./cacheReaders";
 
-const EMPTY: readonly never[] = Object.freeze([]) as readonly never[];
-const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]) as readonly Persona[];
 const EMPTY_SUPERSEDED: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
 
 export function makeRunOneTargetDeps(): RunOneTargetDeps {
   return {
-    getMessages: (conversationId) =>
-      useMessagesStore.getState().byConversation[conversationId] ?? EMPTY,
+    getMessages: (conversationId) => readCachedMessages(conversationId),
     getSupersededIds: (conversationId) =>
       useMessagesStore.getState().supersededByConversation[conversationId] ?? EMPTY_SUPERSEDED,
     appendPlaceholder: (msg) => useMessagesStore.getState().append(msg),
@@ -93,8 +90,7 @@ export function makeRunPlannedSendDeps(): RunPlannedSendDeps {
 export function makeReplayMessageDeps(): ReplayMessageDeps {
   return {
     ...makeRunPlannedSendDeps(),
-    getPersonas: (conversationId) =>
-      usePersonasStore.getState().byConversation[conversationId] ?? EMPTY_PERSONAS,
+    getPersonas: (conversationId) => readCachedPersonas(conversationId),
     getSelection: (conversationId) =>
       usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
     setSelection: (conversationId, selection) =>
@@ -108,8 +104,7 @@ export function makeReplayMessageDeps(): ReplayMessageDeps {
 export function makeRetryMessageDeps(): RetryMessageDeps {
   return {
     ...makeRunOneTargetDeps(),
-    getPersonas: (conversationId) =>
-      usePersonasStore.getState().byConversation[conversationId] ?? EMPTY_PERSONAS,
+    getPersonas: (conversationId) => readCachedPersonas(conversationId),
     getSelection: (conversationId) =>
       usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
     reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
