@@ -17,10 +17,10 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMessagesStore } from "@/stores/messagesStore";
-import type { Message, Persona } from "@/lib/types";
+import type { Conversation, Message, Persona } from "@/lib/types";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { isExcludedByLimit } from "@/lib/context/excluded";
-import { useConversationsStore } from "@/stores/conversationsStore";
+import * as conversationsRepo from "@/lib/persistence/conversations";
 import { groupIntoColumns } from "@/lib/rendering/columnGroups";
 import { formatCopyText } from "@/lib/rendering/copyWithPrefixes";
 import { useSend } from "@/hooks/useSend";
@@ -99,9 +99,11 @@ export function MessageList({
   const { pinnedRef, onScroll } = useScrollPin(containerRef, pinnedRefProp, onScrollProp);
 
   const userNumbers = userNumberByIndex(messages);
-  const conversation = useConversationsStore((s) =>
-    s.conversations.find((c) => c.id === conversationId),
+  const conversationsQuery = useRepoQuery<Conversation[]>(
+    ["conversations"],
+    () => conversationsRepo.listConversations(),
   );
+  const conversation = (conversationsQuery.data ?? []).find((c) => c.id === conversationId);
 
   const isCols = conversation?.displayMode === "cols";
   const items = isCols
@@ -295,7 +297,7 @@ interface RenderCtx {
   setEditingId: (id: string | null) => void;
   replay: (id: string, content: string) => Promise<unknown>;
   retry: (m: Message) => Promise<unknown>;
-  conversation: ReturnType<typeof useConversationsStore.getState>["conversations"][number] | undefined;
+  conversation: Conversation | undefined;
   effectiveLimitIndex: number | null;
   userNumbers: Map<number, number>;
   personas: readonly Persona[];

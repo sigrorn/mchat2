@@ -1,9 +1,12 @@
 // ------------------------------------------------------------------
 // Component: Messages store
-// Responsibility: Per-conversation message list. Supports in-place
-//                 updates for streaming tokens so React renders one
-//                 bubble growing instead of a new array each token.
-// Collaborators: persistence/messages.ts, orchestration/streamRunner.
+// Responsibility: Per-conversation UI state for the message list:
+//                 which row is in edit/replay mode, the
+//                 cross-conversation replay queue, and the
+//                 superseded-id set used by the UI hide-filter.
+//                 Persistent message data lives in repoQueryCache,
+//                 not here (#211).
+// Collaborators: persistence/messages.ts, repoQueryCache.
 // ------------------------------------------------------------------
 
 import { create } from "zustand";
@@ -12,10 +15,9 @@ import * as repo from "@/lib/persistence/messages";
 import { listSupersededMessageIds } from "@/lib/persistence/runs";
 import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
 
-// #184: dual-write helpers — keep the data-layer cache in sync with
-// Zustand mutations so consumers reading via useRepoQuery see the
-// same state. Today both layers are populated; once readers fully
-// migrate, byConversation can be dropped.
+// Cache helpers: writes to repoQueryCache so useRepoQuery consumers
+// see updates without re-fetching. Reads inside this file go through
+// cache.get().
 const messagesQueryKey = (conversationId: string): readonly unknown[] =>
   ["messages", conversationId];
 function cacheUpdate(conversationId: string, fn: (msgs: Message[]) => Message[]): void {
@@ -24,9 +26,11 @@ function cacheUpdate(conversationId: string, fn: (msgs: Message[]) => Message[])
 function cacheSet(conversationId: string, list: Message[]): void {
   getRepoQueryCache().set<Message[]>(messagesQueryKey(conversationId), list);
 }
+function cacheGet(conversationId: string): Message[] {
+  return getRepoQueryCache().get<Message[]>(messagesQueryKey(conversationId)) ?? [];
+}
 
 interface State {
-  byConversation: Record<string, Message[]>;
   // #180: per-conversation set of message ids whose Attempt has been
   // superseded. Refreshed on every `load`. Today this is empty for
   // every conversation because retry/replay still delete prior rows;
@@ -59,7 +63,6 @@ interface State {
 }
 
 export const useMessagesStore = create<State>((set, get) => ({
-  byConversation: {},
   supersededByConversation: {},
   editingByConversation: {},
   replayQueue: {},
@@ -86,50 +89,23 @@ export const useMessagesStore = create<State>((set, get) => ({
       repo.listMessages(conversationId),
       listSupersededMessageIds(conversationId),
     ]);
+    cacheSet(conversationId, list);
     set({
-      byConversation: { ...get().byConversation, [conversationId]: list },
       supersededByConversation: {
         ...get().supersededByConversation,
         [conversationId]: superseded,
       },
     });
-    // Mirror the freshly-loaded list directly into the data-layer
-    // cache so useRepoQuery consumers see it without a second
-    // listMessages round-trip.
-    cacheSet(conversationId, list);
   },
   append(m) {
-    const existing = get().byConversation[m.conversationId] ?? [];
-    set({
-      byConversation: {
-        ...get().byConversation,
-        [m.conversationId]: [...existing, m],
-      },
-    });
     cacheUpdate(m.conversationId, (msgs) => [...msgs, m]);
   },
   patchContent(conversationId, messageId, content) {
-    const existing = get().byConversation[conversationId] ?? [];
-    set({
-      byConversation: {
-        ...get().byConversation,
-        [conversationId]: existing.map((m) => (m.id === messageId ? { ...m, content } : m)),
-      },
-    });
     cacheUpdate(conversationId, (msgs) =>
       msgs.map((m) => (m.id === messageId ? { ...m, content } : m)),
     );
   },
   patchError(conversationId, messageId, errorMessage, errorTransient) {
-    const existing = get().byConversation[conversationId] ?? [];
-    set({
-      byConversation: {
-        ...get().byConversation,
-        [conversationId]: existing.map((m) =>
-          m.id === messageId ? { ...m, errorMessage, errorTransient } : m,
-        ),
-      },
-    });
     cacheUpdate(conversationId, (msgs) =>
       msgs.map((m) => (m.id === messageId ? { ...m, errorMessage, errorTransient } : m)),
     );
@@ -157,7 +133,7 @@ export const useMessagesStore = create<State>((set, get) => ({
     return m;
   },
   async setPinned(conversationId, messageId, pinned) {
-    const existing = get().byConversation[conversationId] ?? [];
+    const existing = cacheGet(conversationId);
     const target = existing.find((m) => m.id === messageId);
     if (!target) return;
     // Manual pins keep their addressedTo as the audience filter; we
@@ -165,12 +141,6 @@ export const useMessagesStore = create<State>((set, get) => ({
     // already have pinTarget set) keep theirs untouched on toggle.
     const pinTarget = target.pinTarget;
     await repo.setMessagePin(messageId, pinned, pinTarget);
-    set({
-      byConversation: {
-        ...get().byConversation,
-        [conversationId]: existing.map((m) => (m.id === messageId ? { ...m, pinned } : m)),
-      },
-    });
     cacheUpdate(conversationId, (msgs) =>
       msgs.map((m) => (m.id === messageId ? { ...m, pinned } : m)),
     );

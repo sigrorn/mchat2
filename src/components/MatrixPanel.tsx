@@ -9,13 +9,18 @@
 // ------------------------------------------------------------------
 
 import type { Conversation, Persona } from "@/lib/types";
-import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
+import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import * as personasRepo from "@/lib/persistence/personas";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
 export function MatrixPanel({ conversation }: { conversation: Conversation }): JSX.Element | null {
-  const personas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
+  const personasQuery = useRepoQuery<Persona[]>(
+    ["personas", conversation.id],
+    () => personasRepo.listPersonas(conversation.id),
+  );
+  const personas = personasQuery.data ?? EMPTY_PERSONAS;
   if (personas.length < 2) return null;
 
   const matrix = conversation.visibilityMatrix;

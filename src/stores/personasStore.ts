@@ -1,8 +1,9 @@
 // ------------------------------------------------------------------
 // Component: Personas store
-// Responsibility: Per-conversation persona list + current selection
-//                 (persona keys) used by the resolver in 'implicit' /
-//                 'others' modes.
+// Responsibility: Per-conversation UI state for the persona selection
+//                 (which persona keys are checked in the panel).
+//                 Persistent persona data lives in repoQueryCache,
+//                 not here (#211).
 // Collaborators: personas/service.ts, persistence/personas.ts.
 // ------------------------------------------------------------------
 
@@ -12,10 +13,6 @@ import * as repo from "@/lib/persistence/personas";
 import { useConversationsStore } from "./conversationsStore";
 import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
 
-// #185: dual-write helpers — keep the data-layer cache synced with
-// Zustand mutations so consumers reading via useRepoQuery see the
-// same state. Mirrors the pattern established for messagesStore in
-// #184.
 const personasQueryKey = (conversationId: string): readonly unknown[] =>
   ["personas", conversationId];
 function cacheUpdate(conversationId: string, fn: (list: Persona[]) => Persona[]): void {
@@ -26,7 +23,6 @@ function cacheSet(conversationId: string, list: Persona[]): void {
 }
 
 interface State {
-  byConversation: Record<string, Persona[]>;
   selectionByConversation: Record<string, string[]>;
   load: (conversationId: string) => Promise<void>;
   setSelection: (conversationId: string, keys: string[]) => void;
@@ -38,17 +34,14 @@ interface State {
 }
 
 export const usePersonasStore = create<State>((set, get) => ({
-  byConversation: {},
   selectionByConversation: {},
   async load(conversationId) {
     const list = await repo.listPersonas(conversationId);
-    set({
-      byConversation: { ...get().byConversation, [conversationId]: list },
-    });
     cacheSet(conversationId, list);
     const conv = useConversationsStore
       .getState()
-      .conversations.find((c) => c.id === conversationId);
+      .conversationsList()
+      .find((c) => c.id === conversationId);
     if (conv && conv.selectedPersonas.length > 0) {
       const activeIds = new Set(list.map((p) => p.id));
       const valid = conv.selectedPersonas.filter((k) => activeIds.has(k));
@@ -88,25 +81,12 @@ export const usePersonasStore = create<State>((set, get) => ({
     void useConversationsStore.getState().setSelectedPersonas(conversationId, next);
   },
   upsert(p) {
-    const existing = get().byConversation[p.conversationId] ?? [];
-    const idx = existing.findIndex((x) => x.id === p.id);
-    const next = idx === -1 ? [...existing, p] : existing.map((x) => (x.id === p.id ? p : x));
-    set({
-      byConversation: { ...get().byConversation, [p.conversationId]: next },
-    });
     cacheUpdate(p.conversationId, (list) => {
       const i = list.findIndex((x) => x.id === p.id);
       return i === -1 ? [...list, p] : list.map((x) => (x.id === p.id ? p : x));
     });
   },
   remove(p) {
-    const existing = get().byConversation[p.conversationId] ?? [];
-    set({
-      byConversation: {
-        ...get().byConversation,
-        [p.conversationId]: existing.filter((x) => x.id !== p.id),
-      },
-    });
     cacheUpdate(p.conversationId, (list) => list.filter((x) => x.id !== p.id));
   },
 }));

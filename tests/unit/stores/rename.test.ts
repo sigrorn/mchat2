@@ -5,11 +5,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import * as convRepo from "@/lib/persistence/conversations";
 import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
+import { getRepoQueryCache, __resetRepoQueryCache } from "@/lib/data/useRepoQuery";
+import type { Conversation } from "@/lib/types";
 
 let handle: TestDbHandle | null = null;
 
 beforeEach(async () => {
   handle = await createTestDb();
+  __resetRepoQueryCache();
   // Seed a real conversation row so the repo's UPDATE has a target.
   await convRepo.createConversation({
     id: "c_1",
@@ -26,36 +29,41 @@ beforeEach(async () => {
     autocompactThreshold: null,
     contextWarningsFired: [],
   });
-  useConversationsStore.setState({
-    conversations: [(await convRepo.getConversation("c_1"))!],
-    currentId: "c_1",
-    loaded: true,
-  });
+  // Seed the cache so cacheGet() inside the store finds the row.
+  getRepoQueryCache().set<Conversation[]>(
+    ["conversations"],
+    [(await convRepo.getConversation("c_1"))!],
+  );
+  useConversationsStore.setState({ currentId: "c_1", loaded: true });
 });
 afterEach(() => {
-  useConversationsStore.setState({ conversations: [], currentId: null, loaded: false });
+  useConversationsStore.setState({ currentId: null, loaded: false });
   handle?.restore();
   handle = null;
 });
 
+function cachedTitle(): string | undefined {
+  return getRepoQueryCache().get<Conversation[]>(["conversations"])?.[0]?.title;
+}
+
 describe("useConversationsStore.rename", () => {
   it("updates the cached title and persists via the repo", async () => {
     await useConversationsStore.getState().rename("c_1", "New shiny name");
-    expect(useConversationsStore.getState().conversations[0]?.title).toBe("New shiny name");
+    expect(cachedTitle()).toBe("New shiny name");
     const persisted = await convRepo.getConversation("c_1");
     expect(persisted?.title).toBe("New shiny name");
   });
 
   it("trims whitespace before persisting", async () => {
     await useConversationsStore.getState().rename("c_1", "   padded   ");
-    expect(useConversationsStore.getState().conversations[0]?.title).toBe("padded");
+    expect(cachedTitle()).toBe("padded");
     const persisted = await convRepo.getConversation("c_1");
     expect(persisted?.title).toBe("padded");
   });
 
   it("rejects empty or whitespace-only titles without hitting the repo", async () => {
     await expect(useConversationsStore.getState().rename("c_1", "   ")).rejects.toThrow();
-    expect(useConversationsStore.getState().conversations[0]?.title).toBe("Old title");
+    expect(cachedTitle()).toBe("Old title");
     const persisted = await convRepo.getConversation("c_1");
     expect(persisted?.title).toBe("Old title");
   });

@@ -1,7 +1,9 @@
 // ------------------------------------------------------------------
 // Component: Conversations store
-// Responsibility: Reactive list + selection. Every mutation goes
-//                 through conversationsRepo; the store only caches.
+// Responsibility: UI selection (currentId) + bootstrap flag, plus
+//                 the action API that mutates conversations through
+//                 the repo + cache. The persistent list itself lives
+//                 in repoQueryCache, not here (#211).
 // Collaborators: persistence/conversations.ts.
 // ------------------------------------------------------------------
 
@@ -10,9 +12,6 @@ import type { AutocompactThreshold, Conversation } from "@/lib/types";
 import * as repo from "@/lib/persistence/conversations";
 import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
 
-// #186: dual-write helpers for the data layer. Conversations is a
-// flat list keyed by ['conversations']. Mirrors the patterns from
-// #184 / #185.
 const CONVERSATIONS_KEY: readonly unknown[] = ["conversations"];
 function cacheUpdate(fn: (list: Conversation[]) => Conversation[]): void {
   getRepoQueryCache().update<Conversation[]>(CONVERSATIONS_KEY, fn);
@@ -20,15 +19,21 @@ function cacheUpdate(fn: (list: Conversation[]) => Conversation[]): void {
 function cacheSet(list: Conversation[]): void {
   getRepoQueryCache().set<Conversation[]>(CONVERSATIONS_KEY, list);
 }
+function cacheGet(): Conversation[] {
+  return getRepoQueryCache().get<Conversation[]>(CONVERSATIONS_KEY) ?? [];
+}
 // Most mutations boil down to "replace the row with the same id".
 function replaceById(c: Conversation): (list: Conversation[]) => Conversation[] {
   return (list) => list.map((x) => (x.id === c.id ? c : x));
 }
 
 interface State {
-  conversations: Conversation[];
   currentId: string | null;
   loaded: boolean;
+  // Synchronous accessor for callers (orchestration, deps factories,
+  // cross-store reads in personasStore.load) that need the current
+  // conversation list outside React's render path.
+  conversationsList: () => Conversation[];
   load: () => Promise<void>;
   select: (id: string | null) => void;
   create: (init: Omit<Conversation, "id" | "createdAt">) => Promise<Conversation>;
@@ -51,52 +56,43 @@ interface State {
 }
 
 export const useConversationsStore = create<State>((set, get) => ({
-  conversations: [],
   currentId: null,
   loaded: false,
+  conversationsList: () => cacheGet(),
   async load() {
     const list = await repo.listConversations();
-    set({ conversations: list, loaded: true });
     cacheSet(list);
+    set({ loaded: true });
   },
   select(id) {
     set({ currentId: id });
   },
   async create(init) {
     const c = await repo.createConversation(init);
-    set({ conversations: [c, ...get().conversations], currentId: c.id });
     cacheUpdate((list) => [c, ...list]);
+    set({ currentId: c.id });
     return c;
   },
   async update(c) {
     await repo.updateConversation(c);
-    set({
-      conversations: get().conversations.map((x) => (x.id === c.id ? c : x)),
-    });
     cacheUpdate(replaceById(c));
   },
   async setDisplayMode(id, mode) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, displayMode: mode };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setVisibilityMatrix(id, matrix) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, visibilityMatrix: matrix };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setVisibilityPreset(id, mode, personaIds) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const matrix: Record<string, string[]> =
       mode === "separated" ? Object.fromEntries(personaIds.map((pid) => [pid, []])) : {};
@@ -106,43 +102,31 @@ export const useConversationsStore = create<State>((set, get) => ({
       visibilityMatrix: matrix,
     };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setLimitSize(id, limitSizeTokens) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, limitSizeTokens };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setSelectedPersonas(id, keys) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, selectedPersonas: keys };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setCompactionFloor(id, floorIndex) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, compactionFloorIndex: floorIndex };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setAutocompact(id, threshold) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = {
       ...current,
@@ -151,49 +135,34 @@ export const useConversationsStore = create<State>((set, get) => ({
       contextWarningsFired: threshold ? [] : (current.contextWarningsFired ?? []),
     };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setContextWarningsFired(id, fired) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, contextWarningsFired: fired };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async setLimit(id, limitMarkIndex) {
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, limitMarkIndex };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async rename(id, title) {
     const trimmed = title.trim();
     if (!trimmed) throw new Error("Title cannot be empty");
-    const current = get().conversations.find((c) => c.id === id);
+    const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, title: trimmed };
     await repo.updateConversation(next);
-    set({
-      conversations: get().conversations.map((x) => (x.id === id ? next : x)),
-    });
     cacheUpdate(replaceById(next));
   },
   async remove(id) {
     await repo.deleteConversation(id);
-    set({
-      conversations: get().conversations.filter((x) => x.id !== id),
-      currentId: get().currentId === id ? null : get().currentId,
-    });
     cacheUpdate((list) => list.filter((x) => x.id !== id));
+    if (get().currentId === id) set({ currentId: null });
   },
 }));

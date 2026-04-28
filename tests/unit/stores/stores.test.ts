@@ -3,6 +3,8 @@ import { __setImpl, __resetImpl } from "@/lib/tauri/sql";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useSendStore } from "@/stores/sendStore";
 import { makeMessage } from "@/lib/persistence/messages";
+import { getRepoQueryCache, __resetRepoQueryCache } from "@/lib/data/useRepoQuery";
+import type { Message } from "@/lib/types";
 
 beforeEach(() => {
   __setImpl({
@@ -15,7 +17,10 @@ beforeEach(() => {
     },
     async close() {},
   });
-  useMessagesStore.setState({ byConversation: {} });
+  __resetRepoQueryCache();
+  // Pre-warm the cache so append() (which uses cache.update with a
+  // no-op-if-missing semantic) actually lands.
+  getRepoQueryCache().set<Message[]>(["messages", "c_1"], []);
   useSendStore.setState({ runIdByConversation: {}, activeByConversation: {} });
 });
 afterEach(() => __resetImpl());
@@ -25,7 +30,7 @@ describe("messagesStore", () => {
     const m = makeMessage({ conversationId: "c_1", id: "m_1", content: "" });
     useMessagesStore.getState().append(m);
     useMessagesStore.getState().patchContent("c_1", "m_1", "hello");
-    const list = useMessagesStore.getState().byConversation["c_1"];
+    const list = getRepoQueryCache().get<Message[]>(["messages", "c_1"]);
     expect(list?.[0]?.content).toBe("hello");
   });
 
@@ -36,7 +41,7 @@ describe("messagesStore", () => {
       addressedTo: [],
     });
     expect(m.role).toBe("user");
-    expect(useMessagesStore.getState().byConversation["c_1"]?.length).toBe(1);
+    expect(getRepoQueryCache().get<Message[]>(["messages", "c_1"])?.length).toBe(1);
   });
 });
 

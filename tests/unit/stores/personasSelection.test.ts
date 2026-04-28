@@ -3,10 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { usePersonasStore } from "@/stores/personasStore";
 
 beforeEach(() => {
-  usePersonasStore.setState({
-    byConversation: {},
-    selectionByConversation: {},
-  });
+  usePersonasStore.setState({ selectionByConversation: {} });
 });
 
 describe("personasStore.addToSelection", () => {

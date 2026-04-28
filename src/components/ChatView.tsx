@@ -11,6 +11,10 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import * as messagesRepo from "@/lib/persistence/messages";
+import * as personasRepo from "@/lib/persistence/personas";
+import * as conversationsRepo from "@/lib/persistence/conversations";
 import { findMatches } from "@/lib/ui/findMatches";
 import {
   computeScrollTarget,
@@ -24,7 +28,7 @@ import { Composer } from "./Composer";
 import { PersonaPanel } from "./PersonaPanel";
 import { MatrixPanel } from "./MatrixPanel";
 import { FindBar } from "./FindBar";
-import type { Message, Persona } from "@/lib/types";
+import type { Conversation, Message, Persona } from "@/lib/types";
 
 const EMPTY: readonly Message[] = Object.freeze([]);
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
@@ -56,9 +60,11 @@ function relativeTop(child: HTMLElement, container: HTMLElement): number {
 
 export function ChatView(): JSX.Element {
   const currentId = useConversationsStore((s) => s.currentId);
-  const conversation = useConversationsStore((s) =>
-    s.conversations.find((c) => c.id === s.currentId),
+  const conversationsQuery = useRepoQuery<Conversation[]>(
+    ["conversations"],
+    () => conversationsRepo.listConversations(),
   );
+  const conversation = (conversationsQuery.data ?? []).find((c) => c.id === currentId);
   const loadMessages = useMessagesStore((s) => s.load);
   const loadPersonas = usePersonasStore((s) => s.load);
 
@@ -68,12 +74,15 @@ export function ChatView(): JSX.Element {
     void loadPersonas(currentId);
   }, [currentId, loadMessages, loadPersonas]);
 
-  // #53: compute matches for the find bar from the active conversation.
-  // Hook order requires these before any early return; message list is
-  // the empty-frozen constant when the conversation doesn't exist yet.
-  const messages = useMessagesStore(
-    (s) => (conversation ? s.byConversation[conversation.id] : undefined) ?? EMPTY,
+  // #53/#211: compute matches for the find bar from the active
+  // conversation. Hook order requires these before any early return;
+  // message list is empty when the conversation isn't loaded yet.
+  const messagesQuery = useRepoQuery<Message[]>(
+    conversation ? ["messages", conversation.id] : ["messages", "__none__"],
+    () =>
+      conversation ? messagesRepo.listMessages(conversation.id) : Promise.resolve([]),
   );
+  const messages = messagesQuery.data ?? EMPTY;
   const find = useUiStore((s) => s.find);
   const matches = useMemo(
     () => (find.open ? findMatches(messages, find.query, find.caseSensitive) : []),
@@ -98,9 +107,12 @@ export function ChatView(): JSX.Element {
   // commands (default). Independent of the persona-send selection
   // (the sidebar checkboxes) — selecting a persona for navigation
   // does not change which personas the next message is addressed to.
-  const personas = usePersonasStore(
-    (s) => (conversation ? s.byConversation[conversation.id] : undefined) ?? EMPTY_PERSONAS,
+  const personasQuery = useRepoQuery<Persona[]>(
+    conversation ? ["personas", conversation.id] : ["personas", "__none__"],
+    () =>
+      conversation ? personasRepo.listPersonas(conversation.id) : Promise.resolve([]),
   );
+  const personas = personasQuery.data ?? EMPTY_PERSONAS;
   const [navPersonaId, setNavPersonaId] = useState<string | null>(null);
   // Reset when the conversation changes — a persona id is only valid
   // within its own conversation.

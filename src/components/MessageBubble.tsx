@@ -15,7 +15,7 @@ import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message } from "@/lib/types";
-import { useMessagesStore } from "@/stores/messagesStore";
+import { readCachedMessages } from "@/hooks/cacheReaders";
 import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import { formatProviderTag } from "@/lib/providers/headerTag";
 import { renderMessageBody } from "@/lib/rendering/messageBody";
@@ -28,8 +28,17 @@ import { AttemptHistory } from "./AttemptHistory";
 import { DangerButton } from "@/components/ui/Button";
 
 // #63: render #N patterns in notice text as clickable scroll-links.
-function NoticeContent({ content }: { content: string }): JSX.Element {
-  const messages = useMessagesStore((s) => s.byConversation) as Record<string, Message[]>;
+// #211: scroll target lookup reads the current conversation's
+// messages from the data-layer cache. Notices reference user
+// messages within their own conversation; cross-conversation #N
+// references aren't a real use case.
+function NoticeContent({
+  content,
+  conversationId,
+}: {
+  content: string;
+  conversationId: string;
+}): JSX.Element {
   const parts = content.split(/(#\d+)/g);
   if (parts.length === 1) return <>{content}</>;
   return (
@@ -44,19 +53,18 @@ function NoticeContent({ content }: { content: string }): JSX.Element {
             className="not-italic font-semibold text-amber-800 underline hover:text-amber-600"
             title={`Scroll to message #${userNum}`}
             onClick={() => {
-              for (const msgs of Object.values(messages)) {
-                const userNumbers = userNumberByIndex(msgs);
-                for (const [idx, num] of userNumbers) {
-                  if (num === userNum) {
-                    const msg = msgs.find((x) => x.index === idx);
-                    if (msg) {
-                      const el = document.querySelector<HTMLElement>(
-                        `[data-message-id="${msg.id}"]`,
-                      );
-                      el?.scrollIntoView({ block: "center", behavior: "smooth" });
-                    }
-                    return;
+              const msgs = readCachedMessages(conversationId);
+              const userNumbers = userNumberByIndex(msgs);
+              for (const [idx, num] of userNumbers) {
+                if (num === userNum) {
+                  const msg = msgs.find((x) => x.index === idx);
+                  if (msg) {
+                    const el = document.querySelector<HTMLElement>(
+                      `[data-message-id="${msg.id}"]`,
+                    );
+                    el?.scrollIntoView({ block: "center", behavior: "smooth" });
                   }
+                  return;
                 }
               }
             }}
@@ -134,7 +142,7 @@ function MessageBubbleImpl({
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
         ) : (
-          <NoticeContent content={message.content} />
+          <NoticeContent content={message.content} conversationId={message.conversationId} />
         )}
       </div>
     );

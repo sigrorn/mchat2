@@ -16,22 +16,23 @@ import {
 } from "@/lib/conversations/exportToFile";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
+import * as conversationsRepo from "@/lib/persistence/conversations";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useUiStore } from "@/stores/uiStore";
+import type { Conversation } from "@/lib/types";
 
 interface ExportData {
-  conversation: ReturnType<typeof useConversationsStore.getState>["conversations"][number];
+  conversation: Conversation;
   messages: Awaited<ReturnType<typeof messagesRepo.listMessages>>;
   personas: Awaited<ReturnType<typeof personasRepo.listPersonas>>;
   generatedAt: string;
 }
 
 async function getExportData(id: string): Promise<ExportData | null> {
-  const conv = useConversationsStore
-    .getState()
-    .conversations.find((c) => c.id === id);
+  const all = await conversationsRepo.listConversations();
+  const conv = all.find((c) => c.id === id);
   if (!conv) return null;
   const [messages, personas] = await Promise.all([
     messagesRepo.listMessages(id),

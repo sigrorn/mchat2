@@ -16,6 +16,8 @@ import { dispatchCommand } from "@/lib/commands/dispatch";
 import { makeCommandDeps } from "@/hooks/commandDeps";
 import { usePersonasStore } from "@/stores/personasStore";
 import { readCachedPersonas } from "@/hooks/cacheReaders";
+import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import * as personasRepo from "@/lib/persistence/personas";
 import { shouldSubmit } from "./composerKeys";
 import { buildPlaceholder } from "@/lib/ui/composerPlaceholder";
 import { PrimaryButton, DangerButton } from "@/components/ui/Button";
@@ -30,7 +32,11 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const [hint, setHint] = useState<string | null>(null);
   const { send, retry } = useSend(conversation);
   const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
-  const cPersonas = usePersonasStore((s) => s.byConversation[conversation.id]) ?? EMPTY_PERSONAS;
+  const personasQuery = useRepoQuery<Persona[]>(
+    ["personas", conversation.id],
+    () => personasRepo.listPersonas(conversation.id),
+  );
+  const cPersonas = personasQuery.data ?? EMPTY_PERSONAS;
   const cSelection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
   const placeholder = buildPlaceholder(cPersonas, cSelection);
