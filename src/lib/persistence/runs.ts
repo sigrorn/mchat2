@@ -5,9 +5,15 @@
 //                 machine. Orchestration code (replay/retry/send) calls
 //                 these helpers instead of editing the messages table.
 // Collaborators: lib/orchestration/* (callers), lib/schemas/runs (zod).
+// History:       Migrated to Kysely in #209, continuing the arc started
+//                by #190 (messages) and #191 (conversations). Zod
+//                row-validation is retained because the kind/status
+//                enum constraints aren't representable in schema.ts —
+//                the boundary tests in tests/unit/persistence/runs.test
+//                pin that behavior.
 // ------------------------------------------------------------------
 
-import { sql } from "../tauri/sql";
+import { db } from "./db";
 import {
   attemptRowSchema,
   runRowSchema,
@@ -106,11 +112,16 @@ export async function createRun(input: {
 }): Promise<Run> {
   const id = input.id ?? newRunId();
   const startedAt = input.startedAt ?? Date.now();
-  await sql.execute(
-    `INSERT INTO runs (id, conversation_id, kind, started_at, completed_at)
-     VALUES (?, ?, ?, ?, NULL)`,
-    [id, input.conversationId, input.kind, startedAt],
-  );
+  await db
+    .insertInto("runs")
+    .values({
+      id,
+      conversation_id: input.conversationId,
+      kind: input.kind,
+      started_at: startedAt,
+      completed_at: null,
+    })
+    .execute();
   return {
     id,
     conversationId: input.conversationId,
@@ -132,11 +143,18 @@ export async function addRunTarget(input: {
   id?: string;
 }): Promise<RunTarget> {
   const id = input.id ?? newRunTargetId();
-  await sql.execute(
-    `INSERT INTO run_targets (id, run_id, target_key, persona_id, provider, model, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, input.runId, input.targetKey, input.personaId, input.provider, input.model, input.status],
-  );
+  await db
+    .insertInto("run_targets")
+    .values({
+      id,
+      run_id: input.runId,
+      target_key: input.targetKey,
+      persona_id: input.personaId,
+      provider: input.provider,
+      model: input.model,
+      status: input.status,
+    })
+    .execute();
   return {
     id,
     runId: input.runId,
@@ -166,34 +184,32 @@ export async function appendAttempt(input: {
   streamMs?: number | null;
   id?: string;
 }): Promise<Attempt> {
-  const rows = await sql.select<{ next: number | null }>(
-    "SELECT COALESCE(MAX(sequence), 0) + 1 AS next FROM attempts WHERE run_target_id = ?",
-    [input.runTargetId],
-  );
-  const sequence = rows[0]?.next ?? 1;
+  const row = await db
+    .selectFrom("attempts")
+    .select((eb) => eb.fn.coalesce(eb.fn.max("sequence"), eb.lit(0)).as("max"))
+    .where("run_target_id", "=", input.runTargetId)
+    .executeTakeFirst();
+  const sequence = (row?.max ?? 0) + 1;
   const id = input.id ?? newAttemptId();
   const startedAt = input.startedAt ?? Date.now();
-  await sql.execute(
-    `INSERT INTO attempts (
-       id, run_target_id, sequence, content, started_at, completed_at,
-       error_message, error_transient, input_tokens, output_tokens,
-       ttft_ms, stream_ms, superseded_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    [
+  await db
+    .insertInto("attempts")
+    .values({
       id,
-      input.runTargetId,
+      run_target_id: input.runTargetId,
       sequence,
-      input.content,
-      startedAt,
-      input.completedAt ?? null,
-      input.errorMessage ?? null,
-      input.errorTransient ? 1 : 0,
-      input.inputTokens ?? 0,
-      input.outputTokens ?? 0,
-      input.ttftMs ?? null,
-      input.streamMs ?? null,
-    ],
-  );
+      content: input.content,
+      started_at: startedAt,
+      completed_at: input.completedAt ?? null,
+      error_message: input.errorMessage ?? null,
+      error_transient: input.errorTransient ? 1 : 0,
+      input_tokens: input.inputTokens ?? 0,
+      output_tokens: input.outputTokens ?? 0,
+      ttft_ms: input.ttftMs ?? null,
+      stream_ms: input.streamMs ?? null,
+      superseded_at: null,
+    })
+    .execute();
   return {
     id,
     runTargetId: input.runTargetId,
@@ -212,51 +228,70 @@ export async function appendAttempt(input: {
 }
 
 export async function markSuperseded(attemptId: string, at: number): Promise<void> {
-  await sql.execute("UPDATE attempts SET superseded_at = ? WHERE id = ?", [at, attemptId]);
+  await db
+    .updateTable("attempts")
+    .set({ superseded_at: at })
+    .where("id", "=", attemptId)
+    .execute();
 }
 
 export async function markRunTargetStatus(
   runTargetId: string,
   status: RunTargetStatus,
 ): Promise<void> {
-  await sql.execute("UPDATE run_targets SET status = ? WHERE id = ?", [status, runTargetId]);
+  await db
+    .updateTable("run_targets")
+    .set({ status })
+    .where("id", "=", runTargetId)
+    .execute();
 }
 
 export async function getRun(id: string): Promise<Run | null> {
-  const runRows = await sql.select<unknown>("SELECT * FROM runs WHERE id = ?", [id]);
-  if (runRows.length === 0) return null;
-  const targetRows = await sql.select<unknown>(
-    "SELECT * FROM run_targets WHERE run_id = ? ORDER BY rowid",
-    [id],
-  );
-  return mapRun(runRows[0], targetRows);
+  const runRow = await db
+    .selectFrom("runs")
+    .selectAll()
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (!runRow) return null;
+  const targetRows = await db
+    .selectFrom("run_targets")
+    .selectAll()
+    .where("run_id", "=", id)
+    .orderBy("rowid" as never)
+    .execute();
+  return mapRun(runRow, targetRows);
 }
 
 export async function listRunsForConversation(conversationId: string): Promise<Run[]> {
-  const runRows = await sql.select<unknown>(
-    "SELECT * FROM runs WHERE conversation_id = ? ORDER BY started_at",
-    [conversationId],
-  );
+  const runRows = await db
+    .selectFrom("runs")
+    .selectAll()
+    .where("conversation_id", "=", conversationId)
+    .orderBy("started_at")
+    .execute();
   // One target query per run keeps this simple; if a conversation
   // grows to thousands of runs the inner loop becomes the obvious
   // optimization candidate (single GROUP_CONCAT or in-memory join).
   const out: Run[] = [];
   for (const r of runRows) {
-    const id = (r as { id: string }).id;
-    const targetRows = await sql.select<unknown>(
-      "SELECT * FROM run_targets WHERE run_id = ? ORDER BY rowid",
-      [id],
-    );
+    const targetRows = await db
+      .selectFrom("run_targets")
+      .selectAll()
+      .where("run_id", "=", r.id)
+      .orderBy("rowid" as never)
+      .execute();
     out.push(mapRun(r, targetRows));
   }
   return out;
 }
 
 export async function listAttempts(runTargetId: string): Promise<Attempt[]> {
-  const rows = await sql.select<unknown>(
-    "SELECT * FROM attempts WHERE run_target_id = ? ORDER BY sequence",
-    [runTargetId],
-  );
+  const rows = await db
+    .selectFrom("attempts")
+    .selectAll()
+    .where("run_target_id", "=", runTargetId)
+    .orderBy("sequence")
+    .execute();
   return rows.map(mapAttempt);
 }
 
@@ -269,28 +304,27 @@ export async function listAttemptHistoryForMessage(
   conversationId: string,
   messageId: string,
 ): Promise<Attempt[]> {
-  const targetKeyRows = await sql.select<{ target_key: string }>(
-    `SELECT rt.target_key AS target_key
-       FROM attempts a
-       JOIN run_targets rt ON rt.id = a.run_target_id
-       JOIN runs r ON r.id = rt.run_id
-      WHERE a.id = ? AND r.conversation_id = ?`,
-    [`att_${messageId}`, conversationId],
-  );
-  const targetKey = targetKeyRows[0]?.target_key;
+  const targetKeyRow = await db
+    .selectFrom("attempts as a")
+    .innerJoin("run_targets as rt", "rt.id", "a.run_target_id")
+    .innerJoin("runs as r", "r.id", "rt.run_id")
+    .select("rt.target_key")
+    .where("a.id", "=", `att_${messageId}`)
+    .where("r.conversation_id", "=", conversationId)
+    .executeTakeFirst();
+  const targetKey = targetKeyRow?.target_key;
   if (!targetKey) return [];
-  const rows = await sql.select<unknown>(
-    `SELECT a.*
-       FROM attempts a
-       JOIN run_targets rt ON rt.id = a.run_target_id
-       JOIN runs r ON r.id = rt.run_id
-      WHERE r.conversation_id = ?
-        AND rt.target_key = ?
-        AND a.superseded_at IS NOT NULL
-        AND a.id <> ?
-      ORDER BY a.sequence`,
-    [conversationId, targetKey, `att_${messageId}`],
-  );
+  const rows = await db
+    .selectFrom("attempts as a")
+    .innerJoin("run_targets as rt", "rt.id", "a.run_target_id")
+    .innerJoin("runs as r", "r.id", "rt.run_id")
+    .selectAll("a")
+    .where("r.conversation_id", "=", conversationId)
+    .where("rt.target_key", "=", targetKey)
+    .where("a.superseded_at", "is not", null)
+    .where("a.id", "!=", `att_${messageId}`)
+    .orderBy("a.sequence")
+    .execute();
   return rows.map(mapAttempt);
 }
 
@@ -302,13 +336,12 @@ export async function listAttemptHistoryForMessage(
 // id from the #179-#205 window. attempts.superseded_at retains
 // its per-attempt-history meaning for the future #181 affordance.
 export async function listSupersededMessageIds(conversationId: string): Promise<Set<string>> {
-  const rows = await sql.select<{ id: string }>(
-    `SELECT id
-       FROM messages
-      WHERE conversation_id = ?
-        AND superseded_at IS NOT NULL`,
-    [conversationId],
-  );
+  const rows = await db
+    .selectFrom("messages")
+    .select("id")
+    .where("conversation_id", "=", conversationId)
+    .where("superseded_at", "is not", null)
+    .execute();
   const out = new Set<string>();
   for (const r of rows) out.add(r.id);
   return out;
