@@ -17,7 +17,6 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMessagesStore } from "@/stores/messagesStore";
-import { usePersonasStore } from "@/stores/personasStore";
 import type { Message, Persona } from "@/lib/types";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { isExcludedByLimit } from "@/lib/context/excluded";
@@ -30,6 +29,7 @@ import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { filterSupersededMessages } from "@/lib/orchestration/filterSupersededMessages";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import * as messagesRepo from "@/lib/persistence/messages";
+import * as personasRepo from "@/lib/persistence/personas";
 import { MessageBubble } from "./MessageBubble";
 import { EditReplayEditor } from "./EditReplayEditor";
 import { useScrollPin } from "./useScrollPin";
@@ -71,17 +71,14 @@ export function MessageList({
   pinnedRef?: React.MutableRefObject<boolean>;
   onScroll?: () => void;
 }): JSX.Element {
-  // #184: read messages through useRepoQuery; the messagesStore
-  // dual-writes the cache on every mutation, so streaming patches
-  // flow through here without re-fetching. byConversation stays as
-  // a same-conversation fallback for the first paint before the
-  // cache is populated (e.g. cold mount of the data-layer).
+  // #184/#211: messages come from useRepoQuery. The cache is seeded
+  // by messagesStore.load() and patched in-place by streaming
+  // mutations, so consumers see updates without re-fetching.
   const queryResult = useRepoQuery<Message[]>(
     ["messages", conversationId],
     () => messagesRepo.listMessages(conversationId),
   );
-  const storeMessages = useMessagesStore((s) => s.byConversation[conversationId]);
-  const rawMessages = queryResult.data ?? storeMessages ?? EMPTY;
+  const rawMessages = queryResult.data ?? EMPTY;
   const supersededIds =
     useMessagesStore((s) => s.supersededByConversation[conversationId]) ?? EMPTY_SUPERSEDED;
   // #180: drop assistant rows whose Attempt has been superseded by a
@@ -92,7 +89,11 @@ export function MessageList({
     () => filterSupersededMessages(rawMessages, supersededIds),
     [rawMessages, supersededIds],
   );
-  const personas = usePersonasStore((s) => s.byConversation[conversationId]) ?? EMPTY_PERSONAS;
+  const personasQuery = useRepoQuery<Persona[]>(
+    ["personas", conversationId],
+    () => personasRepo.listPersonas(conversationId),
+  );
+  const personas = personasQuery.data ?? EMPTY_PERSONAS;
   const internalRef = useRef<HTMLDivElement>(null);
   const containerRef = scrollContainerRef ?? internalRef;
   const { pinnedRef, onScroll } = useScrollPin(containerRef, pinnedRefProp, onScrollProp);

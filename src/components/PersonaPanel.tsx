@@ -6,7 +6,7 @@
 // ------------------------------------------------------------------
 
 import { useState } from "react";
-import type { Conversation, Persona, ProviderId } from "@/lib/types";
+import type { Conversation, Message, Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
@@ -26,6 +26,7 @@ import {
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import * as messagesRepo from "@/lib/persistence/messages";
+import { readCachedMessages } from "@/hooks/cacheReaders";
 import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
@@ -116,19 +117,21 @@ function PersonaPanelExpanded({
   navPersonaId: string | null;
   onSelectNavPersona: ((id: string) => void) | undefined;
 }): JSX.Element {
-  // #185: read persona list through useRepoQuery; personasStore
-  // dual-writes the cache on load/upsert/remove. byConversation
-  // remains as a same-conversation fallback for first paint and as
-  // a backstop for un-migrated readers.
+  // #185/#211: personas come from useRepoQuery. The cache is seeded
+  // by personasStore.load() and updated in-place by upsert / remove,
+  // so consumers see updates without re-fetching.
   const personasQuery = useRepoQuery<Persona[]>(
     ["personas", conversation.id],
     () => personasRepo.listPersonas(conversation.id),
   );
-  const storePersonas = usePersonasStore((s) => s.byConversation[conversation.id]);
-  const personas = personasQuery.data ?? storePersonas ?? EMPTY_PERSONAS;
+  const personas = personasQuery.data ?? EMPTY_PERSONAS;
   const selection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
-  const messages = useMessagesStore((s) => s.byConversation[conversation.id]) ?? EMPTY_MESSAGES;
+  const messagesQuery = useRepoQuery<Message[]>(
+    ["messages", conversation.id],
+    () => messagesRepo.listMessages(conversation.id),
+  );
+  const messages = messagesQuery.data ?? EMPTY_MESSAGES;
   const upsert = usePersonasStore((s) => s.upsert);
   const remove = usePersonasStore((s) => s.remove);
   const setSelection = usePersonasStore((s) => s.setSelection);
@@ -472,7 +475,7 @@ function CreateForm({
   const submit = async (): Promise<void> => {
     setError(null);
     try {
-      const history = useMessagesStore.getState().byConversation[conversationId] ?? [];
+      const history = readCachedMessages(conversationId);
       const currentIdx = scope === "inherit" ? 0 : history.length;
       const p = await createPersona({
         conversationId,
@@ -523,7 +526,7 @@ function CreateForm({
     }
   };
   const onImport = async (): Promise<void> => {
-    const history = useMessagesStore.getState().byConversation[conversationId] ?? [];
+    const history = readCachedMessages(conversationId);
     const r = await importPersonasFromFile(
       conversationId,
       history.length,

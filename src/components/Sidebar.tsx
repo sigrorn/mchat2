@@ -22,6 +22,8 @@ import { SidebarFooter } from "./SidebarFooter";
 import { useConversationExports } from "./useConversationExports";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 
+const EMPTY_CONVERSATIONS: readonly Conversation[] = Object.freeze([]) as readonly Conversation[];
+
 interface MenuPos {
   id: string;
   x: number;
@@ -52,14 +54,14 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuPos | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  // #186: read conversations through useRepoQuery; conversationsStore
-  // dual-writes the cache. The store is fallback for first paint.
+  // #186/#211: conversations come from useRepoQuery. The cache is
+  // seeded by conversationsStore.load() and updated in-place by every
+  // store mutation, so consumers see updates without re-fetching.
   const conversationsQuery = useRepoQuery<Conversation[]>(
     ["conversations"],
     () => conversationsRepo.listConversations(),
   );
-  const storeConversations = useConversationsStore((s) => s.conversations);
-  const conversations = conversationsQuery.data ?? storeConversations;
+  const conversations = conversationsQuery.data ?? EMPTY_CONVERSATIONS;
   const currentId = useConversationsStore((s) => s.currentId);
   const select = useConversationsStore((s) => s.select);
   const create = useConversationsStore((s) => s.create);

@@ -39,20 +39,35 @@ export function useRepoQuery<T>(
   const cache = DEFAULT_CACHE;
   const keyJson = useMemo(() => JSON.stringify(key), [key]);
   const [tick, setTick] = useState(0);
-  const [data, setData] = useState<T | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
+  // #211: data is derived synchronously from the cache on every
+  // render. Re-derives on key change (different conversation) and on
+  // tick (after fetch resolves or cache invalidate). Removes the
+  // first-render flash that previously forced consumers to keep a
+  // Zustand-store fallback.
+  const data = useMemo(
+    () => cache.get<T>(JSON.parse(keyJson) as QueryKey),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [keyJson, tick, cache],
+  );
+  const [loading, setLoading] = useState(data === undefined);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const parsedKey = JSON.parse(keyJson) as QueryKey;
+    if (cache.get(parsedKey) !== undefined) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     cache
-      .fetch(JSON.parse(keyJson) as QueryKey, fn)
-      .then((value) => {
+      .fetch(parsedKey, fn)
+      .then(() => {
         if (cancelled) return;
-        setData(value as T);
         setLoading(false);
+        setTick((t) => t + 1);
       })
       .catch((err: unknown) => {
         if (cancelled) return;

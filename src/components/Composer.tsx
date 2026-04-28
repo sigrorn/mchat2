@@ -15,6 +15,7 @@ import { parseTargetModifiers } from "@/lib/commands/targetModifier";
 import { dispatchCommand } from "@/lib/commands/dispatch";
 import { makeCommandDeps } from "@/hooks/commandDeps";
 import { usePersonasStore } from "@/stores/personasStore";
+import { readCachedPersonas } from "@/hooks/cacheReaders";
 import { shouldSubmit } from "./composerKeys";
 import { buildPlaceholder } from "@/lib/ui/composerPlaceholder";
 import { PrimaryButton, DangerButton } from "@/components/ui/Button";
@@ -102,7 +103,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   ): Promise<boolean> => {
     const parsed = parseTargetModifiers(input);
     if (!parsed.ok) return false;
-    const personas = usePersonasStore.getState().byConversation[conversationId] ?? [];
+    const personas = readCachedPersonas(conversationId);
     const current = usePersonasStore.getState().selectionByConversation[conversationId] ?? [];
     let selection = [...current];
     const errors: string[] = [];
