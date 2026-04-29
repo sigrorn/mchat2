@@ -36,6 +36,7 @@ export type ParsedCommand =
   | { kind: "displayMode"; payload: { mode: "lines" | "cols" } }
   | { kind: "version" }
   | { kind: "log"; payload: { limit: number; clear: boolean } }
+  | { kind: "fork"; payload: { userNumber: number | null } }
   | { kind: "error"; message: string };
 
 const LIMIT_HELP =
@@ -156,6 +157,23 @@ export function parseCommand(raw: string): ParsedCommand {
       return { kind: "error", message: "log: argument must be a positive integer or 'clear'." };
     }
     return { kind: "log", payload: { limit: n, clear: false } };
+  }
+  if (verb === "fork") {
+    if (arg === "") return { kind: "fork", payload: { userNumber: null } };
+    if (!/^-?\d+$/.test(arg)) {
+      return {
+        kind: "error",
+        message: `fork: '${arg}' is not a valid user message number. Use //fork or //fork N.`,
+      };
+    }
+    const n = Number(arg);
+    if (n < 1) {
+      return {
+        kind: "error",
+        message: `fork: '${arg}' is not a valid user message number. User messages are 1-indexed.`,
+      };
+    }
+    return { kind: "fork", payload: { userNumber: n } };
   }
   if (verb === "lines" || verb === "cols") {
     if (arg !== "") {
