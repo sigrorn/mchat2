@@ -30,6 +30,7 @@ import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/set
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as flowsRepo from "@/lib/persistence/flows";
+import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { readCachedMessages, readCachedPersonas } from "./cacheReaders";
 
 const EMPTY_SUPERSEDED: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
@@ -99,7 +100,12 @@ export function makeReplayMessageDeps(): ReplayMessageDeps {
     setSelection: (conversationId, selection) =>
       usePersonasStore.getState().setSelection(conversationId, [...selection]),
     getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
-    setFlowStepIndex: (flowId, index) => flowsRepo.setStepIndex(flowId, index),
+    setFlowStepIndex: async (flowId, index) => {
+      await flowsRepo.setStepIndex(flowId, index);
+      // #223: same as sendMessageDeps — bump the cached flow read so
+      // the panel reflects the rewound cursor after a replay.
+      invalidateRepoQuery(["flow"]);
+    },
     // #223: replay never auto-flips flow_mode (replay is a structural
     // rewind, not a fresh user dispatch). The dep is still required by
     // the FlowWriteDeps slice — wire to the same store action so a

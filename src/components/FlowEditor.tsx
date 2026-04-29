@@ -13,6 +13,7 @@ import type { Flow, FlowDraft, FlowDraftStep, Persona } from "@/lib/types";
 import * as flowsRepo from "@/lib/persistence/flows";
 import { updatePersona } from "@/lib/personas/service";
 import { derivedFlowFromRunsAfter } from "@/lib/flows/derivation";
+import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 
 interface FlowEditorProps {
@@ -146,6 +147,8 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
       // 'personas' steps and consecutive 'user' steps). Surface the
       // error rather than swallowing it.
       await flowsRepo.upsertFlow(conversationId, draft);
+      // #223: refresh subscribers (e.g. PersonaPanel's flow row).
+      invalidateRepoQuery(["flow"]);
       // Per-persona lens updates.
       for (const p of personas) {
         const next = lensDraft[p.id] ?? {};
@@ -308,6 +311,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
                 return;
               }
               await flowsRepo.deleteFlow(conversationId);
+              invalidateRepoQuery(["flow"]);
               onClose();
             }}
             disabled={!existingFlow || saving}

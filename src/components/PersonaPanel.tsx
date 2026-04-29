@@ -5,10 +5,11 @@
 //                 (validation) and the personasStore (reactive cache).
 // ------------------------------------------------------------------
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Conversation, Flow, Message, Persona, ProviderId } from "@/lib/types";
 import * as flowsRepo from "@/lib/persistence/flows";
 import { nextPersonasStepPersonaIds } from "@/lib/app/flowSelectionSync";
+import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
@@ -142,20 +143,16 @@ function PersonaPanelExpanded({
   const costs = computePersonaCosts(messages, personas);
 
   // #223: load the conversation's flow (if any) so the dedicated
-  // "Conversation flow" row can render above the persona list. Re-
-  // loads when the editor closes (the editor mutates the flow).
-  const [flow, setFlow] = useState<Flow | null>(null);
-  const [flowReloadTick, setFlowReloadTick] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const f = await flowsRepo.getFlow(conversation.id);
-      if (!cancelled) setFlow(f);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [conversation.id, flowReloadTick]);
+  // "Conversation flow" row can render above the persona list.
+  // Routed through repoQueryCache so the row reflects cursor advances
+  // (sendMessage's pauseFlow path) and editor saves without us having
+  // to thread bespoke reload signals through each surface — the deps
+  // factories invalidate ["flow"] after each write.
+  const flowQuery = useRepoQuery<Flow | null>(
+    ["flow", conversation.id],
+    () => flowsRepo.getFlow(conversation.id),
+  );
+  const flow = flowQuery.data ?? null;
 
   const toggle = (id: string): void => {
     const next = selection.includes(id) ? selection.filter((x) => x !== id) : [...selection, id];
@@ -178,6 +175,10 @@ function PersonaPanelExpanded({
       if (ids && ids.length > 0) setSelection(conversation.id, ids);
     }
     await useConversationsStore.getState().setFlowMode(conversation.id, wantOn);
+    // Bump the flow cache so the row's "→ {next-personas}" hint
+    // re-derives from a fresh read (cursor may have moved between
+    // the last load and now via a concurrent send).
+    invalidateRepoQuery(["flow"]);
   };
 
   // #218: flow editor opens on click of the "Edit conversation flow"
@@ -310,9 +311,6 @@ function PersonaPanelExpanded({
           personas={personas}
           onClose={() => {
             setShowFlowEditor(false);
-            // #223: reload the flow into the panel so the row
-            // reflects any structural changes the editor saved.
-            setFlowReloadTick((t) => t + 1);
           }}
         />
       ) : null}

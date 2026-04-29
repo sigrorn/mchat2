@@ -13,6 +13,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import * as flowsRepo from "@/lib/persistence/flows";
+import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { makeRunPlannedSendDeps } from "./runOneTargetDeps";
 import { makePostResponseCheckDeps } from "./postResponseCheckDeps";
 // #168: KeychainDeps + AdapterRegistryDeps already wired by
@@ -42,7 +43,13 @@ export function makeSendMessageDeps(): SendMessageDeps {
     // #217: flow read/write surface plumbed through deps so the use
     // case never imports flowsRepo directly.
     getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
-    setFlowStepIndex: (flowId, index) => flowsRepo.setStepIndex(flowId, index),
+    setFlowStepIndex: async (flowId, index) => {
+      await flowsRepo.setStepIndex(flowId, index);
+      // #223: bump the flow query cache so PersonaPanel's
+      // "Conversation flow" row re-derives the upcoming personas-
+      // step hint from the new cursor.
+      invalidateRepoQuery(["flow"]);
+    },
     // #223: persist the conversation's flow_mode flag.
     setFlowMode: (conversationId, on) =>
       useConversationsStore.getState().setFlowMode(conversationId, on),
