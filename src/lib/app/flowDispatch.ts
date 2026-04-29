@@ -27,14 +27,15 @@ export function planFlowDispatch(
 ): FlowDispatchPlan {
   if (!flow) return { shouldDispatchAsFlow: false };
 
-  // #221: gate on the resolved mode, not on target count. Only the
-  // explicit flow-aware tokens (@convo, @all) interact with the cursor.
-  // @persona / no-prefix (implicit) / @others stay out of the flow
-  // even when their target set happens to match the next step. The
-  // original count-based check (#216 / #217) blocked single-persona
-  // steps from being flow-managed altogether — a real bug for NVC-
-  // style flows where steps alternate single personas.
-  if (mode !== "convo" && mode !== "all") {
+  // #222: only the explicit single-target side-conversation case
+  // (\`@persona\` with one target) leaves the flow paused. Everything
+  // else — @convo / @all narrowed / multi-target @a,@b / @others /
+  // implicit selection — can advance if its target-set matches the
+  // next step. This restores the original #216 \"multi-target
+  // invocations interact with the flow\" intent that #221's mode-only
+  // gate inadvertently overrode, and lets follow-ups at a user-step
+  // continue the flow without the user having to type @convo.
+  if (mode === "targeted" && resolvedTargets.length === 1) {
     return { shouldDispatchAsFlow: false };
   }
 
