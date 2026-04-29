@@ -104,10 +104,10 @@ describe("runMigrations", () => {
   });
 
   it("does not issue COMMIT after a failed migration", async () => {
-    // Match against the latest migration's signature statement (#220
-    // added flows.loop_start_index).
+    // Match against the latest migration's signature statement (#223
+    // added conversations.flow_mode).
     const mock = makeMockSql(MIGRATIONS.length - 1, {
-      failOn: (q) => /ALTER TABLE flows ADD COLUMN loop_start_index/i.test(q),
+      failOn: (q) => /ALTER TABLE conversations ADD COLUMN flow_mode/i.test(q),
     });
     await expect(runMigrations()).rejects.toThrow();
     // After the failure, no further BEGIN/COMMIT pairs should appear.

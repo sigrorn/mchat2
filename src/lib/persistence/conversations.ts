@@ -39,6 +39,7 @@ function rowToConversation(
     compactionFloorIndex: r.compaction_floor_index,
     autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold),
     contextWarningsFired,
+    flowMode: r.flow_mode === 1,
   };
 }
 
@@ -235,6 +236,7 @@ function conversationToRow(conv: Conversation): ConversationsTable {
       ? JSON.stringify(conv.autocompactThreshold)
       : null,
     context_warnings_fired: JSON.stringify(conv.contextWarningsFired ?? []),
+    flow_mode: conv.flowMode ? 1 : 0,
   };
 }
 
@@ -287,6 +289,9 @@ export async function createConversation(
     ...partial,
     id: partial.id ?? newConversationId(),
     createdAt: partial.createdAt ?? Date.now(),
+    // #223: normalise flowMode to a real boolean so callers reading
+    // the returned object don't see undefined for the default.
+    flowMode: partial.flowMode ?? false,
   };
   await db.insertInto("conversations").values(conversationToRow(conv)).execute();
   await writeSelectedPersonas(conv.id, conv.selectedPersonas);
@@ -325,6 +330,7 @@ export async function updateConversation(conv: Conversation): Promise<void> {
       compaction_floor_index: row.compaction_floor_index,
       autocompact_threshold: row.autocompact_threshold,
       context_warnings_fired: row.context_warnings_fired,
+      flow_mode: row.flow_mode,
     })
     .where("id", "=", conv.id)
     .execute();

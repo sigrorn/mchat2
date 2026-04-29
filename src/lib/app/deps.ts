@@ -123,6 +123,10 @@ export interface FlowReadDeps {
 }
 export interface FlowWriteDeps {
   setFlowStepIndex: (flowId: string, index: number) => Promise<void>;
+  // #223: persist the conversation's flow_mode flag. The use case
+  // calls this after a flow-advancing send so the next reload sees
+  // the auto-managed-selection state.
+  setFlowMode: (conversationId: string, on: boolean) => Promise<void>;
 }
 
 // -----------------------------------------------------------------

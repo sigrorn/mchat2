@@ -36,6 +36,11 @@ export interface ConversationsTable {
   compaction_floor_index: number | null;
   autocompact_threshold: string | null; // JSON-encoded
   context_warnings_fired: string; // JSON-encoded
+  // #223: 0/1 — whether the persona selection is currently being
+  // auto-managed by the conversation's flow. Off when no flow is
+  // attached. Flips on after a flow-advancing send and off when the
+  // user manually edits the selection.
+  flow_mode: number;
 }
 
 export interface PersonasTable {

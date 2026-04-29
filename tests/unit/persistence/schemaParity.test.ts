@@ -33,6 +33,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "compaction_floor_index",
     "autocompact_threshold",
     "context_warnings_fired",
+    "flow_mode",
   ],
   personas: [
     "id",

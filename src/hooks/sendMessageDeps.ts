@@ -43,5 +43,8 @@ export function makeSendMessageDeps(): SendMessageDeps {
     // case never imports flowsRepo directly.
     getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
     setFlowStepIndex: (flowId, index) => flowsRepo.setStepIndex(flowId, index),
+    // #223: persist the conversation's flow_mode flag.
+    setFlowMode: (conversationId, on) =>
+      useConversationsStore.getState().setFlowMode(conversationId, on),
   };
 }

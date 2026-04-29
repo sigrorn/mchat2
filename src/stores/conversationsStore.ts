@@ -52,6 +52,7 @@ interface State {
   setCompactionFloor: (id: string, floorIndex: number | null) => Promise<void>;
   setAutocompact: (id: string, threshold: AutocompactThreshold | null) => Promise<void>;
   setContextWarningsFired: (id: string, fired: number[]) => Promise<void>;
+  setFlowMode: (id: string, on: boolean) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -141,6 +142,14 @@ export const useConversationsStore = create<State>((set, get) => ({
     const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     const next: Conversation = { ...current, contextWarningsFired: fired };
+    await repo.updateConversation(next);
+    cacheUpdate(replaceById(next));
+  },
+  async setFlowMode(id, on) {
+    const current = cacheGet().find((c) => c.id === id);
+    if (!current) return;
+    if ((current.flowMode ?? false) === on) return; // no-op
+    const next: Conversation = { ...current, flowMode: on };
     await repo.updateConversation(next);
     cacheUpdate(replaceById(next));
   },

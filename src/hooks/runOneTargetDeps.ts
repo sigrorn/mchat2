@@ -19,6 +19,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useSendStore } from "@/stores/sendStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useConversationsStore } from "@/stores/conversationsStore";
 import { keychain } from "@/lib/tauri/keychain";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { adapterFor } from "@/lib/providers/registryOfAdapters";
@@ -99,6 +100,12 @@ export function makeReplayMessageDeps(): ReplayMessageDeps {
       usePersonasStore.getState().setSelection(conversationId, [...selection]),
     getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
     setFlowStepIndex: (flowId, index) => flowsRepo.setStepIndex(flowId, index),
+    // #223: replay never auto-flips flow_mode (replay is a structural
+    // rewind, not a fresh user dispatch). The dep is still required by
+    // the FlowWriteDeps slice — wire to the same store action so a
+    // future caller could flip it explicitly.
+    setFlowMode: (conversationId, on) =>
+      useConversationsStore.getState().setFlowMode(conversationId, on),
   };
 }
 

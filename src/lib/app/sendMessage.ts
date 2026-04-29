@@ -26,6 +26,7 @@ import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import { postResponseCheck } from "./postResponseCheck";
 import { planFlowDispatch, shouldAdvanceCursor, wrapNextIndex } from "./flowDispatch";
+import { nextPersonasStepPersonaIds } from "./flowSelectionSync";
 import type { SendMessageDeps } from "./deps";
 
 export interface SendMessageArgs {
@@ -196,6 +197,11 @@ async function runDispatch(
 
     if (!shouldAdvanceCursor(result.outcomes)) {
       // Stay at this personas-step; user can re-type to retry.
+      // #223: still flip flow_mode on — the user signaled flow
+      // intent and we want the panel to reflect that even on
+      // partial failure. Selection stays as the current step's
+      // set (no advance happened).
+      await deps.setFlowMode(conversation.id, true);
       return lastTarget;
     }
 
@@ -208,19 +214,19 @@ async function runDispatch(
       activeStepIndex,
     );
     if (wrapped) {
-      await deps.setFlowStepIndex(activeFlow.id, nextIndex);
+      await pauseFlow(deps, conversation.id, activeFlow, nextIndex);
       return lastTarget;
     }
 
     const nextStep = activeFlow.steps[nextIndex];
     if (!nextStep) {
-      await deps.setFlowStepIndex(activeFlow.id, nextIndex);
+      await pauseFlow(deps, conversation.id, activeFlow, nextIndex);
       return lastTarget;
     }
     if (nextStep.kind === "user") {
       // Park here; next user message will trigger the following
       // personas step.
-      await deps.setFlowStepIndex(activeFlow.id, nextIndex);
+      await pauseFlow(deps, conversation.id, activeFlow, nextIndex);
       return lastTarget;
     }
 
@@ -231,6 +237,29 @@ async function runDispatch(
     activeFlow = { ...activeFlow, currentStepIndex: nextIndex };
     await deps.setFlowStepIndex(activeFlow.id, activeStepIndex);
     resolved = stepToResolved(activeStep, personas);
+  }
+}
+
+// #223: flow paused at a user-step (or wrapped). Persist the cursor,
+// flip flow_mode on, and auto-sync the conversation's persona
+// selection to the *next* personas-step's set so the user's next
+// implicit follow-up matches that step and advances the flow without
+// having to type @convo.
+async function pauseFlow(
+  deps: SendMessageDeps,
+  conversationId: string,
+  flow: Flow,
+  pausedAtIndex: number,
+): Promise<void> {
+  await deps.setFlowStepIndex(flow.id, pausedAtIndex);
+  await deps.setFlowMode(conversationId, true);
+  // Build a synthetic flow object with the new cursor so the
+  // walker picks the right next-personas-step (skipping setup
+  // when wrapping).
+  const updated: Flow = { ...flow, currentStepIndex: pausedAtIndex };
+  const syncedIds = nextPersonasStepPersonaIds(updated);
+  if (syncedIds && syncedIds.length > 0) {
+    deps.setSelection(conversationId, syncedIds);
   }
 }
 

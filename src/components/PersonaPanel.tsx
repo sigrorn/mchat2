@@ -5,8 +5,10 @@
 //                 (validation) and the personasStore (reactive cache).
 // ------------------------------------------------------------------
 
-import { useState } from "react";
-import type { Conversation, Message, Persona, ProviderId } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type { Conversation, Flow, Message, Persona, ProviderId } from "@/lib/types";
+import * as flowsRepo from "@/lib/persistence/flows";
+import { nextPersonasStepPersonaIds } from "@/lib/app/flowSelectionSync";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
@@ -139,9 +141,43 @@ function PersonaPanelExpanded({
   const addToSelection = usePersonasStore((s) => s.addToSelection);
   const costs = computePersonaCosts(messages, personas);
 
+  // #223: load the conversation's flow (if any) so the dedicated
+  // "Conversation flow" row can render above the persona list. Re-
+  // loads when the editor closes (the editor mutates the flow).
+  const [flow, setFlow] = useState<Flow | null>(null);
+  const [flowReloadTick, setFlowReloadTick] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const f = await flowsRepo.getFlow(conversation.id);
+      if (!cancelled) setFlow(f);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation.id, flowReloadTick]);
+
   const toggle = (id: string): void => {
     const next = selection.includes(id) ? selection.filter((x) => x !== id) : [...selection, id];
     setSelection(conversation.id, next);
+    // #223: manual persona edit drops flow_mode — the user is taking
+    // control. The flow itself stays attached; they can re-engage by
+    // ticking the "Conversation flow" row.
+    if (conversation.flowMode) {
+      void useConversationsStore.getState().setFlowMode(conversation.id, false);
+    }
+  };
+
+  // #223: tick / untick the "Conversation flow" row.
+  const onToggleFlowMode = async (): Promise<void> => {
+    const wantOn = !conversation.flowMode;
+    if (wantOn && flow) {
+      // Sync selection to the next personas-step's set so the user's
+      // first follow-up under flow-mode lines up immediately.
+      const ids = nextPersonasStepPersonaIds(flow);
+      if (ids && ids.length > 0) setSelection(conversation.id, ids);
+    }
+    await useConversationsStore.getState().setFlowMode(conversation.id, wantOn);
   };
 
   // #218: flow editor opens on click of the "Edit conversation flow"
@@ -188,6 +224,14 @@ function PersonaPanelExpanded({
           );
         }}
       />
+      {flow ? (
+        <FlowModeRow
+          flow={flow}
+          personas={personas}
+          flowMode={conversation.flowMode ?? false}
+          onToggle={() => void onToggleFlowMode()}
+        />
+      ) : null}
       <ul className="flex-1 overflow-auto">
         {personas.map((p) => (
           <PersonaRow
@@ -264,7 +308,12 @@ function PersonaPanelExpanded({
         <FlowEditor
           conversationId={conversation.id}
           personas={personas}
-          onClose={() => setShowFlowEditor(false)}
+          onClose={() => {
+            setShowFlowEditor(false);
+            // #223: reload the flow into the panel so the row
+            // reflects any structural changes the editor saved.
+            setFlowReloadTick((t) => t + 1);
+          }}
         />
       ) : null}
     </aside>
@@ -698,3 +747,49 @@ function PersonaProviderLabel({ persona }: { persona: Persona }): JSX.Element {
   return <>{tag ? `${tag} ${persona.provider}` : persona.provider}</>;
 }
 
+// #223: dedicated row for the conversation flow's "auto-managed
+// selection" toggle. Shown only when a flow is attached. Ticked when
+// flowMode is on; the label hints at the upcoming personas-step so
+// the user can see where the next implicit follow-up will land.
+function FlowModeRow({
+  flow,
+  personas,
+  flowMode,
+  onToggle,
+}: {
+  flow: Flow;
+  personas: readonly Persona[];
+  flowMode: boolean;
+  onToggle: () => void;
+}): JSX.Element {
+  const nextIds = nextPersonasStepPersonaIds(flow) ?? [];
+  const personaById = new Map(personas.map((p) => [p.id, p] as const));
+  const nextNames =
+    nextIds.length === 0
+      ? "(no personas-step in this cycle)"
+      : nextIds.map((id) => personaById.get(id)?.name ?? id).join(", ");
+  return (
+    <div
+      className={`flex items-start gap-2 border-b border-neutral-200 px-3 py-2 ${
+        flowMode ? "bg-amber-50" : "bg-white"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={flowMode}
+        onChange={onToggle}
+        className="mt-1"
+        aria-label="Conversation flow auto-selection"
+        title={
+          flowMode
+            ? "Flow is driving the persona selection. Tick a persona below to take manual control."
+            : "Tick to follow the conversation flow — selection auto-syncs to the next step."
+        }
+      />
+      <div className="flex-1 text-xs">
+        <div className="font-medium text-neutral-900">↻ Conversation flow</div>
+        <div className="text-neutral-700">→ {nextNames}</div>
+      </div>
+    </div>
+  );
+}

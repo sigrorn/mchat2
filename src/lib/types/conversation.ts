@@ -59,4 +59,10 @@ export interface Conversation {
   // #105: tracks which warning thresholds (80/90/98%) have already
   // fired so they don't repeat. Reset when autocompact is turned on.
   contextWarningsFired?: number[];
+  // #223: when true, the persona selection is being auto-managed by
+  // the conversation's flow (selection follows the cursor's next
+  // personas-step). The user can toggle it via the "Conversation
+  // flow" row in the persona panel; manually editing the persona
+  // selection drops it back to false. Defaults to false.
+  flowMode?: boolean;
 }

@@ -367,6 +367,14 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE flows ADD COLUMN loop_start_index INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 23 — Conversation flow-mode flag (#223). Tracks whether the
+  // conversation's persona selection is currently being auto-managed
+  // by the flow. Off by default; flips on when a flow-advancing send
+  // succeeds, flips off when the user manually edits the persona
+  // selection. Persisted so the state survives reload.
+  [
+    `ALTER TABLE conversations ADD COLUMN flow_mode INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.
