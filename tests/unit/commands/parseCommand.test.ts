@@ -249,4 +249,47 @@ describe("parseCommand", () => {
     expect(parseCommand("//log 0").kind).toBe("error");
     expect(parseCommand("//log -1").kind).toBe("error");
   });
+
+  // #224 — //fork: branch a conversation from a specific user message.
+  it("//fork (no arg) → fork with userNumber null", () => {
+    expect(parseCommand("//fork")).toEqual({
+      kind: "fork",
+      payload: { userNumber: null },
+    });
+    expect(parseCommand("  //fork  ")).toEqual({
+      kind: "fork",
+      payload: { userNumber: null },
+    });
+  });
+
+  it("//fork N → fork with userNumber N", () => {
+    expect(parseCommand("//fork 5")).toEqual({
+      kind: "fork",
+      payload: { userNumber: 5 },
+    });
+    expect(parseCommand("//fork 1")).toEqual({
+      kind: "fork",
+      payload: { userNumber: 1 },
+    });
+  });
+
+  it("//fork 0 → error (user messages are 1-indexed)", () => {
+    const r = parseCommand("//fork 0");
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") {
+      expect(r.message).toMatch(/1-indexed|must be at least 1/i);
+    }
+  });
+
+  it("//fork -1 → error", () => {
+    expect(parseCommand("//fork -1").kind).toBe("error");
+  });
+
+  it("//fork foo → error naming the bad token", () => {
+    const r = parseCommand("//fork foo");
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") {
+      expect(r.message).toContain("foo");
+    }
+  });
 });
