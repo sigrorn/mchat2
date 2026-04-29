@@ -10,6 +10,9 @@
 // ------------------------------------------------------------------
 
 import type { Conversation, Flow, Message, Persona } from "../types";
+import { serializeSnapshot, type SnapshotEnvelope } from "./snapshot";
+import { parseSnapshot } from "../schemas/snapshot";
+import { importSnapshot } from "./snapshotImport";
 
 export class ForkRangeError extends Error {
   constructor(message: string) {
@@ -28,11 +31,78 @@ export interface ForkConversationInput {
   cutAtUserNumber: number | null;
 }
 
+// Returns the Message.index of the Nth user message (1-indexed) in
+// the source, or null if N exceeds the available user-message count.
+// For null input ("keep everything"), returns past-the-end so every
+// row passes the `m.index < cutAt` filter.
+function computeCutAtIndex(
+  messages: readonly Message[],
+  userNumber: number | null,
+): number | null {
+  if (userNumber === null) {
+    if (messages.length === 0) return 0;
+    let max = -1;
+    for (const m of messages) if (m.index > max) max = m.index;
+    return max + 1;
+  }
+  let count = 0;
+  for (const m of messages) {
+    if (m.role === "user") {
+      count++;
+      if (count === userNumber) return m.index;
+    }
+  }
+  return null;
+}
+
 export async function forkConversation(
-  _input: ForkConversationInput,
+  input: ForkConversationInput,
 ): Promise<Conversation> {
-  // Stub — implementation lands in the impl commit per the test-first
-  // workflow. Throwing here makes the use-case tests fail with a clear
-  // signal until the real logic lands.
-  throw new Error("forkConversation: not implemented");
+  const cutAt = computeCutAtIndex(input.sourceMessages, input.cutAtUserNumber);
+  if (cutAt === null) {
+    // userNumber out of range — caller surfaces this as an error notice.
+    throw new ForkRangeError(
+      `fork: user message ${input.cutAtUserNumber} does not exist in this conversation.`,
+    );
+  }
+
+  // Filter live (non-superseded) messages strictly before the cut.
+  const kept = [...input.sourceMessages]
+    .filter((m) => m.supersededAt === null && m.index < cutAt)
+    .sort((a, b) => a.index - b.index);
+
+  // Build the envelope via the existing serializer — gives us free
+  // id→name resolution for personas, flow steps, addressed_to, audience,
+  // pin targets, role lens, and visibility matrix. We then mutate the
+  // title and round-trip through parseSnapshot + importSnapshot to get
+  // the same id-remapping the file-based path uses.
+  const json = serializeSnapshot(
+    input.source,
+    input.sourcePersonas,
+    kept,
+    { flow: input.sourceFlow },
+  );
+  const envelope = JSON.parse(json) as SnapshotEnvelope;
+  envelope.title = `Fork of ${input.source.title}`;
+
+  // Drop limit/floor markers that point past the cut — they'd hide
+  // every message in the fork or pin a compaction floor that doesn't
+  // correspond to anything in the truncated history.
+  if (envelope.limitMarkIndex !== null && envelope.limitMarkIndex >= cutAt) {
+    envelope.limitMarkIndex = null;
+  }
+  if (envelope.compactionFloorIndex !== null && envelope.compactionFloorIndex >= cutAt) {
+    envelope.compactionFloorIndex = null;
+  }
+
+  // Re-validate via the snapshot schema so importSnapshot consumes a
+  // shape that matches the public envelope (defensive — serialize
+  // already produces a valid shape, but parseSnapshot is the single
+  // entry point importSnapshot trusts).
+  const reparsed = parseSnapshot(JSON.stringify(envelope));
+  if (!reparsed.ok) {
+    throw new Error(`fork: failed to build snapshot envelope (${reparsed.error})`);
+  }
+  const result = await importSnapshot(reparsed.snapshot);
+  return result.conversation;
 }
