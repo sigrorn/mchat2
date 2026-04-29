@@ -237,6 +237,18 @@ export type ReplayMessageDeps = RunPlannedSendDeps &
   FlowReadDeps &
   FlowWriteDeps;
 
+// #224: store-switching surface for the //fork handler. Loads the
+// fresh conversation list, picks the new id as current, and reloads
+// the per-conversation panes so the UI doesn't need to wait for a
+// window refresh. Kept as its own slice (not folded into Conversations-
+// WriteDeps) because it touches three stores at once.
+export interface ConversationSwitchDeps {
+  reloadConversations: () => Promise<void>;
+  selectConversation: (conversationId: string) => void;
+  loadPersonas: (conversationId: string) => Promise<void>;
+  loadMessages: (conversationId: string) => Promise<void>;
+}
+
 // Surface needed by the //command handlers (#154). Spans every store
 // the command dispatcher reaches into. Each handler should access
 // only the slice it actually uses; this composed type captures the
@@ -258,4 +270,9 @@ export type CommandDeps = MessagesReadDeps &
     | "setVisibilityPreset"
     | "setAutocompact"
   > &
-  Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus">;
+  Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus"> &
+  // #224: //fork needs to read the source flow and switch the UI to
+  // the freshly-created fork. FlowReadDeps gives the read; Conversation-
+  // SwitchDeps gives the three-store handoff (mirrors snapshot import).
+  FlowReadDeps &
+  ConversationSwitchDeps;

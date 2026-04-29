@@ -90,6 +90,8 @@ export function formatHelp(): string {
 | \`//autocompact Nk preserve -N\` | Auto-compact with threshold + preserve last N user messages (sample: \`//autocompact 12k preserve -2\`) |
 | \`//autocompact off\` | Disable auto-compaction (default) |
 | \`//vacuum\` | Compact the SQLite database |
+| \`//fork\` | Branch a copy of this conversation (everything sent so far) |
+| \`//fork N\` | Branch a copy keeping user messages 1..N-1 with their replies |
 
 ## Keyboard shortcuts
 

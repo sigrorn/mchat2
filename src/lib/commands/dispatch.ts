@@ -28,6 +28,7 @@ import {
 } from "./handlers/info";
 import { handleAutocompact, handleCompact } from "./handlers/compaction";
 import { handleVacuum, handleLimitsize } from "./handlers/system";
+import { handleFork } from "./handlers/fork";
 import type { CommandContext, CommandResult } from "./handlers/types";
 
 export type { CommandContext, CommandResult } from "./handlers/types";
@@ -90,5 +91,7 @@ export async function dispatchCommand(
       return handleAutocompact(ctx, cmd.payload);
     case "compact":
       return handleCompact(ctx, cmd.payload);
+    case "fork":
+      return handleFork(ctx, cmd.payload);
   }
 }

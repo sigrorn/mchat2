@@ -10,6 +10,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore } from "@/stores/sendStore";
+import * as flowsRepo from "@/lib/persistence/flows";
 import { readCachedMessages, readCachedPersonas } from "./cacheReaders";
 
 const EMPTY_SUP: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
@@ -51,5 +52,13 @@ export function makeCommandDeps(): CommandDeps {
       useSendStore.getState().setTargetStatus(conversationId, key, status),
     clearTargetStatus: (conversationId, key) =>
       useSendStore.getState().clearTargetStatus(conversationId, key),
+    // #224: //fork reads the source flow and switches the UI over to
+    // the freshly-created fork once cloning lands.
+    getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
+    reloadConversations: () => useConversationsStore.getState().load(),
+    selectConversation: (conversationId) =>
+      useConversationsStore.getState().select(conversationId),
+    loadPersonas: (conversationId) => usePersonasStore.getState().load(conversationId),
+    loadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
   };
 }
