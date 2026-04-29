@@ -144,10 +144,12 @@ describe("planFlowDispatch (#217)", () => {
     expect(plan.shouldDispatchAsFlow).toBe(true);
   });
 
-  it("implicit (no prefix) does not advance the flow even with matching selection (#221)", () => {
-    // Implicit means the user typed without an @-prefix and the
-    // selection happens to match. Per the original #216 contract,
-    // only explicit flow tokens (@convo / @all) advance.
+  it("implicit (no prefix) DOES advance the flow when selection matches (#222)", () => {
+    // After a previous narrowed send, the selection naturally tracks
+    // the personas just dispatched. When the user types a follow-up
+    // without an @-prefix at the next user-step, that implicit send's
+    // selection often equals the next step's set — the flow should
+    // advance. Refines the over-strict #221 mode-gate.
     const f = flow(
       [
         { kind: "user", personaIds: [] },
@@ -156,10 +158,44 @@ describe("planFlowDispatch (#217)", () => {
       0,
     );
     const plan = planFlowDispatch(f, [target("p_a")], "implicit");
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+  });
+
+  it("implicit with non-matching selection stays paused (#222)", () => {
+    // If the selection doesn't equal the next step's set, today's
+    // path runs and the flow stays put. The set-equality check
+    // gates this — mode alone isn't enough.
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      0,
+    );
+    const plan = planFlowDispatch(f, [target("p_b")], "implicit");
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
-  it("@others does not advance the flow (#221)", () => {
+  it("@a,@b (multi-target targeted) DOES advance when matching (#222)", () => {
+    // The original #216 spec: \"only multi-target invocations interact
+    // with the flow.\" My #221 mode-gate inadvertently blocked this
+    // case too. Restore it.
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a", "p_b"] },
+      ],
+      0,
+    );
+    const plan = planFlowDispatch(
+      f,
+      [target("p_a"), target("p_b")],
+      "targeted",
+    );
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+  });
+
+  it("@others advances when matching (#222)", () => {
     const f = flow(
       [
         { kind: "user", personaIds: [] },
@@ -172,7 +208,7 @@ describe("planFlowDispatch (#217)", () => {
       [target("p_a"), target("p_b")],
       "others",
     );
-    expect(plan.shouldDispatchAsFlow).toBe(false);
+    expect(plan.shouldDispatchAsFlow).toBe(true);
   });
 
   it("cursor wraps around to next personas step", () => {
