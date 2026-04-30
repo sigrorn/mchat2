@@ -4,6 +4,29 @@ Ideas that came up in design discussions but were deferred or not pursued.
 Kept here so future-us can revisit without having to re-derive the
 context from scratch.
 
+## `//undo` (or similar) to un-hide a confirmed notice
+
+**Discussed:** 2026-04-30, while specifying the
+[notice confirm-and-hide checkbox](#229) feature.
+
+The shipped behaviour confirms a notice and hides it from view
+(setting `confirmed_at` on the row). The DB row stays, so the
+information isn't lost — but there's no UI to un-hide it. If the
+user wants to re-surface a confirmed notice (e.g. they
+mis-clicked, or want to reread an old //compact summary), they
+have to dig into the SQLite file.
+
+A future `//undo` command (or a per-conversation "show
+confirmed notices" toggle in the UI) would re-display them.
+Cheap to add — clear `confirmed_at` on the matching row(s).
+
+**Why deferred:** the no-reversibility version covers the
+primary use case (clutter reduction). Adding the un-hide path
+is a separate UX decision (one-click reverse-most-recent? a
+//undo command? a hidden-by-default panel?) that's worth
+deferring until the bare confirm-and-hide is in use and the
+need shape becomes clearer.
+
 ## Fork-with-full-trace (debugging variant)
 
 **Discussed:** 2026-04-29, while specifying the [`//fork` command](#) for
