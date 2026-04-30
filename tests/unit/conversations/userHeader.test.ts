@@ -77,4 +77,44 @@ describe("formatUserHeader", () => {
       "[7] user \u2192 @Alice",
     );
   });
+
+  // #231 \u2014 flow-dispatched user messages get a "\u2192 conversation" marker
+  // between the prefix and the addressedTo list, so a flow turn is
+  // visually distinct from an explicit @a,@b multi-target send.
+  describe("flow_dispatched marker (#231)", () => {
+    it("inserts \u2192 conversation before the persona list when flowDispatched", () => {
+      expect(
+        formatUserHeader(3, ["p_alice", "p_bob"], personas, null, true),
+      ).toBe("[3] user \u2192 conversation \u2192 @all");
+    });
+
+    it("works with a single-persona chain (single chain step)", () => {
+      const three = [
+        persona("p_alice", "Alice"),
+        persona("p_bob", "Bob"),
+        persona("p_carol", "Carol"),
+      ];
+      expect(formatUserHeader(2, ["p_alice"], three, null, true)).toBe(
+        "[2] user \u2192 conversation \u2192 @Alice",
+      );
+    });
+
+    it("does NOT add the marker when flowDispatched is false (today's behaviour)", () => {
+      expect(
+        formatUserHeader(3, ["p_alice", "p_bob"], personas, null, false),
+      ).toBe("[3] user \u2192 @all");
+    });
+
+    it("flowDispatched omitted defaults to no marker", () => {
+      expect(formatUserHeader(3, ["p_alice"], personas)).toBe(
+        "[3] user \u2192 @Alice",
+      );
+    });
+
+    it("pinTarget short-circuits the flow marker (pin path is unchanged)", () => {
+      expect(
+        formatUserHeader(7, ["p_alice", "p_bob"], personas, "p_alice", true),
+      ).toBe("[7] user \u2192 @Alice");
+    });
+  });
 });
