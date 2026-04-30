@@ -70,4 +70,10 @@ export interface Message {
   // on this notice row and the renderer hides it. Only meaningful
   // for role === "notice" rows; ignored otherwise.
   confirmedAt?: number | null;
+  // #231: true when this user row's dispatch went through the flow
+  // path (sendMessage's planFlowDispatch.shouldDispatchAsFlow). Used
+  // by the chat-header formatter to render '→ conversation → …'.
+  // Optional with a default of false on read so callers building
+  // synthetic Message objects don't have to set it.
+  flowDispatched?: boolean;
 }

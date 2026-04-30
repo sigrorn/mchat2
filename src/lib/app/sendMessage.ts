@@ -108,6 +108,9 @@ export async function sendMessage(
     content: resolved.strippedText,
     addressedTo,
     pinned: pinned ?? false,
+    // #231: flag the row when this dispatch took the flow-managed
+    // path so the chat header can render '→ conversation → …'.
+    flowDispatched: dispatchPlan.shouldDispatchAsFlow,
   });
   const lastTitleTarget = await runDispatch(deps, {
     conversation,

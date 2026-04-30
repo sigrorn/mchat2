@@ -390,6 +390,14 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE flow_steps ADD COLUMN instruction TEXT`,
   ],
+  // 26 — Flow-dispatch marker on user messages (#231). 0/1 flag set
+  // when sendMessage's dispatchPlan.shouldDispatchAsFlow is true,
+  // so the chat header can render "→ conversation → @claudio" and
+  // distinguish a flow turn from an explicit @a,@b multi-target send.
+  // Default 0 preserves today's rendering for every existing row.
+  [
+    `ALTER TABLE messages ADD COLUMN flow_dispatched INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

@@ -42,6 +42,7 @@ function rowToMessage(r: MessagesTable): Message {
     streamMs: r.stream_ms,
     supersededAt: r.superseded_at,
     confirmedAt: r.confirmed_at,
+    flowDispatched: r.flow_dispatched === 1,
   };
 }
 
@@ -70,6 +71,7 @@ function messageToRow(msg: Message): MessagesTable {
     stream_ms: msg.streamMs ?? null,
     superseded_at: msg.supersededAt ?? null,
     confirmed_at: msg.confirmedAt ?? null,
+    flow_dispatched: msg.flowDispatched ? 1 : 0,
   };
 }
 

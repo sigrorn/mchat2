@@ -63,6 +63,9 @@ export interface MessagesWriteDeps {
     content: string;
     addressedTo: readonly string[];
     pinned: boolean;
+    // #231: true when sendMessage decided this dispatch is flow-managed.
+    // Persisted on the row so the chat header can mark it.
+    flowDispatched: boolean;
   }) => Promise<void>;
   appendPlaceholder: (msg: Message) => void;
   patchContent: (conversationId: string, messageId: string, content: string) => void;

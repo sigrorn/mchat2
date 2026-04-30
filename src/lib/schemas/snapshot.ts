@@ -49,6 +49,8 @@ const messageSchema = z.object({
   inputTokens: z.number(),
   outputTokens: z.number(),
   usageEstimated: z.boolean(),
+  // #231: optional for back-compat with pre-#231 snapshots.
+  flowDispatched: z.boolean().optional(),
 });
 
 // #215: flow definition. Optional so legacy snapshots parse cleanly.

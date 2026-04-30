@@ -36,6 +36,7 @@ export function makeSendMessageDeps(): SendMessageDeps {
         content: args.content,
         addressedTo: [...args.addressedTo],
         pinned: args.pinned,
+        flowDispatched: args.flowDispatched,
       });
     },
     rename: (conversationId, title) =>

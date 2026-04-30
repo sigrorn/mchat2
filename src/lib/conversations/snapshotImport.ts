@@ -143,6 +143,8 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
       outputTokens: sm.outputTokens,
       usageEstimated: sm.usageEstimated,
       audience: resolveIds(sm.audience),
+      // #231: defaults to false when absent (legacy snapshots).
+      flowDispatched: sm.flowDispatched ?? false,
     });
   }
 

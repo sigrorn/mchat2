@@ -96,6 +96,12 @@ export interface MessagesTable {
   // notices but the row stays so a future un-hide affordance (see
   // docs/ideas.md) can clear this back to NULL.
   confirmed_at: number | null;
+  // #231: 0/1 flag — set on a user row when its dispatch went
+  // through the flow path (planFlowDispatch.shouldDispatchAsFlow).
+  // Lets the chat header render '→ conversation → @claudio @geppetto'
+  // so a flow turn is distinguishable from an explicit multi-target
+  // @a,@b send. Default 0 preserves today's rendering for every row.
+  flow_dispatched: number; // 0/1
 }
 
 export interface SettingsTable {

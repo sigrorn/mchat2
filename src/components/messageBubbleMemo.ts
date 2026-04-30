@@ -61,5 +61,10 @@ export function areBubblePropsEqual(prev: BubbleProps, next: BubbleProps): boole
   if (a.model !== b.model) return false;
   if (a.role !== b.role) return false;
   if (!addressedEqual(a.addressedTo, b.addressedTo)) return false;
+  // #231: included so a row whose flow_dispatched flips between
+  // versions of the same id re-renders with the new header. In
+  // practice this is set once at append-time and never changes,
+  // but we compare for correctness.
+  if ((a.flowDispatched ?? false) !== (b.flowDispatched ?? false)) return false;
   return true;
 }

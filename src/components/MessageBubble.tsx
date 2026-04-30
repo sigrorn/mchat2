@@ -180,7 +180,15 @@ function MessageBubbleImpl({
   } else if (message.role === "user") {
     // [N] prefix is display-only — never written to message.content,
     // never sent to the LLM, never in exports.
-    headerParts.push(formatUserHeader(userNumber, message.addressedTo, personas, message.pinTarget));
+    headerParts.push(
+      formatUserHeader(
+        userNumber,
+        message.addressedTo,
+        personas,
+        message.pinTarget,
+        message.flowDispatched ?? false,
+      ),
+    );
   } else {
     headerParts.push(message.role);
   }

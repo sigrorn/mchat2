@@ -56,6 +56,10 @@ interface State {
     content: string;
     addressedTo: string[];
     pinned?: boolean;
+    // #231: true when this user row was dispatched via the flow
+    // path. Persisted on the row so the chat header can render
+    // '→ conversation → …'.
+    flowDispatched?: boolean;
   }) => Promise<Message>;
   appendNotice: (conversationId: string, content: string) => Promise<Message>;
   setPinned: (conversationId: string, messageId: string, pinned: boolean) => Promise<void>;
@@ -113,7 +117,7 @@ export const useMessagesStore = create<State>((set, get) => ({
       msgs.map((m) => (m.id === messageId ? { ...m, errorMessage, errorTransient } : m)),
     );
   },
-  async sendUserMessage({ conversationId, content, addressedTo, pinned = false }) {
+  async sendUserMessage({ conversationId, content, addressedTo, pinned = false, flowDispatched = false }) {
     const m = await repo.appendMessage({
       conversationId,
       role: "user",
@@ -131,6 +135,7 @@ export const useMessagesStore = create<State>((set, get) => ({
       outputTokens: 0,
       usageEstimated: false,
       audience: [],
+      flowDispatched,
     });
     get().append(m);
     return m;

@@ -45,6 +45,10 @@ export interface SnapshotMessage {
   inputTokens: number;
   outputTokens: number;
   usageEstimated: boolean;
+  // #231: optional. Absent on legacy snapshots → defaults to false on
+  // import. Lets the chat header render the conversation marker on
+  // re-imported flow turns.
+  flowDispatched?: boolean;
 }
 
 // #215: flow definition bundled when the conversation has one. Steps
@@ -177,6 +181,9 @@ export function serializeSnapshot(
       inputTokens: m.inputTokens,
       outputTokens: m.outputTokens,
       usageEstimated: m.usageEstimated,
+      // #231: emit only when true so legacy-shaped snapshots stay
+      // byte-for-byte identical. Imports treat absent + false the same.
+      ...(m.flowDispatched ? { flowDispatched: true } : {}),
     })),
   };
 

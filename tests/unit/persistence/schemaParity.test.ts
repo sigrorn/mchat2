@@ -77,6 +77,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "stream_ms",
     "superseded_at",
     "confirmed_at",
+    "flow_dispatched",
   ],
   settings: ["key", "value"],
   runs: [
