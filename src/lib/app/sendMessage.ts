@@ -181,6 +181,10 @@ async function runDispatch(
     await persistRunRows(deps, conversation, personas, result.outcomes, null);
     return result.allTargets[0] ?? null;
   }
+  // Flow-managed path. Each iteration of the loop dispatches one
+  // personas-step; the step's instruction (#230) lands on every
+  // persona's system block via runPlannedSend → runOneTarget →
+  // buildContext.
 
   // Flow-managed dispatch loop.
   let activeFlow: Flow = flow;
@@ -205,6 +209,7 @@ async function runDispatch(
       conversation,
       resolved,
       personas,
+      stepInstruction: activeStep.instruction,
     });
     if (!result.ok) return lastTarget;
     await persistRunRows(deps, conversation, personas, result.outcomes, activeStep.id);

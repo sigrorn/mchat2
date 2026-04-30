@@ -78,6 +78,10 @@ export interface StreamRunInput {
   // later one. Forwarded to buildContext so the LLM doesn't see stale
   // replies left in place by retry/replay.
   supersededIds?: ReadonlySet<string>;
+  // #230: when this dispatch is part of a flow personas-step that has
+  // a hidden instruction configured, forward it so buildContext can
+  // append "Step note: <text>" to the system block.
+  stepInstruction?: string | null;
 }
 
 export interface StreamRunOutcome {
@@ -107,6 +111,7 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     maxContextTokens: providerMeta.maxContextTokens,
   };
   if (input.supersededIds) buildArgs.supersededIds = input.supersededIds;
+  if (input.stepInstruction != null) buildArgs.stepInstruction = input.stepInstruction;
   const { systemPrompt, messages, dropped, firstSurvivingUserNumber } = buildContext(buildArgs);
 
   // Persist the empty shell up-front so the UI can render its bubble

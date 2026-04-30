@@ -31,6 +31,12 @@ export interface BuildContextInput {
   // Optional — callers that don't carry this state pass undefined and
   // get the legacy "exclude only by errorMessage" behavior.
   supersededIds?: ReadonlySet<string>;
+  // #230: optional per-step hidden instruction. Appended as
+  // "Step note: <text>" below the identity / global / persona-override
+  // system block. Empty / whitespace / null all suppress the line.
+  // Only set by callers that know they're dispatching a flow personas-
+  // step that has an instruction configured.
+  stepInstruction?: string | null;
 }
 
 export interface BuildContextResult {
@@ -97,8 +103,16 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   // global preference, then local override. Tracing both apps with the
   // same persona setup confirmed Apertus only honors identity when the
   // 'You are X' line sits at the top of the system block.
+  // #230: per-step instruction (when set) lands at the bottom — the
+  // closest the model sees to "what to do *this* turn." Trim + skip
+  // empty so a blank textbox doesn't emit an empty Step note line.
+  const stepNote = input.stepInstruction?.trim()
+    ? `Step note: ${input.stepInstruction.trim()}`
+    : null;
   const systemPrompt =
-    [identityLine, globalPrompt, localPrompt].filter((s): s is string => !!s).join("\n\n") || null;
+    [identityLine, globalPrompt, localPrompt, stepNote]
+      .filter((s): s is string => !!s)
+      .join("\n\n") || null;
   const personaKey = target.key;
   const limitMark = conversation.limitMarkIndex;
   const cutoff = persona?.createdAtMessageIndex ?? 0;

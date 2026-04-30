@@ -37,9 +37,13 @@ export async function runPlannedSend(
     conversation: Conversation;
     resolved: ResolveResult;
     personas: readonly Persona[];
+    // #230: when this dispatch is part of a flow personas-step that
+    // has a hidden instruction configured, forward it down to
+    // runOneTarget → runStream → buildContext.
+    stepInstruction?: string | null;
   },
 ): Promise<RunPlannedSendResult> {
-  const { conversation, resolved, personas } = args;
+  const { conversation, resolved, personas, stepInstruction } = args;
 
   const runId = deps.nextRunId(conversation.id);
   const plan = planSend({
@@ -74,6 +78,7 @@ export async function runPlannedSend(
       personas: [...personas],
       runId,
       bufferTokens,
+      stepInstruction: stepInstruction ?? null,
     });
 
   const outcomes: TargetOutcome[] = [];

@@ -27,13 +27,19 @@ export interface RunOneTargetInput {
   personas: Persona[];
   runId: number;
   bufferTokens: boolean;
+  // #230: when this target is being dispatched as part of a flow
+  // personas-step that has a hidden instruction configured, forward
+  // the instruction so it lands in the persona's system block via
+  // buildContext. Null/undefined for non-flow dispatches and for
+  // flow steps without an instruction.
+  stepInstruction?: string | null;
 }
 
 export async function runOneTarget(
   deps: RunOneTargetDeps,
   input: RunOneTargetInput,
 ): Promise<StreamRunOutcome> {
-  const { conversation, target, personas, runId, bufferTokens } = input;
+  const { conversation, target, personas, runId, bufferTokens, stepInstruction } = input;
   const streamId = `${runId}:${target.key}:${Date.now()}`;
   const controller = new AbortController();
 
@@ -125,6 +131,8 @@ export async function runOneTarget(
       // #180: drop superseded assistant rows from context so retry/
       // replay survivors don't leak the stale prior reply.
       supersededIds: deps.getSupersededIds(conversation.id),
+      // #230: forward the active flow step's hidden instruction.
+      stepInstruction: stepInstruction ?? null,
       adapter: deps.getAdapter(target.provider),
       apiKey,
       model: modelForTarget(target, personas),
