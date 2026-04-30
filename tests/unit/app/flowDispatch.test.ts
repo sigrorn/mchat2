@@ -4,6 +4,7 @@
 // flow-managed path vs. today's runPlannedSend.
 import { describe, it, expect } from "vitest";
 import {
+  addressedToForSend,
   planFlowDispatch,
   shouldAdvanceCursor,
 } from "@/lib/app/flowDispatch";
@@ -231,6 +232,49 @@ describe("planFlowDispatch (#217)", () => {
     // means we expect the index right after current to be the personas
     // step. If the immediate next is also user, no flow dispatch.
     expect(plan.shouldDispatchAsFlow).toBe(false);
+  });
+});
+
+// #227 — when sendMessage is about to persist the user message, the
+// addressedTo it stamps depends on whether this dispatch will flow-
+// chain through multiple personas-steps. Without this, downstream
+// personas in the chain filter out the user message and produce
+// vacuous replies.
+describe("addressedToForSend (#227)", () => {
+  it("returns the chain union when dispatch is flow-managed", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_claudio"] },
+        { kind: "personas", personaIds: ["p_geppetto"] },
+        { kind: "personas", personaIds: ["p_claudio"] },
+        { kind: "personas", personaIds: ["p_geppetto"] },
+      ],
+      0,
+    );
+    const plan = planFlowDispatch(f, [target("p_claudio")], "implicit");
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+    const out = addressedToForSend(["p_claudio"], f, plan);
+    expect(out.sort()).toEqual(["p_claudio", "p_geppetto"]);
+  });
+
+  it("returns the resolved targets verbatim when dispatch is NOT flow-managed", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      0,
+    );
+    // Single-target send → not flow-managed (#222 gate).
+    const plan = planFlowDispatch(f, [target("p_b")], "targeted");
+    expect(plan.shouldDispatchAsFlow).toBe(false);
+    expect(addressedToForSend(["p_b"], f, plan)).toEqual(["p_b"]);
+  });
+
+  it("returns the resolved targets when no flow is attached", () => {
+    const plan = planFlowDispatch(null, [target("p_a")], "targeted");
+    expect(addressedToForSend(["p_a"], null, plan)).toEqual(["p_a"]);
   });
 });
 
