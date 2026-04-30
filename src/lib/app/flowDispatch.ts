@@ -45,7 +45,13 @@ export function planFlowDispatch(
   }
 
   if (flow.steps.length === 0) return { shouldDispatchAsFlow: false };
-  const nextIndex = (flow.currentStepIndex + 1) % flow.steps.length;
+  // #225: wrap via the same helper the dispatch loop uses so the
+  // loop_start setup-phase boundary is respected at the user→personas
+  // hop too. Plain `(idx + 1) % n` would wrap to step 0, which is
+  // typically a setup user-step and fails the personas-kind check below
+  // — leaving the flow stalled at end-of-cycle while the auto-synced
+  // selection (set via #223) made the same persona reply on every send.
+  const nextIndex = wrapNextIndex(flow, flow.currentStepIndex).index;
   const nextStep = flow.steps[nextIndex];
   if (!nextStep || nextStep.kind !== "personas") {
     return { shouldDispatchAsFlow: false };
