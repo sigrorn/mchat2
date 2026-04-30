@@ -497,7 +497,6 @@ function PersonaRow({
             self={persona}
             modelListId={modelListId}
             modelOptions={modelOptions}
-            promptRows={3}
           />
           <Field label="Runs after">
             <div className="flex flex-wrap gap-2">
@@ -693,7 +692,6 @@ function CreateForm({
         nameAutoFocus
         namePlaceholder="Alice"
         promptPlaceholder="(inherits global)"
-        promptRows={2}
       />
       <Field label="Scope">
         <select

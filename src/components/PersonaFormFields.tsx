@@ -98,7 +98,7 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
     nameAutoFocus = false,
     namePlaceholder,
     promptPlaceholder,
-    promptRows = 3,
+    promptRows = 8,
     openaiCompatPreset,
     onOpenaiCompatPresetChange,
   } = props;
