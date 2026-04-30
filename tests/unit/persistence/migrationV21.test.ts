@@ -40,7 +40,10 @@ describe("migration v21 — flow tables + runs.flow_step_id", () => {
   });
 
   it("creates flow_steps with sequence + kind CHECK", async () => {
-    handle = await createTestDb();
+    // stopAt: 21 — pin the v21 column shape. Later migrations
+    // (v25 → flow_steps.instruction) widen the table; this test pins
+    // the column set at the time v21 landed.
+    handle = await createTestDb({ stopAt: 21 });
     const cols = await sql.select<{ name: string }>("PRAGMA table_info(flow_steps)");
     const names = cols.map((c) => c.name).sort();
     expect(names).toEqual(["flow_id", "id", "kind", "sequence"]);

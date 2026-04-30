@@ -109,6 +109,9 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
       next[idx] = {
         kind: s.kind === "user" ? "personas" : "user",
         personaIds: s.kind === "personas" ? [] : s.personaIds,
+        // #230: instruction is meaningful only for personas-steps —
+        // wiped when switching kinds in either direction.
+        instruction: null,
       };
       return { ...d, steps: next };
     });
@@ -121,6 +124,15 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
         ? s.personaIds.filter((id) => id !== personaId)
         : [...s.personaIds, personaId];
       next[idx] = { ...s, personaIds: ids };
+      return { ...d, steps: next };
+    });
+  };
+  // #230: edit a personas-step's optional hidden instruction.
+  const onInstructionChange = (idx: number, instruction: string): void => {
+    setDraft((d) => {
+      const next = [...d.steps];
+      const s = next[idx]!;
+      next[idx] = { ...s, instruction };
       return { ...d, steps: next };
     });
   };
@@ -243,6 +255,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
                   onMoveDown={() => onMoveStep(idx, 1)}
                   onRemove={() => onRemoveStep(idx)}
                   onSetLoopStart={() => onSetLoopStart(idx)}
+                  onInstructionChange={(text) => onInstructionChange(idx, text)}
                 />
               ))}
             </ol>
@@ -344,6 +357,9 @@ interface StepRowProps {
   onMoveDown: () => void;
   onRemove: () => void;
   onSetLoopStart: () => void;
+  // #230: per-step hidden instruction. Editor only — never rendered
+  // in the chat. Empty string normalises to null on save.
+  onInstructionChange: (next: string) => void;
 }
 
 function StepRow(props: StepRowProps): JSX.Element {
@@ -439,6 +455,23 @@ function StepRow(props: StepRowProps): JSX.Element {
                 (no personas — add some in the panel first)
               </span>
             ) : null}
+          </div>
+          {/* #230: optional hidden instruction for this step. Visible
+              only in this editor; injected as a "Step note: …" line
+              into the system prompt of every persona dispatched at
+              this step. */}
+          <div className="mt-2">
+            <label className="text-[11px] text-neutral-700">
+              Step instruction (optional, hidden — appended to each
+              persona's system prompt for this step only):
+            </label>
+            <textarea
+              value={step.instruction ?? ""}
+              onChange={(e) => props.onInstructionChange(e.target.value)}
+              rows={4}
+              placeholder="(none — leave empty to use only the persona's standard system prompt)"
+              className="mt-1 w-full rounded border border-neutral-300 px-2 py-1 text-xs font-mono"
+            />
           </div>
         </>
       ) : (
