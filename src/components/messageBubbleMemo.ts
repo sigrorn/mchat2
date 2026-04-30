@@ -18,6 +18,10 @@ export interface BubbleProps {
   excluded: boolean;
   onRetry?: () => void;
   onEdit?: () => void;
+  // #229: notice rows render a small confirm checkbox; clicking it
+  // calls this. Undefined for non-notice rows (and for the renderer
+  // that doesn't want to expose the affordance).
+  onConfirm?: () => void;
 }
 
 function addressedEqual(a: readonly string[], b: readonly string[]): boolean {
@@ -43,6 +47,7 @@ export function areBubblePropsEqual(prev: BubbleProps, next: BubbleProps): boole
   // an edit affordance, assistant rows don't). Identity doesn't
   // matter, but undefined vs defined does.
   if (!!prev.onEdit !== !!next.onEdit) return false;
+  if (!!prev.onConfirm !== !!next.onConfirm) return false;
   const a = prev.message;
   const b = next.message;
   if (a === b) return true;

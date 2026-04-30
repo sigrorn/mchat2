@@ -59,6 +59,9 @@ interface State {
   }) => Promise<Message>;
   appendNotice: (conversationId: string, content: string) => Promise<Message>;
   setPinned: (conversationId: string, messageId: string, pinned: boolean) => Promise<void>;
+  // #229: confirm a notice row so the renderer hides it. Caller is
+  // typically the checkbox on a notice bubble.
+  confirmNotice: (conversationId: string, messageId: string) => Promise<void>;
   setEditing: (conversationId: string, messageId: string | null) => void;
 }
 
@@ -143,6 +146,13 @@ export const useMessagesStore = create<State>((set, get) => ({
     await repo.setMessagePin(messageId, pinned, pinTarget);
     cacheUpdate(conversationId, (msgs) =>
       msgs.map((m) => (m.id === messageId ? { ...m, pinned } : m)),
+    );
+  },
+  async confirmNotice(conversationId, messageId) {
+    const at = Date.now();
+    await repo.setMessageConfirmed(messageId, at);
+    cacheUpdate(conversationId, (msgs) =>
+      msgs.map((m) => (m.id === messageId ? { ...m, confirmedAt: at } : m)),
     );
   },
   async appendNotice(conversationId, content) {

@@ -120,6 +120,7 @@ function MessageBubbleImpl({
   excluded,
   onRetry,
   onEdit,
+  onConfirm,
 }: BubbleProps): JSX.Element {
   // Notice rows (#8): UI-only info/error from in-app commands. Visually
   // distinct, italicized, never reach the LLM.
@@ -133,17 +134,32 @@ function MessageBubbleImpl({
       <div
         role="note"
         data-message-id={message.id}
-        className={`mb-3 rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm ${
-          hasMarkdownTable ? "" : "whitespace-pre-wrap italic"
-        }`}
+        className={`mb-3 flex items-start gap-2 rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm`}
       >
-        {hasMarkdownTable ? (
-          <div className="markdown-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-          </div>
-        ) : (
-          <NoticeContent content={message.content} conversationId={message.conversationId} />
-        )}
+        <div
+          className={`flex-1 ${hasMarkdownTable ? "" : "whitespace-pre-wrap italic"}`}
+        >
+          {hasMarkdownTable ? (
+            <div className="markdown-body">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            </div>
+          ) : (
+            <NoticeContent content={message.content} conversationId={message.conversationId} />
+          )}
+        </div>
+        {/* #229: confirm-and-hide checkbox. Click → notice disappears
+            from the rendered list. The DB row stays so a future
+            un-hide affordance can restore it (see docs/ideas.md). */}
+        {onConfirm ? (
+          <input
+            type="checkbox"
+            checked={false}
+            onChange={onConfirm}
+            title="Confirm and hide this notice"
+            className="mt-0.5 cursor-pointer"
+            aria-label="Confirm and hide notice"
+          />
+        ) : null}
       </div>
     );
   }

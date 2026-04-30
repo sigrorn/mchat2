@@ -85,8 +85,14 @@ export function MessageList({
   // later one. Today this is a no-op (retry/replay still delete prior
   // rows; supersededIds is empty); the filter is in place so the moment
   // those deletions stop, the UI hides the old rows automatically.
+  // #229: confirmed notice rows are hidden from view. They stay in
+  // the DB so a future un-hide affordance can restore them; for now
+  // the filter is a one-way drop here.
   const messages = useMemo(
-    () => filterSupersededMessages(rawMessages, supersededIds),
+    () =>
+      filterSupersededMessages(rawMessages, supersededIds).filter(
+        (m) => !(m.role === "notice" && m.confirmedAt != null),
+      ),
     [rawMessages, supersededIds],
   );
   const personasQuery = useRepoQuery<Persona[]>(
@@ -332,6 +338,15 @@ function renderItem(
       excluded: conversation ? isExcludedByLimit(m, conversation, effectiveLimitIndex) : false,
       onRetry: () => void retry(m),
       ...(m.role === "user" ? { onEdit: () => setEditingId(m.id) } : {}),
+      // #229: only notice rows get a confirm checkbox. The store
+      // action stamps confirmed_at; the filter in MessageList drops
+      // the row from the next render so the bubble disappears.
+      ...(m.role === "notice"
+        ? {
+            onConfirm: () =>
+              void useMessagesStore.getState().confirmNotice(m.conversationId, m.id),
+          }
+        : {}),
     };
     return <MessageBubble {...bubbleProps} />;
   }
