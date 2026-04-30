@@ -41,6 +41,7 @@ function rowToMessage(r: MessagesTable): Message {
     ttftMs: r.ttft_ms,
     streamMs: r.stream_ms,
     supersededAt: r.superseded_at,
+    confirmedAt: r.confirmed_at,
   };
 }
 
@@ -68,6 +69,7 @@ function messageToRow(msg: Message): MessagesTable {
     ttft_ms: msg.ttftMs ?? null,
     stream_ms: msg.streamMs ?? null,
     superseded_at: msg.supersededAt ?? null,
+    confirmed_at: msg.confirmedAt ?? null,
   };
 }
 
@@ -266,6 +268,18 @@ export async function setMessagePin(
 
 export async function deleteMessage(id: string): Promise<void> {
   await db.deleteFrom("messages").where("id", "=", id).execute();
+}
+
+// #229: stamp messages.confirmed_at so the renderer hides the row
+// (notice confirm-and-hide). Caller is expected to only invoke this
+// for role === "notice" rows; the repo itself doesn't enforce that
+// because there's no harm in confirming any row, but UI gates it.
+export async function setMessageConfirmed(id: string, at: number): Promise<void> {
+  await db
+    .updateTable("messages")
+    .set({ confirmed_at: at })
+    .where("id", "=", id)
+    .execute();
 }
 
 // #206: stamp messages.superseded_at so the UI's filterSupersededMessages

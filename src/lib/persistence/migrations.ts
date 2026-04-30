@@ -375,6 +375,14 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE conversations ADD COLUMN flow_mode INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 24 — Notice confirm-and-hide marker (#229). Nullable timestamp
+  // (ms epoch) set when the user clicks the checkbox on a notice row;
+  // the renderer hides confirmed rows. Mirrors the superseded_at
+  // pattern from v19. No backfill needed — every existing row is
+  // implicitly unconfirmed (NULL).
+  [
+    `ALTER TABLE messages ADD COLUMN confirmed_at INTEGER`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

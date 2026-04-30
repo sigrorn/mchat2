@@ -66,4 +66,8 @@ export interface Message {
   // skips it. The row is kept in the messages table so a future
   // attempt-history affordance (#181) can surface it. Null = visible.
   supersededAt?: number | null;
+  // #229: when non-null, the user has clicked the confirm checkbox
+  // on this notice row and the renderer hides it. Only meaningful
+  // for role === "notice" rows; ignored otherwise.
+  confirmedAt?: number | null;
 }

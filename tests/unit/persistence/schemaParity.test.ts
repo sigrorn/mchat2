@@ -76,6 +76,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "ttft_ms",
     "stream_ms",
     "superseded_at",
+    "confirmed_at",
   ],
   settings: ["key", "value"],
   runs: [

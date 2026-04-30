@@ -91,6 +91,11 @@ export interface MessagesTable {
   // without deleting it. NULL means visible. Reads (UI filter,
   // context builder, listSupersededMessageIds) consult this directly.
   superseded_at: number | null;
+  // #229: stamped when the user confirms a notice via its checkbox.
+  // NULL means unconfirmed (default). The renderer hides confirmed
+  // notices but the row stays so a future un-hide affordance (see
+  // docs/ideas.md) can clear this back to NULL.
+  confirmed_at: number | null;
 }
 
 export interface SettingsTable {
