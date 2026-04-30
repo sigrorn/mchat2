@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   nextPersonasStepPersonaIds,
   upcomingStepIndexForPersona,
+  flowChainPersonaIds,
 } from "@/lib/app/flowSelectionSync";
 import type { Flow } from "@/lib/types";
 
@@ -171,5 +172,108 @@ describe("upcomingStepIndexForPersona (#226)", () => {
   it("returns null for an empty flow", () => {
     const f = flow([], 0);
     expect(upcomingStepIndexForPersona(f, "p_a")).toBeNull();
+  });
+});
+
+// #227 — when a flow dispatch chains through multiple personas-steps,
+// the user message's addressedTo must cover every persona that will
+// run, so each chained persona can see the user message + prior chain
+// replies. flowChainPersonaIds returns that union set.
+describe("flowChainPersonaIds (#227)", () => {
+  it("collects all personas across consecutive personas-steps from a user-step cursor", () => {
+    // Mirrors the employment-tax-incentives snapshot:
+    //   user → claudio → geppetto → claudio → geppetto → claudio → geppetto
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_claudio"] },
+        { kind: "personas", personaIds: ["p_geppetto"] },
+        { kind: "personas", personaIds: ["p_claudio"] },
+        { kind: "personas", personaIds: ["p_geppetto"] },
+        { kind: "personas", personaIds: ["p_claudio"] },
+        { kind: "personas", personaIds: ["p_geppetto"] },
+      ],
+      0,
+    );
+    const ids = flowChainPersonaIds(f);
+    expect(ids.sort()).toEqual(["p_claudio", "p_geppetto"]);
+  });
+
+  it("stops at the next user-step (does not include personas past it)", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_b"] },
+      ],
+      0,
+    );
+    expect(flowChainPersonaIds(f)).toEqual(["p_a"]);
+  });
+
+  it("returns the cursor's own step set when cursor is on a personas-step", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a", "p_b"] },
+      ],
+      1,
+    );
+    expect(flowChainPersonaIds(f).sort()).toEqual(["p_a", "p_b"]);
+  });
+
+  it("respects loop_start when wrapping past the last step", () => {
+    // cursor at trailing user-step; chain wraps to loop_start and walks
+    // through the cycling personas-steps until it would hit the cursor
+    // again (full cycle's worth of personas-steps).
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] }, // setup user
+        { kind: "personas", personaIds: ["p_setup"] }, // setup personas
+        { kind: "user", personaIds: [] }, // ← loop start
+        { kind: "personas", personaIds: ["p_a"] },
+        { kind: "personas", personaIds: ["p_b"] },
+        { kind: "user", personaIds: [] }, // cursor parks here at end of cycle
+      ],
+      5,
+      2,
+    );
+    // Walking from 5 → wrap to loop_start (2) → step 2 is user (stops).
+    // So no personas in chain. (Edge case: loop_start lands on a user.)
+    expect(flowChainPersonaIds(f)).toEqual([]);
+  });
+
+  it("walks through wrap into the loop-start range when the wrap target is a personas-step", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] }, // setup user
+        { kind: "personas", personaIds: ["p_a"] }, // ← loop start
+        { kind: "personas", personaIds: ["p_b"] },
+        { kind: "user", personaIds: [] }, // cursor parks here
+      ],
+      3,
+      1,
+    );
+    // From cursor 3 → wrap to loop_start 1 → personas p_a → 2 → personas p_b → 3 → wrap → 1 → already seen, stop.
+    expect(flowChainPersonaIds(f).sort()).toEqual(["p_a", "p_b"]);
+  });
+
+  it("deduplicates personas appearing in multiple steps", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+        { kind: "personas", personaIds: ["p_a"] },
+        { kind: "personas", personaIds: ["p_b"] },
+      ],
+      0,
+    );
+    expect(flowChainPersonaIds(f).sort()).toEqual(["p_a", "p_b"]);
+  });
+
+  it("returns empty array for an empty flow", () => {
+    const f = flow([], 0);
+    expect(flowChainPersonaIds(f)).toEqual([]);
   });
 });
