@@ -25,7 +25,12 @@ import { recordSend } from "@/lib/orchestration/recordSend";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import { postResponseCheck } from "./postResponseCheck";
-import { planFlowDispatch, shouldAdvanceCursor, wrapNextIndex } from "./flowDispatch";
+import {
+  addressedToForSend,
+  planFlowDispatch,
+  shouldAdvanceCursor,
+  wrapNextIndex,
+} from "./flowDispatch";
 import { nextPersonasStepPersonaIds } from "./flowSelectionSync";
 import type { SendMessageDeps } from "./deps";
 
@@ -77,11 +82,26 @@ export async function sendMessage(
     deps.setSelection(conversation.id, nextSelection);
   }
 
+  // #217: detect flow-managed dispatch. Set-equality check against the
+  // next personas-step. Mismatch (or single-target send) falls through
+  // to today's runPlannedSend with runs_after-driven ordering intact.
+  // #227: must compute this BEFORE persisting the user message so the
+  // addressedTo can be expanded to cover the full chain — otherwise
+  // chained downstream personas can't see the user message.
+  const dispatchPlan = planFlowDispatch(flow, resolved.targets, resolved.mode);
+
   // #130: always persist the resolved target list. Implicit sends used
   // to store [], which made assistant replies' audience empty and
   // broke cols-mode grouping. userHeader keeps the "@all" shorthand
   // when the list covers every active persona.
-  const addressedTo = resolved.targets.map((t) => t.key);
+  // #227: when the dispatch is flow-managed, expand addressedTo to the
+  // union of every persona that will run in the chain so each chained
+  // persona's context-build sees the user message.
+  const addressedTo = addressedToForSend(
+    resolved.targets.map((t) => t.key),
+    flow,
+    dispatchPlan,
+  );
 
   await deps.appendUserMessage({
     conversationId: conversation.id,
@@ -89,11 +109,6 @@ export async function sendMessage(
     addressedTo,
     pinned: pinned ?? false,
   });
-
-  // #217: detect flow-managed dispatch. Set-equality check against the
-  // next personas-step. Mismatch (or single-target send) falls through
-  // to today's runPlannedSend with runs_after-driven ordering intact.
-  const dispatchPlan = planFlowDispatch(flow, resolved.targets, resolved.mode);
   const lastTitleTarget = await runDispatch(deps, {
     conversation,
     personas: [...personas],

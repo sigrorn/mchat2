@@ -10,6 +10,7 @@
 
 import type { Flow, FlowStep, PersonaTarget, ResolveMode } from "../types";
 import type { TargetOutcome } from "../orchestration/outcomeAggregation";
+import { flowChainPersonaIds } from "./flowSelectionSync";
 
 export interface FlowDispatchPlan {
   shouldDispatchAsFlow: boolean;
@@ -83,6 +84,25 @@ function setEqualsPersonaIds(
 export function shouldAdvanceCursor(outcomes: readonly TargetOutcome[]): boolean {
   if (outcomes.length === 0) return false;
   return outcomes.every((o) => o.kind === "completed");
+}
+
+// #227: pick the addressedTo to stamp on the user message. When the
+// dispatch is flow-managed, the chain may run several personas-steps
+// from a single user input — every persona in that chain needs to see
+// the user message and (via runOneTarget's audience derivation) every
+// prior assistant reply in the chain. Without this expansion, the
+// addressedTo + audience filters in builder.ts cut downstream chain
+// personas off from the conversation, so they reply with vacuous
+// identity-only acknowledgments.
+export function addressedToForSend(
+  resolvedTargetKeys: readonly string[],
+  flow: Flow | null,
+  dispatchPlan: FlowDispatchPlan,
+): string[] {
+  if (dispatchPlan.shouldDispatchAsFlow && flow) {
+    return flowChainPersonaIds(flow);
+  }
+  return [...resolvedTargetKeys];
 }
 
 // #220: compute the next cursor position from the given index. When
