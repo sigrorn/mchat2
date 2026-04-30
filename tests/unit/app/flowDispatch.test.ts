@@ -26,6 +26,7 @@ function flow(
       sequence: i,
       kind: s.kind,
       personaIds: s.personaIds,
+      instruction: null,
     })),
   };
 }

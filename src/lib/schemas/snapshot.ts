@@ -55,6 +55,9 @@ const messageSchema = z.object({
 const flowStepSchema = z.object({
   kind: z.union([z.literal("user"), z.literal("personas")]),
   personas: z.array(z.string()),
+  // #230: optional per-step hidden instruction. Absent in pre-#230
+  // snapshots; null or string in current ones.
+  instruction: z.string().nullable().optional(),
 });
 const flowSchema = z.object({
   currentStepIndex: z.number(),

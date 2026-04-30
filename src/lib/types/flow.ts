@@ -21,6 +21,11 @@ export interface FlowStep {
   kind: FlowStepKind;
   // Empty for `user` steps; non-empty for `personas` steps.
   personaIds: PersonaId[];
+  // #230: optional hidden instruction. When set on a `personas` step,
+  // buildContext appends "Step note: <instruction>" to the system
+  // prompt of every persona dispatched at this step. Null on user
+  // steps and on personas steps without an instruction.
+  instruction: string | null;
 }
 
 export interface Flow {
@@ -42,6 +47,10 @@ export interface Flow {
 export interface FlowDraftStep {
   kind: FlowStepKind;
   personaIds: PersonaId[];
+  // #230: optional per-step instruction. Empty string and undefined
+  // both serialize to NULL on disk; the repo treats them
+  // interchangeably as "no instruction."
+  instruction?: string | null;
 }
 
 export interface FlowDraft {

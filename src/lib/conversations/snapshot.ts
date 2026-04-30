@@ -52,6 +52,9 @@ export interface SnapshotMessage {
 export interface SnapshotFlowStep {
   kind: "user" | "personas";
   personas: string[];
+  // #230: optional per-step hidden instruction. Round-tripped as plain
+  // string. Absent / empty in legacy snapshots → null on import.
+  instruction?: string | null;
 }
 export interface SnapshotFlow {
   currentStepIndex: number;
@@ -189,6 +192,10 @@ export function serializeSnapshot(
         personas: s.personaIds
           .map((id) => idToName.get(id))
           .filter((n): n is string => n !== undefined),
+        // #230: round-trip the optional instruction. Empty string and
+        // null are equivalent on disk; we emit null in both cases so
+        // the shape is canonical.
+        ...(s.instruction ? { instruction: s.instruction } : {}),
       })),
     };
   }

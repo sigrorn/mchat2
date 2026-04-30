@@ -383,6 +383,13 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE messages ADD COLUMN confirmed_at INTEGER`,
   ],
+  // 25 — Per-step hidden instruction on flow_steps (#230). Nullable
+  // TEXT — buildContext appends "Step note: <instruction>" to the
+  // system prompt of every persona dispatched at this step when set.
+  // Existing steps backfill to NULL (no extra instruction).
+  [
+    `ALTER TABLE flow_steps ADD COLUMN instruction TEXT`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

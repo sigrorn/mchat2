@@ -132,6 +132,9 @@ export interface FlowStepsTable {
   flow_id: string;
   sequence: number;
   kind: string;
+  // #230: optional hidden instruction appended to the system prompt
+  // of every persona dispatched at this step. NULL = none.
+  instruction: string | null;
 }
 
 // #215: junction of personas participating in a `personas` step.

@@ -154,6 +154,9 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
       personaIds: s.personas
         .map((n) => nameToId.get(n.toLowerCase()))
         .filter((id): id is string => id !== undefined),
+      // #230: carry the per-step instruction across import. flowsRepo
+      // normalises empty/whitespace to null on store.
+      instruction: s.instruction ?? null,
     }));
     // Defensive: if a `personas` step lost all members in remap, drop
     // the step rather than trip the empty-personas validation.

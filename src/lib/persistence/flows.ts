@@ -54,6 +54,7 @@ export async function getFlow(conversationId: string): Promise<Flow | null> {
     sequence: r.sequence,
     kind: r.kind === "user" ? "user" : "personas",
     personaIds: byStep.get(r.id) ?? [],
+    instruction: r.instruction ?? null,
   }));
   return {
     id: flowRow.id,
@@ -131,6 +132,11 @@ export async function upsertFlow(
   for (let i = 0; i < draft.steps.length; i++) {
     const s = draft.steps[i]!;
     const stepId = newStepId();
+    // #230: empty-string instruction normalises to NULL — keeps the
+    // disk shape clean (a blank textbox shouldn't persist as a row
+    // with an empty hidden note).
+    const trimmedInstruction = s.instruction?.trim();
+    const instructionToStore = trimmedInstruction ? trimmedInstruction : null;
     await db
       .insertInto("flow_steps")
       .values({
@@ -138,6 +144,7 @@ export async function upsertFlow(
         flow_id: flowId,
         sequence: i,
         kind: s.kind,
+        instruction: instructionToStore,
       })
       .execute();
     if (s.personaIds.length > 0) {

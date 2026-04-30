@@ -28,6 +28,7 @@ function flow(
       sequence: i,
       kind: s.kind,
       personaIds: s.personaIds,
+      instruction: null,
     })),
   };
 }
@@ -94,11 +95,11 @@ describe("planFlowDispatch end-of-cycle wrap (#225)", () => {
       currentStepIndex: 4,
       loopStartIndex: 1,
       steps: [
-        { id: "s_0", flowId: "f_1", sequence: 0, kind: "user", personaIds: [] },
-        { id: "s_1", flowId: "f_1", sequence: 1, kind: "personas", personaIds: ["p_claudio"] },
-        { id: "s_2", flowId: "f_1", sequence: 2, kind: "user", personaIds: [] },
-        { id: "s_3", flowId: "f_1", sequence: 3, kind: "personas", personaIds: ["p_nvc"] },
-        { id: "s_4", flowId: "f_1", sequence: 4, kind: "user", personaIds: [] },
+        { id: "s_0", flowId: "f_1", sequence: 0, kind: "user", personaIds: [], instruction: null },
+        { id: "s_1", flowId: "f_1", sequence: 1, kind: "personas", personaIds: ["p_claudio"], instruction: null },
+        { id: "s_2", flowId: "f_1", sequence: 2, kind: "user", personaIds: [], instruction: null },
+        { id: "s_3", flowId: "f_1", sequence: 3, kind: "personas", personaIds: ["p_nvc"], instruction: null },
+        { id: "s_4", flowId: "f_1", sequence: 4, kind: "user", personaIds: [], instruction: null },
       ],
     };
     const plan = planFlowDispatch(f, [target("p_claudio")], "convo");
@@ -114,8 +115,8 @@ describe("planFlowDispatch end-of-cycle wrap (#225)", () => {
       currentStepIndex: 1,
       loopStartIndex: 0,
       steps: [
-        { id: "s_0", flowId: "f_1", sequence: 0, kind: "personas", personaIds: ["p_a"] },
-        { id: "s_1", flowId: "f_1", sequence: 1, kind: "user", personaIds: [] },
+        { id: "s_0", flowId: "f_1", sequence: 0, kind: "personas", personaIds: ["p_a"], instruction: null },
+        { id: "s_1", flowId: "f_1", sequence: 1, kind: "user", personaIds: [], instruction: null },
       ],
     };
     const plan = planFlowDispatch(f, [target("p_a")], "convo");

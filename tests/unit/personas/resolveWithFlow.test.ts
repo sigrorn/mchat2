@@ -41,6 +41,7 @@ function flow(steps: Array<{ kind: "user" | "personas"; personaIds: string[] }>,
       sequence: i,
       kind: s.kind,
       personaIds: s.personaIds,
+      instruction: null,
     })),
   };
 }
