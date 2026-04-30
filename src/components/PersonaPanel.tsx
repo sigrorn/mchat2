@@ -8,7 +8,7 @@
 import { useState } from "react";
 import type { Conversation, Flow, Message, Persona, ProviderId } from "@/lib/types";
 import * as flowsRepo from "@/lib/persistence/flows";
-import { nextPersonasStepPersonaIds } from "@/lib/app/flowSelectionSync";
+import { nextPersonasStepPersonaIds, upcomingStepIndexForPersona } from "@/lib/app/flowSelectionSync";
 import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { formatHostingTag } from "@/lib/providers/derived";
@@ -243,6 +243,7 @@ function PersonaPanelExpanded({
             onSelectNav={onSelectNavPersona ? () => onSelectNavPersona(p.id) : undefined}
             cost={costs[p.id]}
             conversationId={conversation.id}
+            flowStepIndex={flow ? upcomingStepIndexForPersona(flow, p.id) : null}
             onToggle={() => toggle(p.id)}
             onSave={async (patch) => {
               const { seenByEdits: sbe, ...personaPatch } = patch;
@@ -325,6 +326,7 @@ function PersonaRow({
   onSelectNav,
   cost,
   conversationId,
+  flowStepIndex,
   onToggle,
   onSave,
   onDelete,
@@ -336,6 +338,12 @@ function PersonaRow({
   onSelectNav: (() => void) | undefined;
   cost: CostResult | undefined;
   conversationId: string;
+  // #226: index of the upcoming personas-step that includes this
+  // persona, or null if this persona isn't part of the next dispatch.
+  // Renders as a `[step#N]` debug badge on the persona's secondary
+  // line so the user can see whether the cursor matches their mental
+  // model without opening the FlowEditor.
+  flowStepIndex: number | null;
   onToggle: () => void;
   onSave: (patch: {
     name?: string;
@@ -450,6 +458,13 @@ function PersonaRow({
             {persona.runsAfter.length > 0
               ? ` · after ${persona.runsAfter.map((id) => labelFor(id, allPersonas)).join(", ")}`
               : ""}
+            {/* #226: debug step badge — shows which flow step number
+                this persona's upcoming dispatch corresponds to, so the
+                user can spot a stuck cursor without opening the
+                FlowEditor. */}
+            {flowStepIndex !== null ? (
+              <span className="ml-1 text-amber-700">[step#{flowStepIndex}]</span>
+            ) : null}
           </div>
         </div>
         <button

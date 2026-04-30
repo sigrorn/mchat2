@@ -31,3 +31,29 @@ export function nextPersonasStepPersonaIds(flow: Flow): string[] | null {
   }
   return null;
 }
+
+// #226: which step index does this persona's *upcoming* dispatch
+// correspond to? Used by the panel's [step#N] debug badge so the user
+// can see at a glance whether the cursor matches their mental model.
+//
+// Same walker as nextPersonasStepPersonaIds, but stops at the first
+// personas-step (not just any) and only returns its index when the
+// queried persona is in that step's set. Personas that appear in a
+// later step but not the upcoming one get no badge — clutter-free.
+export function upcomingStepIndexForPersona(
+  flow: Flow,
+  personaId: string,
+): number | null {
+  const n = flow.steps.length;
+  if (n === 0) return null;
+  const loopStart = flow.loopStartIndex;
+  let idx = flow.currentStepIndex;
+  for (let i = 0; i < n; i++) {
+    const step = flow.steps[idx];
+    if (step?.kind === "personas") {
+      return step.personaIds.includes(personaId) ? idx : null;
+    }
+    idx = idx + 1 >= n ? loopStart : idx + 1;
+  }
+  return null;
+}
