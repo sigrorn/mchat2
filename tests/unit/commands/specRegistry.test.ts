@@ -74,7 +74,6 @@ describe("COMMAND_SPECS consistency (#237)", () => {
       "cols",
       "visibility",
       "select",
-      "order",
       "personas",
       "stats",
       "help",

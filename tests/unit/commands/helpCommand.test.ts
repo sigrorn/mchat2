@@ -17,7 +17,6 @@ describe("formatHelp (#80)", () => {
     expect(text).toContain("//pin");
     expect(text).toContain("//edit");
     expect(text).toContain("//visibility");
-    expect(text).toContain("//order");
     expect(text).toContain("//stats");
     expect(text).toContain("//personas");
     expect(text).toContain("@all");

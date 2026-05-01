@@ -1,9 +1,12 @@
+// planSend — Phase B of #241 trimmed this to single + parallel.
+// Tests that exercised the runs_after-driven DAG kind were removed;
+// what remains is the routing distinction and sortOrder-based stable
+// ordering for multi-target sends.
 import { describe, it, expect } from "vitest";
 import { planSend } from "@/lib/orchestration/sendPlanner";
-import { executeDag } from "@/lib/orchestration/dagExecutor";
 import type { Persona, PersonaTarget } from "@/lib/types";
 
-function persona(id: string, runsAfter: string[] = [], sortOrder = 0): Persona {
+function persona(id: string, sortOrder = 0): Persona {
   return {
     id,
     conversationId: "c_1",
@@ -15,10 +18,12 @@ function persona(id: string, runsAfter: string[] = [], sortOrder = 0): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder,
-    runsAfter,
+    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
-    visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
+    visibilityDefaults: {},
+    openaiCompatPreset: null,
+    roleLens: {},
   };
 }
 
@@ -37,31 +42,7 @@ describe("planSend", () => {
     expect(plan?.kind).toBe("single");
   });
 
-  it("multi-target 'targeted' mode is always parallel", () => {
-    const plan = planSend({
-      mode: "targeted",
-      targets: [target("a"), target("b")],
-      personas: [persona("a"), persona("b", ["a"])],
-      runId: 1,
-    });
-    expect(plan?.kind).toBe("parallel");
-  });
-
-  it("'all' with runsAfter produces dag", () => {
-    const plan = planSend({
-      mode: "all",
-      targets: [target("a"), target("b")],
-      personas: [persona("a"), persona("b", ["a"])],
-      runId: 1,
-    });
-    expect(plan?.kind).toBe("dag");
-    if (plan?.kind === "dag") {
-      expect(plan.plan.nodes.get("b")?.parents).toEqual(["a"]);
-      expect(plan.plan.roots).toEqual(["a"]);
-    }
-  });
-
-  it("'all' without runsAfter collapses to parallel", () => {
+  it("multi-target dispatches flat-parallel", () => {
     const plan = planSend({
       mode: "all",
       targets: [target("a"), target("b")],
@@ -71,14 +52,14 @@ describe("planSend", () => {
     expect(plan?.kind).toBe("parallel");
   });
 
-  it("ignores runsAfter edges into personas outside the target set", () => {
+  it("multi-target 'targeted' mode dispatches flat-parallel", () => {
     const plan = planSend({
-      mode: "all",
-      targets: [target("b")],
-      personas: [persona("a"), persona("b", ["a"])],
+      mode: "targeted",
+      targets: [target("a"), target("b")],
+      personas: [persona("a"), persona("b")],
       runId: 1,
     });
-    expect(plan?.kind).toBe("single");
+    expect(plan?.kind).toBe("parallel");
   });
 
   // #117: stable display order — parallel mode sorts targets by persona.sortOrder.
@@ -86,11 +67,7 @@ describe("planSend", () => {
     const plan = planSend({
       mode: "targeted",
       targets: [target("c"), target("a"), target("b")],
-      personas: [
-        persona("a", [], 0),
-        persona("b", [], 1),
-        persona("c", [], 2),
-      ],
+      personas: [persona("a", 0), persona("b", 1), persona("c", 2)],
       runId: 1,
     });
     expect(plan?.kind).toBe("parallel");
@@ -99,33 +76,13 @@ describe("planSend", () => {
     }
   });
 
-  it("DAG mode lists roots in sortOrder; dispatch visits nodes in sortOrder+topo order", async () => {
-    // a (0), c (2) are both roots; b (1) runs after c.
-    // Desired display order: a, c, b.
+  it("returns null on empty targets", () => {
     const plan = planSend({
       mode: "all",
-      targets: [target("c"), target("b"), target("a")],
-      personas: [
-        persona("a", [], 0),
-        persona("b", ["c"], 1),
-        persona("c", [], 2),
-      ],
+      targets: [],
+      personas: [],
       runId: 1,
     });
-    expect(plan?.kind).toBe("dag");
-    if (plan?.kind !== "dag") return;
-    // Roots: nodes with no parents, in sortOrder.
-    expect(plan.plan.roots).toEqual(["a", "c"]);
-    // Dispatch order: execute with a runNode that records the dispatch
-    // sequence. Expected: a, c (both root, sortOrder), then b (after c).
-    const started: string[] = [];
-    await executeDag({
-      plan: plan.plan,
-      async runNode(n) {
-        started.push(n.key);
-        return "completed";
-      },
-    });
-    expect(started).toEqual(["a", "c", "b"]);
+    expect(plan).toBeNull();
   });
 });
