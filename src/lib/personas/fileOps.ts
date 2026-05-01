@@ -11,10 +11,11 @@ import { serializePersonas, parsePersonasImport, resolveImport } from "./importE
 import { createPersona, updatePersona } from "./service";
 import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
+import * as flowsRepo from "../persistence/flows";
 import { transaction } from "../persistence/transaction";
 import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
-import type { Persona } from "../types";
+import type { Flow, Persona } from "../types";
 
 function prefixWorkingDir(filename: string, workingDir: string | null): string {
   return workingDir ? `${workingDir}/${filename}` : filename;
@@ -26,8 +27,11 @@ export async function exportPersonasToFile(
   conversationTitle: string,
   personas: readonly Persona[],
   workingDir: string | null,
+  // #236: optional flow to bundle. When omitted, the export envelope
+  // has no `flow` field — preserves byte-identity with pre-#236 exports.
+  flow?: Flow | null,
 ): Promise<ExportOutcome> {
-  const json = serializePersonas(personas);
+  const json = serializePersonas(personas, flow ? { flow } : undefined);
   const defaultPath = prefixWorkingDir(defaultExportFilename(conversationTitle), workingDir);
   const chosen = await fs.saveDialog({
     defaultPath,
@@ -57,7 +61,7 @@ export async function importPersonasFromFile(
   const parsed = parsePersonasImport(raw);
   if (!parsed.ok) return { ok: false, reason: "error", message: parsed.error };
   const existing = await repo.listPersonas(conversationId);
-  const resolved = resolveImport(existing, parsed.personas);
+  const resolved = resolveImport(existing, parsed.personas, parsed.flow);
   // #164: an N-persona import is the most write-heavy multi-step
   // mutation we have — N creates, M runsAfter patches, K identity pins.
   // A mid-import failure used to leave half-created personas with no
@@ -83,9 +87,8 @@ export async function importPersonasFromFile(
     }
     // Build a name-slug → id map across existing live + freshly created.
     const post = await repo.listPersonas(conversationId);
-    const idBySlug = new Map(
-      post.filter((p) => p.deletedAt === null).map((p) => [p.nameSlug, p.id] as const),
-    );
+    const live = post.filter((p) => p.deletedAt === null);
+    const idBySlug = new Map(live.map((p) => [p.nameSlug, p.id] as const));
     for (const entry of resolved.toCreate) {
       if (entry.runsAfter.length === 0) continue;
       const parentIds = entry.runsAfter
@@ -95,6 +98,53 @@ export async function importPersonasFromFile(
       const p = post.find((x) => x.nameSlug === slugify(entry.name));
       if (!p) continue;
       await updatePersona({ id: p.id, runsAfter: parentIds });
+    }
+    // #236: apply per-persona roleLens. The on-disk lens is name-keyed;
+    // remap to ids against the post-import set. The literal "user" key
+    // passes through unchanged. Names that don't resolve (e.g. a lens
+    // entry referencing a persona that wasn't in the import file) are
+    // dropped silently — same policy as snapshotImport's #213 path.
+    for (const entry of resolved.toCreate) {
+      if (!entry.roleLens) continue;
+      const remapped: Record<string, "user" | "assistant"> = {};
+      for (const [key, value] of Object.entries(entry.roleLens)) {
+        if (key === "user") {
+          remapped.user = value;
+        } else {
+          const id = idBySlug.get(slugify(key));
+          if (id) remapped[id] = value;
+        }
+      }
+      if (Object.keys(remapped).length === 0) continue;
+      const p = post.find((x) => x.nameSlug === slugify(entry.name));
+      if (!p) continue;
+      await updatePersona({ id: p.id, roleLens: remapped });
+    }
+    // #236: recreate the bundled flow against the freshly-assigned
+    // ids. Names that don't resolve are dropped; if a personas-step
+    // loses every member it's dropped rather than tripping the empty-
+    // personas validation. Mirrors the snapshot import's #215 path.
+    if (resolved.flow) {
+      const remappedSteps = resolved.flow.steps.map((s) => ({
+        kind: s.kind,
+        personaIds: s.personas
+          .map((name) => idBySlug.get(slugify(name)))
+          .filter((id): id is string => id !== undefined),
+        instruction: s.instruction ?? null,
+      }));
+      const cleaned = remappedSteps.filter(
+        (s) => !(s.kind === "personas" && s.personaIds.length === 0),
+      );
+      if (cleaned.length > 0) {
+        const rawLoopStart = resolved.flow.loopStartIndex ?? 0;
+        const safeLoopStart =
+          rawLoopStart >= 0 && rawLoopStart < cleaned.length ? rawLoopStart : 0;
+        await flowsRepo.upsertFlow(conversationId, {
+          currentStepIndex: resolved.flow.currentStepIndex,
+          loopStartIndex: safeLoopStart,
+          steps: cleaned,
+        });
+      }
     }
     // #36: every imported persona needs the same identity pin that
     // CreateForm sets up — without it the LLM defaults to its provider

@@ -10,7 +10,7 @@
 // ------------------------------------------------------------------
 
 import { z } from "zod";
-import type { ExportedPersona } from "../personas/importExport";
+import type { ExportedFlow, ExportedPersona } from "../personas/importExport";
 import { ALL_PROVIDER_IDS } from "../providers/registry";
 import type { ProviderId } from "../types";
 
@@ -29,25 +29,53 @@ const importedPersonaSchema = z
     apertusProductId: z.unknown().optional(),
     visibilityDefaults: z.unknown().optional(),
     runsAfter: z.unknown().optional(),
+    // #236: optional name-keyed role lens. Absent in pre-#236 envelopes.
+    roleLens: z.unknown().optional(),
   })
-  .transform((v): ExportedPersona => ({
-    name: v.name,
-    provider: v.provider as ProviderId,
-    systemPromptOverride: nullableString(v.systemPromptOverride),
-    modelOverride: nullableString(v.modelOverride),
-    colorOverride: nullableString(v.colorOverride),
-    apertusProductId: nullableString(v.apertusProductId),
-    visibilityDefaults: parseVisibilityDefaultsField(v.visibilityDefaults),
-    runsAfter: parseRunsAfterField(v.runsAfter),
-  }));
+  .transform((v): ExportedPersona => {
+    const lens = parseRoleLensField(v.roleLens);
+    return {
+      name: v.name,
+      provider: v.provider as ProviderId,
+      systemPromptOverride: nullableString(v.systemPromptOverride),
+      modelOverride: nullableString(v.modelOverride),
+      colorOverride: nullableString(v.colorOverride),
+      apertusProductId: nullableString(v.apertusProductId),
+      visibilityDefaults: parseVisibilityDefaultsField(v.visibilityDefaults),
+      runsAfter: parseRunsAfterField(v.runsAfter),
+      ...(lens ? { roleLens: lens } : {}),
+    };
+  });
+
+// #236: bundled flow definition. Loose schema — bad steps are dropped
+// during the resolveImport remap rather than at parse time, matching
+// the snapshot import's "tolerate gradual drift" stance.
+const importedFlowStepSchema = z.object({
+  kind: z.union([z.literal("user"), z.literal("personas")]),
+  personas: z.array(z.string()),
+  instruction: z.string().nullable().optional(),
+});
+const importedFlowSchema = z.object({
+  currentStepIndex: z.number(),
+  loopStartIndex: z.number().optional(),
+  steps: z.array(importedFlowStepSchema),
+});
 
 const envelopeSchema = z.object({
   version: z.literal(PERSONA_EXPORT_VERSION),
   personas: z.array(z.unknown()),
+  // #236: optional. Absent in pre-#236 envelopes.
+  flow: importedFlowSchema.optional(),
 });
 
 export type ParseResult =
-  | { ok: true; personas: ExportedPersona[]; skipped: string[] }
+  | {
+      ok: true;
+      personas: ExportedPersona[];
+      skipped: string[];
+      // #236: bundled flow when present. Absent for pre-#236 envelopes.
+      flow?: ExportedFlow;
+    }
   | { ok: false; error: string };
 
 export function parsePersonasImport(raw: string): ParseResult {
@@ -90,7 +118,26 @@ export function parsePersonasImport(raw: string): ParseResult {
       skipped.push(name);
     }
   }
-  return { ok: true, personas, skipped };
+  return {
+    ok: true,
+    personas,
+    skipped,
+    ...(top.data.flow ? { flow: top.data.flow as ExportedFlow } : {}),
+  };
+}
+
+// #236: name-keyed map of "user" | "assistant" values. Returns null
+// for absent / empty / malformed input so the persona's roleLens
+// field stays undefined when there's nothing useful to carry.
+function parseRoleLensField(
+  v: unknown,
+): Record<string, "user" | "assistant"> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: Record<string, "user" | "assistant"> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (val === "user" || val === "assistant") out[k] = val;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 function nullableString(v: unknown): string | null {

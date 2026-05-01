@@ -7,9 +7,23 @@
 // Collaborators: components/PersonaPanel.tsx (sole UI consumer).
 // ------------------------------------------------------------------
 
-import type { Persona, ProviderId } from "../types";
+import type { Flow, Persona, ProviderId } from "../types";
 
 export const PERSONA_EXPORT_VERSION = 1;
+
+// #236: bundled flow definition. Mirrors SnapshotFlow's shape — steps
+// reference participating personas by *name* for portability. Optional
+// throughout for back-compat with pre-#236 export files.
+export interface ExportedFlowStep {
+  kind: "user" | "personas";
+  personas: string[];
+  instruction?: string | null;
+}
+export interface ExportedFlow {
+  currentStepIndex: number;
+  loopStartIndex?: number;
+  steps: ExportedFlowStep[];
+}
 
 // On-disk representation. Exported personas drop ids and conversation-
 // scoped fields so the document is portable; runsAfter is by name.
@@ -22,31 +36,83 @@ export interface ExportedPersona {
   apertusProductId: string | null;
   visibilityDefaults: Record<string, "y" | "n">;
   runsAfter: string[]; // names of parent personas in this file
+  // #236: per-persona role lens, keyed by speaker *name* (not id).
+  // Literal 'user' key passes through unchanged. Optional for
+  // back-compat with pre-#236 envelopes.
+  roleLens?: Record<string, "user" | "assistant">;
 }
 
 export interface ExportEnvelope {
   version: typeof PERSONA_EXPORT_VERSION;
   personas: ExportedPersona[];
+  // #236: optional bundled flow. Absent in pre-#236 envelopes.
+  flow?: ExportedFlow;
 }
 
-export function serializePersonas(personas: readonly Persona[]): string {
+export interface SerializePersonasOptions {
+  // #236: optional flow to bundle. When absent, the resulting envelope
+  // has no `flow` field — preserves byte-identity with pre-#236 exports.
+  flow?: Flow | null;
+}
+
+// #236: name-keyed lens (literal 'user' passes through; persona-id keys
+// remap to names; ids that don't resolve to a live persona are dropped).
+function serializeRoleLens(
+  lens: Record<string, "user" | "assistant">,
+  idToName: ReadonlyMap<string, string>,
+): Record<string, "user" | "assistant"> {
+  const out: Record<string, "user" | "assistant"> = {};
+  for (const [key, value] of Object.entries(lens)) {
+    if (key === "user") {
+      out.user = value;
+    } else {
+      const name = idToName.get(key);
+      if (name) out[name] = value;
+    }
+  }
+  return out;
+}
+
+export function serializePersonas(
+  personas: readonly Persona[],
+  options?: SerializePersonasOptions,
+): string {
   const live = personas.filter((p) => p.deletedAt === null);
   const nameById = new Map(live.map((p) => [p.id, p.name] as const));
   const out: ExportEnvelope = {
     version: PERSONA_EXPORT_VERSION,
-    personas: live.map((p) => ({
-      name: p.name,
-      provider: p.provider,
-      systemPromptOverride: p.systemPromptOverride,
-      modelOverride: p.modelOverride,
-      colorOverride: p.colorOverride,
-      apertusProductId: p.apertusProductId,
-      visibilityDefaults: p.visibilityDefaults,
-      runsAfter: p.runsAfter
-        .map((id) => nameById.get(id))
-        .filter((n): n is string => n !== undefined),
-    })),
+    personas: live.map((p) => {
+      const lens = serializeRoleLens(p.roleLens, nameById);
+      return {
+        name: p.name,
+        provider: p.provider,
+        systemPromptOverride: p.systemPromptOverride,
+        modelOverride: p.modelOverride,
+        colorOverride: p.colorOverride,
+        apertusProductId: p.apertusProductId,
+        visibilityDefaults: p.visibilityDefaults,
+        runsAfter: p.runsAfter
+          .map((id) => nameById.get(id))
+          .filter((n): n is string => n !== undefined),
+        // #236: emit only when non-empty so legacy-shaped exports stay
+        // byte-for-byte identical. Imports treat absent + {} the same.
+        ...(Object.keys(lens).length > 0 ? { roleLens: lens } : {}),
+      };
+    }),
   };
+  if (options?.flow) {
+    out.flow = {
+      currentStepIndex: options.flow.currentStepIndex,
+      loopStartIndex: options.flow.loopStartIndex,
+      steps: options.flow.steps.map((s) => ({
+        kind: s.kind,
+        personas: s.personaIds
+          .map((id) => nameById.get(id))
+          .filter((n): n is string => n !== undefined),
+        ...(s.instruction ? { instruction: s.instruction } : {}),
+      })),
+    };
+  }
   return JSON.stringify(out, null, 2);
 }
 
@@ -70,14 +136,21 @@ export interface ResolvedImport {
     apertusProductId: string | null;
     visibilityDefaults: Record<string, "y" | "n">;
     runsAfter: string[]; // resolved names
+    // #236: name-keyed role lens carried verbatim from the envelope
+    // so fileOps can remap to fresh ids after createPersona returns.
+    roleLens?: Record<string, "user" | "assistant">;
   }>;
   skipped: string[];
   visibilityWarnings: string[];
+  // #236: optional bundled flow, threaded through unchanged so the
+  // file-ops layer can recreate it against the freshly-assigned ids.
+  flow?: ExportedFlow;
 }
 
 export function resolveImport(
   existing: readonly Persona[],
   imported: readonly ExportedPersona[],
+  flow?: ExportedFlow,
 ): ResolvedImport {
   const existingNames = new Set(
     existing.filter((p) => p.deletedAt === null).map((p) => p.name.toLowerCase()),
@@ -122,10 +195,17 @@ export function resolveImport(
         apertusProductId: p.apertusProductId,
         visibilityDefaults: filtered,
         runsAfter: p.runsAfter.filter((n) => known.has(n.toLowerCase())),
+        // #236: carry roleLens verbatim — fileOps remaps the
+        // name keys to ids after createPersona assigns them.
+        ...(p.roleLens && Object.keys(p.roleLens).length > 0
+          ? { roleLens: p.roleLens }
+          : {}),
       };
     }),
     skipped,
     visibilityWarnings,
+    // #236: thread the bundled flow through unchanged.
+    ...(flow ? { flow } : {}),
   };
 }
 

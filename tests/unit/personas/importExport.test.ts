@@ -23,7 +23,9 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     runsAfter: over.runsAfter ?? [],
     deletedAt: over.deletedAt ?? null,
     apertusProductId: over.apertusProductId ?? null,
-    visibilityDefaults: over.visibilityDefaults ?? {}, openaiCompatPreset: null, roleLens: {},
+    visibilityDefaults: over.visibilityDefaults ?? {},
+    openaiCompatPreset: null,
+    roleLens: over.roleLens ?? {},
   };
 }
 
@@ -101,6 +103,7 @@ function imp(over: Partial<ExportedPersona> & { name: string }): ExportedPersona
     apertusProductId: over.apertusProductId ?? null,
     visibilityDefaults: over.visibilityDefaults ?? {},
     runsAfter: over.runsAfter ?? [],
+    ...(over.roleLens ? { roleLens: over.roleLens } : {}),
   };
 }
 

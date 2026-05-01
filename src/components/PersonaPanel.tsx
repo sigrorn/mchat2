@@ -207,6 +207,7 @@ function PersonaPanelExpanded({
         conversationId={conversation.id}
         conversationTitle={conversation.title}
         personas={personas}
+        flow={flow}
         onCreated={(p) => {
           upsert(p);
           // #37: auto-select so the next implicit send reaches the
@@ -540,11 +541,14 @@ function CreateForm({
   conversationId,
   conversationTitle,
   personas,
+  flow,
   onCreated,
 }: {
   conversationId: string;
   conversationTitle: string;
   personas: readonly Persona[];
+  // #236: passed through so onExport can bundle the flow.
+  flow: Flow | null;
   onCreated: (p: Persona) => void;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
@@ -604,10 +608,14 @@ function CreateForm({
   };
 
   const onExport = async (): Promise<void> => {
+    // #236: bundle the conversation's flow when one is attached so a
+    // shared persona kit (e.g. an NVC setup) round-trips with the
+    // step ordering + per-persona roleLens that make it actually work.
     const r = await exportPersonasToFile(
       conversationTitle,
       personas,
       useUiStore.getState().workingDir,
+      flow,
     );
     if (r.ok) {
       await useMessagesStore
