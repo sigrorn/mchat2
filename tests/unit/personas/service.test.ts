@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   createPersona,
-  updatePersona,
   deletePersona,
   PersonaValidationError,
 } from "@/lib/personas/service";
@@ -66,38 +65,10 @@ describe("createPersona", () => {
   });
 });
 
-describe("updatePersona", () => {
-  it("detects cycles via runsAfter", async () => {
-    const a = await createPersona({
-      conversationId: "c_1",
-      provider: "mock",
-      name: "A",
-      currentMessageIndex: 0,
-    });
-    const b = await createPersona({
-      conversationId: "c_1",
-      provider: "mock",
-      name: "B",
-      currentMessageIndex: 0,
-      runsAfter: [a.id],
-    });
-    await expect(updatePersona({ id: a.id, runsAfter: [b.id] })).rejects.toMatchObject({
-      code: "cycle",
-    });
-  });
-
-  it("rejects self-parent", async () => {
-    const a = await createPersona({
-      conversationId: "c_1",
-      provider: "mock",
-      name: "A",
-      currentMessageIndex: 0,
-    });
-    await expect(updatePersona({ id: a.id, runsAfter: [a.id] })).rejects.toMatchObject({
-      code: "cycle",
-    });
-  });
-});
+// #241 Phase A: cycle and self-parent validation in updatePersona was
+// removed alongside the persona-editor's runs_after field. The only
+// remaining caller (auto-migration) clears runsAfter to [] which never
+// trips the validator, so the tests are obsolete.
 
 describe("deletePersona", () => {
   it("tombstones instead of hard-deleting", async () => {
