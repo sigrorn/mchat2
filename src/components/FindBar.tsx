@@ -7,10 +7,19 @@
 // Collaborators: uiStore (state), MessageList (scrolls to active match).
 // ------------------------------------------------------------------
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { useUiStore } from "@/stores/uiStore";
 
-export function FindBar({ matchCount }: { matchCount: number }): JSX.Element | null {
+export function FindBar({
+  matchCount,
+  scrollContainerRef,
+}: {
+  matchCount: number;
+  // #239: forwarded from ChatView so PgUp / PgDn / Home / End / arrows
+  // typed in the find input scroll the chat container instead of
+  // dying at the input field.
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
+}): JSX.Element | null {
   const find = useUiStore((s) => s.find);
   const setQuery = useUiStore((s) => s.setFindQuery);
   const setCase = useUiStore((s) => s.setFindCaseSensitive);
@@ -24,16 +33,58 @@ export function FindBar({ matchCount }: { matchCount: number }): JSX.Element | n
 
   if (!find.open) return null;
 
+  // #239: forward scroll keys to the chat container so the user can
+  // browse context above / below the current match without leaving
+  // the find input.
+  const scrollChat = (delta: number, behavior: "smooth" | "auto" = "smooth"): void => {
+    const el = scrollContainerRef?.current;
+    if (!el) return;
+    el.scrollBy({ top: delta, behavior });
+  };
+  const scrollChatTo = (top: number): void => {
+    const el = scrollContainerRef?.current;
+    if (!el) return;
+    el.scrollTo({ top, behavior: "smooth" });
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === "Escape") {
       e.preventDefault();
       close();
-    } else if (e.key === "Enter") {
+      return;
+    }
+    if (e.key === "Enter") {
       e.preventDefault();
       if (matchCount === 0) return;
       const delta = e.shiftKey ? -1 : 1;
       const next = (find.activeIndex + delta + matchCount) % matchCount;
       setActive(next);
+      return;
+    }
+    // #239: scroll-key forwarding. The find input is single-line, so
+    // PgUp / PgDn / Home / End / vertical arrows don't have any
+    // useful in-field semantics — repurpose them to scroll the chat.
+    const el = scrollContainerRef?.current;
+    if (!el) return;
+    const page = el.clientHeight - 24; // small overlap to keep context
+    if (e.key === "PageDown") {
+      e.preventDefault();
+      scrollChat(page);
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      scrollChat(-page);
+    } else if (e.key === "Home" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      scrollChatTo(0);
+    } else if (e.key === "End" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      scrollChatTo(el.scrollHeight);
+    } else if (e.key === "ArrowDown" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      scrollChat(40);
+    } else if (e.key === "ArrowUp" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      scrollChat(-40);
     }
   };
 

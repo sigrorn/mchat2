@@ -11,6 +11,19 @@
 
 import type { Message, Persona } from "@/lib/types";
 
+// #239: per-bubble find state. When non-null, the bubble overlays
+// inline <mark> highlights for every occurrence of `query`; the
+// active-match-index'th occurrence (in document order within the
+// bubble) gets the strong-active class so the user can see which
+// one prev/next is on without reading the X-of-Y counter.
+export interface FindState {
+  query: string;
+  caseSensitive: boolean;
+  /** Active match index within THIS bubble (0-based), or -1 when
+   *  the active match lives in another bubble. */
+  activeMatchIndex: number;
+}
+
 export interface BubbleProps {
   message: Message;
   personas: readonly Persona[];
@@ -22,6 +35,19 @@ export interface BubbleProps {
   // calls this. Undefined for non-notice rows (and for the renderer
   // that doesn't want to expose the affordance).
   onConfirm?: () => void;
+  // #239: find-bar overlay state. Null when the bar is closed or
+  // the query is empty.
+  findState?: FindState | null;
+}
+
+function findStateEqual(a: FindState | null, b: FindState | null): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  return (
+    a.query === b.query &&
+    a.caseSensitive === b.caseSensitive &&
+    a.activeMatchIndex === b.activeMatchIndex
+  );
 }
 
 function addressedEqual(a: readonly string[], b: readonly string[]): boolean {
@@ -48,6 +74,8 @@ export function areBubblePropsEqual(prev: BubbleProps, next: BubbleProps): boole
   // matter, but undefined vs defined does.
   if (!!prev.onEdit !== !!next.onEdit) return false;
   if (!!prev.onConfirm !== !!next.onConfirm) return false;
+  // #239: find state affects the rendered overlay (highlights).
+  if (!findStateEqual(prev.findState ?? null, next.findState ?? null)) return false;
   const a = prev.message;
   const b = next.message;
   if (a === b) return true;

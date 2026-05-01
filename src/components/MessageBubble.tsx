@@ -11,7 +11,7 @@
 //                rendering/messageBody, providers/derived.
 // ------------------------------------------------------------------
 
-import { memo } from "react";
+import { memo, useLayoutEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message } from "@/lib/types";
@@ -22,10 +22,41 @@ import { renderMessageBody } from "@/lib/rendering/messageBody";
 import { classify } from "@/lib/rendering/codeBlocks";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { formatUserHeader } from "@/lib/conversations/userHeader";
+import { clearHighlights, highlightMatches } from "@/lib/ui/findHighlight";
 import { DiagramBlock } from "./DiagramBlock";
-import { areBubblePropsEqual, type BubbleProps } from "./messageBubbleMemo";
+import {
+  areBubblePropsEqual,
+  type BubbleProps,
+  type FindState,
+} from "./messageBubbleMemo";
 import { AttemptHistory } from "./AttemptHistory";
 import { DangerButton } from "@/components/ui/Button";
+
+// #239: post-render effect that overlays inline find highlights on
+// the bubble's content. Runs after every render so streaming content
+// (assistant rows growing token-by-token) keeps its highlights in
+// sync with the find state.
+function useFindHighlight(
+  ref: React.RefObject<HTMLElement | null>,
+  message: Message,
+  findState: FindState | null | undefined,
+): void {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    clearHighlights(el);
+    if (!findState || findState.query === "") return;
+    highlightMatches(el, findState.query, {
+      caseSensitive: findState.caseSensitive,
+      activeMatchIndex: findState.activeMatchIndex,
+    });
+    return () => {
+      clearHighlights(el);
+    };
+    // message.content covers streaming updates; findState identity
+    // covers query / case / active-match changes.
+  }, [ref, message.content, message.id, findState]);
+}
 
 // #63: render #N patterns in notice text as clickable scroll-links.
 // #211: scroll target lookup reads the current conversation's
@@ -121,7 +152,11 @@ function MessageBubbleImpl({
   onRetry,
   onEdit,
   onConfirm,
+  findState,
 }: BubbleProps): JSX.Element {
+  // #239: bubble-root ref for inline find highlighting.
+  const bubbleRef = useRef<HTMLDivElement | null>(null);
+  useFindHighlight(bubbleRef, message, findState ?? null);
   // Notice rows (#8): UI-only info/error from in-app commands. Visually
   // distinct, italicized, never reach the LLM.
   if (message.role === "notice") {
@@ -132,6 +167,7 @@ function MessageBubbleImpl({
     const hasMarkdownTable = /^\s*\|[\s\-:|]+\|\s*$/m.test(message.content);
     return (
       <div
+        ref={bubbleRef}
         role="note"
         data-message-id={message.id}
         className={`mb-3 flex items-start gap-2 rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm`}
@@ -203,6 +239,7 @@ function MessageBubbleImpl({
       : "bg-blue-50";
   return (
     <div
+      ref={bubbleRef}
       data-excluded={excluded ? "true" : undefined}
       data-pinned={message.pinned ? "true" : undefined}
       data-message-id={message.id}

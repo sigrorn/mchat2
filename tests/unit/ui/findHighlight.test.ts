@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // DOM highlight walker (#239). Walks rendered text nodes, wraps
 // query matches in <mark>, optionally tags one as the active match.
 // JSDOM-backed — no browser needed.

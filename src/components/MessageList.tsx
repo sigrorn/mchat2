@@ -28,9 +28,11 @@ import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { filterSupersededMessages } from "@/lib/orchestration/filterSupersededMessages";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import { computeMatchScrollOffset } from "@/lib/ui/scrollCenter";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
 import { MessageBubble } from "./MessageBubble";
+import type { FindState } from "./messageBubbleMemo";
 import { EditReplayEditor } from "./EditReplayEditor";
 import { useScrollPin } from "./useScrollPin";
 
@@ -55,12 +57,22 @@ const OVERSCAN = 6;
 export function MessageList({
   conversationId,
   activeMatchMessageId = null,
+  activeMatchIndexInMessage = -1,
+  findQuery = "",
+  findCaseSensitive = false,
   scrollContainerRef,
   pinnedRef: pinnedRefProp,
   onScroll: onScrollProp,
 }: {
   conversationId: string;
   activeMatchMessageId?: string | null;
+  // #239: index of the active match within its message (in document
+  // order). -1 when the active match is in another bubble.
+  activeMatchIndexInMessage?: number;
+  // #239: find state for inline highlighting. Empty query disables
+  // highlighting entirely (matches today's "no find bar" behaviour).
+  findQuery?: string;
+  findCaseSensitive?: boolean;
   // #137: when the parent (ChatView) needs the scroll container — for
   // the header's prev/next user-message arrows — it forwards a ref.
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
@@ -210,17 +222,67 @@ export function MessageList({
     return null;
   })();
 
-  // #53: when the find bar sets a new active match, scroll the
-  // matching bubble into view. With virtualization the target row may
-  // not be mounted yet, so we use scrollToIndex (computes the offset
-  // from estimated/measured sizes) instead of scrollIntoView.
+  // #53/#239: when the find bar sets a new active match, scroll the
+  // match into view. Two-step: virtualizer.scrollToIndex first to
+  // ensure the row is mounted, then on the next frame measure the
+  // active <mark>'s rect and scroll the container so its midpoint
+  // sits at the viewport's midpoint, clamped at the scroll bounds.
   useEffect(() => {
     if (!activeMatchMessageId) return;
     const idx = itemIndexByMessageId.get(activeMatchMessageId);
     if (idx === undefined) return;
     pinnedRef.current = false;
-    virtualizer.scrollToIndex(idx, { align: "center", behavior: "smooth" });
-  }, [activeMatchMessageId, itemIndexByMessageId, pinnedRef, virtualizer]);
+    virtualizer.scrollToIndex(idx, { align: "center", behavior: "auto" });
+    // Defer until the next frame so React has applied the post-scroll
+    // mount + the bubble's useFindHighlight effect has inserted the
+    // <mark data-find="active"> element. Without the wait the row
+    // exists but the active mark hasn't been painted yet.
+    const handle = requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const bubble = container.querySelector<HTMLElement>(
+        `[data-message-id="${activeMatchMessageId}"]`,
+      );
+      if (!bubble) return;
+      const activeMark = bubble.querySelector<HTMLElement>('mark[data-find="active"]');
+      const target = activeMark ?? bubble;
+      // offsetTop is relative to the offsetParent; since the row
+      // wrapper transforms via translateY, the simplest reliable
+      // measurement is getBoundingClientRect against the container.
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const matchTop = container.scrollTop + (targetRect.top - containerRect.top);
+      const next = computeMatchScrollOffset({
+        matchTop,
+        matchHeight: targetRect.height,
+        containerHeight: container.clientHeight,
+        scrollHeight: container.scrollHeight,
+      });
+      container.scrollTo({ top: next, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [
+    activeMatchMessageId,
+    activeMatchIndexInMessage,
+    itemIndexByMessageId,
+    pinnedRef,
+    virtualizer,
+    containerRef,
+  ]);
+
+  // #239: per-bubble find state. Memoized so a bubble's findState
+  // reference stays stable when the active match isn't on that bubble.
+  const findStateForMessage = useMemo(() => {
+    return (messageId: string): FindState | null => {
+      if (findQuery === "") return null;
+      return {
+        query: findQuery,
+        caseSensitive: findCaseSensitive,
+        activeMatchIndex:
+          messageId === activeMatchMessageId ? activeMatchIndexInMessage : -1,
+      };
+    };
+  }, [findQuery, findCaseSensitive, activeMatchMessageId, activeMatchIndexInMessage]);
 
   const onCopy = (e: React.ClipboardEvent): void => {
     const sel = window.getSelection();
@@ -289,6 +351,7 @@ export function MessageList({
                 effectiveLimitIndex,
                 userNumbers,
                 personas,
+                findStateForMessage,
               })}
             </div>
           );
@@ -307,14 +370,24 @@ interface RenderCtx {
   effectiveLimitIndex: number | null;
   userNumbers: Map<number, number>;
   personas: readonly Persona[];
+  findStateForMessage: (messageId: string) => FindState | null;
 }
 
 function renderItem(
   item: ReturnType<typeof groupIntoColumns>[number] | { kind: "row"; message: Message },
   ctx: RenderCtx,
 ): JSX.Element {
-  const { editingId, setEditingId, replay, retry, conversation, effectiveLimitIndex, userNumbers, personas } =
-    ctx;
+  const {
+    editingId,
+    setEditingId,
+    replay,
+    retry,
+    conversation,
+    effectiveLimitIndex,
+    userNumbers,
+    personas,
+    findStateForMessage,
+  } = ctx;
   if (item.kind === "row") {
     const m = item.message;
     if (editingId === m.id && m.role === "user") {
@@ -347,6 +420,8 @@ function renderItem(
               void useMessagesStore.getState().confirmNotice(m.conversationId, m.id),
           }
         : {}),
+      // #239: inline find highlights when the find bar is open.
+      findState: findStateForMessage(m.id),
     };
     return <MessageBubble {...bubbleProps} />;
   }
@@ -384,6 +459,7 @@ function renderItem(
             userNumber={null}
             excluded={conversation ? isExcludedByLimit(m, conversation) : false}
             onRetry={() => void retry(m)}
+            findState={findStateForMessage(m.id)}
           />
         );
       })}

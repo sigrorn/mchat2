@@ -89,6 +89,18 @@ export function ChatView(): JSX.Element {
     [find.open, find.query, find.caseSensitive, messages],
   );
   const activeMatch = matches[find.activeIndex] ?? null;
+  // #239: index of the active match WITHIN its message (0-based,
+  // document order). MessageList passes this through to the bubble's
+  // useFindHighlight effect so the i-th <mark> in that bubble gets
+  // the strong-active class.
+  const activeMatchIndexInMessage = useMemo(() => {
+    if (!activeMatch) return -1;
+    let count = 0;
+    for (let i = 0; i < find.activeIndex; i++) {
+      if (matches[i]?.messageId === activeMatch.messageId) count++;
+    }
+    return count;
+  }, [activeMatch, matches, find.activeIndex]);
 
   // #137: ref to the message-list scroll container — used to read
   // current scroll metrics and to scroll programmatically when the
@@ -263,10 +275,13 @@ export function ChatView(): JSX.Element {
             </button>
           </div>
         </header>
-        <FindBar matchCount={matches.length} />
+        <FindBar matchCount={matches.length} scrollContainerRef={scrollRef} />
         <MessageList
           conversationId={conversation.id}
           activeMatchMessageId={activeMatch?.messageId ?? null}
+          activeMatchIndexInMessage={activeMatchIndexInMessage}
+          findQuery={find.open ? find.query : ""}
+          findCaseSensitive={find.caseSensitive}
           scrollContainerRef={scrollRef}
           pinnedRef={pinnedRef}
           onScroll={refreshMetrics}
