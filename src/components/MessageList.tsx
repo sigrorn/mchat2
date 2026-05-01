@@ -227,12 +227,24 @@ export function MessageList({
   // ensure the row is mounted, then on the next frame measure the
   // active <mark>'s rect and scroll the container so its midpoint
   // sits at the viewport's midpoint, clamped at the scroll bounds.
+  //
+  // #239 follow-up: the effect must NOT depend on itemIndexByMessageId
+  // or virtualizer (both get new identities on every parent render —
+  // ChatView's onScroll → setMetrics → re-render). When the user
+  // wheel-scrolls away, the effect would otherwise re-fire and snap
+  // them back to the active match, making it impossible to look at
+  // surrounding context. Capture the live values via refs and depend
+  // only on the active-match identity (the actual user intent).
+  const itemIndexMapRef = useRef(itemIndexByMessageId);
+  itemIndexMapRef.current = itemIndexByMessageId;
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
   useEffect(() => {
     if (!activeMatchMessageId) return;
-    const idx = itemIndexByMessageId.get(activeMatchMessageId);
+    const idx = itemIndexMapRef.current.get(activeMatchMessageId);
     if (idx === undefined) return;
     pinnedRef.current = false;
-    virtualizer.scrollToIndex(idx, { align: "center", behavior: "auto" });
+    virtualizerRef.current.scrollToIndex(idx, { align: "center", behavior: "auto" });
     // Defer until the next frame so React has applied the post-scroll
     // mount + the bubble's useFindHighlight effect has inserted the
     // <mark data-find="active"> element. Without the wait the row
@@ -246,9 +258,6 @@ export function MessageList({
       if (!bubble) return;
       const activeMark = bubble.querySelector<HTMLElement>('mark[data-find="active"]');
       const target = activeMark ?? bubble;
-      // offsetTop is relative to the offsetParent; since the row
-      // wrapper transforms via translateY, the simplest reliable
-      // measurement is getBoundingClientRect against the container.
       const containerRect = container.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
       const matchTop = container.scrollTop + (targetRect.top - containerRect.top);
@@ -261,14 +270,7 @@ export function MessageList({
       container.scrollTo({ top: next, behavior: "smooth" });
     });
     return () => cancelAnimationFrame(handle);
-  }, [
-    activeMatchMessageId,
-    activeMatchIndexInMessage,
-    itemIndexByMessageId,
-    pinnedRef,
-    virtualizer,
-    containerRef,
-  ]);
+  }, [activeMatchMessageId, activeMatchIndexInMessage, pinnedRef, containerRef]);
 
   // #239: per-bubble find state. Memoized so a bubble's findState
   // reference stays stable when the active match isn't on that bubble.
