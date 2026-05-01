@@ -76,7 +76,16 @@ async function seedTurn(conversationId: string, userText: string, assistantText:
   return { user, assistant };
 }
 
-function makeCtx(conv: Conversation, history: readonly Message[]): CommandContext {
+interface CtxRecorder {
+  setSelectionCalls: Array<{ conversationId: string; selection: string[] }>;
+  setFlowModeCalls: Array<{ conversationId: string; on: boolean }>;
+}
+
+function makeCtx(
+  conv: Conversation,
+  history: readonly Message[],
+  recorder?: CtxRecorder,
+): CommandContext {
   return {
     rawInput: "//pop",
     conversation: conv,
@@ -120,7 +129,16 @@ function makeCtx(conv: Conversation, history: readonly Message[]): CommandContex
       setFlowStepIndex: async (flowId: string, index: number) => {
         await flowsRepo.setStepIndex(flowId, index);
       },
-      setFlowMode: async () => {},
+      // #233: observable so the selection-sync test can assert on calls.
+      setFlowMode: async (conversationId: string, on: boolean) => {
+        recorder?.setFlowModeCalls.push({ conversationId, on });
+      },
+      setSelection: (conversationId: string, selection: readonly string[]) => {
+        recorder?.setSelectionCalls.push({
+          conversationId,
+          selection: [...selection],
+        });
+      },
     } as unknown as CommandContext["deps"],
   } as CommandContext;
 }
@@ -282,5 +300,112 @@ describe("//pop flow cursor rewind (#232)", () => {
 
     const flow = await flowsRepo.getFlow(conv.id);
     expect(flow?.currentStepIndex).toBe(2);
+  });
+});
+
+describe("//pop syncs selection + flow_mode after rewind (#233)", () => {
+  it("after //pop rewinds the cursor, selection is re-synced to the next personas-step's persona-set", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedPersona(conv.id);
+    const turn = await seedTurn(conv.id, "first", "first reply");
+    // Cursor lands at fs_2 (user step) after the personas-step ran. The
+    // pre-pop selection is intentionally something other than the
+    // expected re-synced value so we can prove the helper actually
+    // overwrote it.
+    await seedFlowWithStampedRun(conv.id, 2, turn.assistant);
+    const before = await messagesRepo.listMessages(conv.id);
+
+    const recorder: CtxRecorder = {
+      setSelectionCalls: [],
+      setFlowModeCalls: [],
+    };
+    const ctx = makeCtx(conv, before, recorder);
+    await handlePop(ctx, { userNumber: null });
+
+    // Cursor rewound to fs_0 (user-step). Next personas-step from there
+    // is fs_1 = [p_alice]. Selection must be set to that.
+    expect(recorder.setSelectionCalls).toContainEqual({
+      conversationId: conv.id,
+      selection: ["p_alice"],
+    });
+    expect(recorder.setFlowModeCalls).toContainEqual({
+      conversationId: conv.id,
+      on: true,
+    });
+  });
+
+  it("//pop N also syncs selection + flow_mode after rewind", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedPersona(conv.id);
+    const turn = await seedTurn(conv.id, "first", "first reply");
+    await seedFlowWithStampedRun(conv.id, 2, turn.assistant);
+    const before = await messagesRepo.listMessages(conv.id);
+
+    const recorder: CtxRecorder = {
+      setSelectionCalls: [],
+      setFlowModeCalls: [],
+    };
+    const ctx = makeCtx(conv, before, recorder);
+    await handlePop(ctx, { userNumber: 1 });
+
+    expect(recorder.setSelectionCalls).toContainEqual({
+      conversationId: conv.id,
+      selection: ["p_alice"],
+    });
+    expect(recorder.setFlowModeCalls).toContainEqual({
+      conversationId: conv.id,
+      on: true,
+    });
+  });
+
+  it("//pop with no flow attached does not sync selection or flow_mode", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedTurn(conv.id, "first", "first reply");
+    const before = await messagesRepo.listMessages(conv.id);
+
+    const recorder: CtxRecorder = {
+      setSelectionCalls: [],
+      setFlowModeCalls: [],
+    };
+    const ctx = makeCtx(conv, before, recorder);
+    await handlePop(ctx, { userNumber: null });
+
+    expect(recorder.setSelectionCalls).toHaveLength(0);
+    expect(recorder.setFlowModeCalls).toHaveLength(0);
+  });
+
+  it("//pop leaves selection + flow_mode alone when popped assistants have no flow_step_id (no rewind happens)", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedPersona(conv.id);
+    await seedTurn(conv.id, "first", "first reply");
+    await sql.execute(
+      `INSERT INTO flows (id, conversation_id, current_step_index, loop_start_index)
+        VALUES ('f_1', ?, 2, 0)`,
+      [conv.id],
+    );
+    await sql.execute(
+      `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_0', 'f_1', 0, 'user')`,
+    );
+    await sql.execute(
+      `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_1', 'f_1', 1, 'personas')`,
+    );
+    await sql.execute(
+      `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_2', 'f_1', 2, 'user')`,
+    );
+    const before = await messagesRepo.listMessages(conv.id);
+
+    const recorder: CtxRecorder = {
+      setSelectionCalls: [],
+      setFlowModeCalls: [],
+    };
+    const ctx = makeCtx(conv, before, recorder);
+    await handlePop(ctx, { userNumber: null });
+
+    expect(recorder.setSelectionCalls).toHaveLength(0);
+    expect(recorder.setFlowModeCalls).toHaveLength(0);
   });
 });
