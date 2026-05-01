@@ -11,8 +11,33 @@ import { resolveEditTarget } from "@/lib/conversations/resolveEditTarget";
 import { planPop } from "@/lib/conversations/popPlan";
 import { findFailedRowsInLastGroup } from "@/lib/orchestration/findFailedRowsInLastGroup";
 import * as messagesRepo from "@/lib/persistence/messages";
+import * as runsRepo from "@/lib/persistence/runs";
+import { computeFlowRewindIndex } from "@/lib/app/flowRewind";
 import { transaction } from "@/lib/persistence/transaction";
+import type { Message } from "@/lib/types";
 import type { CommandContext, CommandResult } from "./types";
+
+// #232: capture the assistant rows about to be deleted so we can
+// trace their flow_step_id pointers post-delete (attempts/runs
+// survive the delete since they FK to runs/run_targets, not messages)
+// and rewind the flow cursor to the user-step that fed the earliest
+// popped personas-step. Mirrors the rewind in replayMessage (#219).
+async function rewindFlowAfterPop(
+  ctx: CommandContext,
+  conversationId: string,
+  poppedAssistantRows: readonly Message[],
+): Promise<void> {
+  if (poppedAssistantRows.length === 0) return;
+  const flow = await ctx.deps.getFlow(conversationId);
+  if (!flow) return;
+  const truncatedStepIds = await runsRepo.listFlowStepIdsForMessages(
+    poppedAssistantRows.map((m) => m.id),
+  );
+  const rewindIndex = computeFlowRewindIndex(flow, truncatedStepIds);
+  if (rewindIndex !== null) {
+    await ctx.deps.setFlowStepIndex(flow.id, rewindIndex);
+  }
+}
 
 export async function handleLimit(
   ctx: CommandContext,
@@ -102,6 +127,11 @@ export async function handlePop(
       return { restoreText: rawInput };
     }
     const queue = userMsgs.map((m) => m.content);
+    // #232: capture assistant rows in the truncated tail before delete
+    // so we can rewind the flow cursor afterwards.
+    const poppedAssistants = history.filter(
+      (m) => m.role === "assistant" && m.index >= startIdx,
+    );
     // #164: delete + confirmation notice commit together. Otherwise a
     // crash between them leaves the user staring at a truncated chat
     // with no record that //pop ran.
@@ -113,6 +143,7 @@ export async function handlePop(
       );
     });
     await ctx.deps.reloadMessages(conversation.id);
+    await rewindFlowAfterPop(ctx, conversation.id, poppedAssistants);
     const first = queue[0] ?? "";
     ctx.deps.setReplayQueue(conversation.id, queue.slice(1));
     return { restoreText: first };
@@ -123,6 +154,11 @@ export async function handlePop(
     await ctx.deps.appendNotice(conversation.id, "pop: nothing to pop.");
     return { restoreText: rawInput };
   }
+  // #232: capture assistant rows in the truncated tail before delete
+  // so we can rewind the flow cursor afterwards.
+  const poppedAssistants = history.filter(
+    (m) => m.role === "assistant" && m.index >= plan.lastUserIndex,
+  );
   // #164: same atomicity rule as the //pop N branch.
   await transaction(async () => {
     await messagesRepo.deleteMessagesAfter(conversation.id, plan.lastUserIndex - 1);
@@ -132,6 +168,7 @@ export async function handlePop(
     );
   });
   await ctx.deps.reloadMessages(conversation.id);
+  await rewindFlowAfterPop(ctx, conversation.id, poppedAssistants);
   return { restoreText: plan.restoredText };
 }
 

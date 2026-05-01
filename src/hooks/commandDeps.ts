@@ -11,6 +11,7 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore } from "@/stores/sendStore";
 import * as flowsRepo from "@/lib/persistence/flows";
+import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { readCachedMessages, readCachedPersonas } from "./cacheReaders";
 
 const EMPTY_SUP: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
@@ -55,6 +56,15 @@ export function makeCommandDeps(): CommandDeps {
     // #224: //fork reads the source flow and switches the UI over to
     // the freshly-created fork once cloning lands.
     getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
+    // #232: //pop rewinds the flow cursor when popped assistant rows
+    // were produced by a flow step. Bump the flow query cache so
+    // PersonaPanel re-derives the upcoming-step hint.
+    setFlowStepIndex: async (flowId, index) => {
+      await flowsRepo.setStepIndex(flowId, index);
+      invalidateRepoQuery(["flow"]);
+    },
+    setFlowMode: (conversationId, on) =>
+      useConversationsStore.getState().setFlowMode(conversationId, on),
     reloadConversations: () => useConversationsStore.getState().load(),
     selectConversation: (conversationId) =>
       useConversationsStore.getState().select(conversationId),
