@@ -6,7 +6,7 @@
 // notice row.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrateRunsAfterToFlow } from "@/lib/conversations/migrateRunsAfterToFlow";
-import { createPersona, updatePersona } from "@/lib/personas/service";
+import { createPersona } from "@/lib/personas/service";
 import * as personasRepo from "@/lib/persistence/personas";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as flowsRepo from "@/lib/persistence/flows";
