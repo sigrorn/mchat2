@@ -125,8 +125,10 @@ describe("snapshot round-trip preserves conversation flow (#215)", () => {
     );
   });
 
-  it("legacy snapshot without flow data imports without modification", async () => {
+  it("legacy snapshot with runs_after auto-converts to a flow on import (#241)", async () => {
     // Import a snapshot that has runs_after but no flow definition.
+    // Phase 0 of #241: auto-derive the flow at import time, clear
+    // runsAfter on the imported personas, append a re-export notice.
     const legacy = {
       version: 1 as const,
       title: "Legacy",
@@ -170,13 +172,14 @@ describe("snapshot round-trip preserves conversation flow (#215)", () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const result = await importSnapshot(parsed.snapshot);
-    // No flow attached.
+    // A flow is now attached, derived from runs_after.
     const flow = await flowsRepo.getFlow(result.conversation.id);
-    expect(flow).toBeNull();
-    // runs_after on B was preserved.
+    expect(flow).not.toBeNull();
+    const personaSteps = flow!.steps.filter((s) => s.kind === "personas");
+    expect(personaSteps).toHaveLength(2);
+    // runs_after on B is cleared post-conversion.
     const ps = await listPersonas(result.conversation.id);
-    const newA = ps.find((p) => p.name === "A")!;
     const newB = ps.find((p) => p.name === "B")!;
-    expect(newB.runsAfter).toEqual([newA.id]);
+    expect(newB.runsAfter).toEqual([]);
   });
 });
