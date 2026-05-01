@@ -41,11 +41,29 @@ export function planFlowDispatch(
   }
 
   const currentStep = flow.steps[flow.currentStepIndex];
-  if (!currentStep || currentStep.kind !== "user") {
+  if (!currentStep) return { shouldDispatchAsFlow: false };
+  if (flow.steps.length === 0) return { shouldDispatchAsFlow: false };
+
+  // #235: retry-in-place. When the cursor sits on a personas-step
+  // (typically because a prior dispatch finished with a non-completed
+  // outcome and sendMessage held the cursor for retry), and the
+  // resolved targets match THAT step's persona-set, dispatch as a
+  // retry without advancing the cursor. Without this, the retry-by-
+  // typing falls through to runPlannedSend out-of-flow — no
+  // flow_step_id, no '→ conversation →', no chain. Same shape as #232.
+  if (currentStep.kind === "personas") {
+    if (setEqualsPersonaIds(currentStep.personaIds, resolvedTargets)) {
+      return {
+        shouldDispatchAsFlow: true,
+        nextStep: currentStep,
+        nextStepIndex: flow.currentStepIndex,
+      };
+    }
+    // Targets don't match the cursor's step → side conversation.
     return { shouldDispatchAsFlow: false };
   }
 
-  if (flow.steps.length === 0) return { shouldDispatchAsFlow: false };
+  // currentStep.kind === "user" — today's path.
   // #225: wrap via the same helper the dispatch loop uses so the
   // loop_start setup-phase boundary is respected at the user→personas
   // hop too. Plain `(idx + 1) % n` would wrap to step 0, which is
