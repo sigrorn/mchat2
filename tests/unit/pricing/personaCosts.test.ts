@@ -1,4 +1,4 @@
-// Tests for computePersonaCosts and the cost formatter — issue #2.
+﻿// Tests for computePersonaCosts and the cost formatter — issue #2.
 import { describe, it, expect } from "vitest";
 import { computePersonaCosts, formatPersonaCost } from "@/lib/pricing/personaCosts";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -16,7 +16,6 @@ function persona(id: string, provider: Persona["provider"] = "claude"): Persona 
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

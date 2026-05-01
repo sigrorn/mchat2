@@ -104,10 +104,10 @@ describe("runMigrations", () => {
   });
 
   it("does not issue COMMIT after a failed migration", async () => {
-    // Match against the latest migration's signature statement (#231
-    // added messages.flow_dispatched).
+    // Match against the latest migration's signature statement
+    // (#241 Phase C drops the runs_after column).
     const mock = makeMockSql(MIGRATIONS.length - 1, {
-      failOn: (q) => /ALTER TABLE messages ADD COLUMN flow_dispatched/i.test(q),
+      failOn: (q) => /ALTER TABLE personas DROP COLUMN runs_after/i.test(q),
     });
     await expect(runMigrations()).rejects.toThrow();
     // After the failure, no further BEGIN/COMMIT pairs should appear.

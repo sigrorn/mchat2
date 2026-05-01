@@ -1,4 +1,4 @@
-// recordReplay — write the side-effects of a replay into the new
+﻿// recordReplay — write the side-effects of a replay into the new
 // Run/RunTarget/Attempt model (#174 → #177). This is a parallel-write
 // path: the messages table still owns the UI projection (until #180
 // flips that); the attempts model is built up alongside so the model's
@@ -24,8 +24,8 @@ async function seedConversation(id = "c_1"): Promise<void> {
 }
 async function seedPersona(id: string, slug: string): Promise<void> {
   await sql.execute(
-    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-     VALUES (?, 'c_1', 'openai', ?, ?, 0, 0, '[]', '{}')`,
+    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+     VALUES (?, 'c_1', 'openai', ?, ?, 0, 0, '{}')`,
     [id, slug, slug],
   );
 }

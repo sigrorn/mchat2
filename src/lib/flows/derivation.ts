@@ -1,18 +1,23 @@
 // ------------------------------------------------------------------
 // Component: Flow derivation (#215, slice 3 of #212)
 // Responsibility: Pure level-grouping topological sort. Turns a
-//                 persona DAG (runs_after edges) into a FlowDraft:
-//                 alternating `user` / `personas` steps, where each
-//                 `personas` step is one DAG level. Used by the
-//                 #218 editor's "Import from runs_after rules"
-//                 button.
+//                 persona DAG (legacy runs_after edges) into a
+//                 FlowDraft: alternating `user` / `personas` steps,
+//                 where each `personas` step is one DAG level.
+// History:        Phase C of #241 dropped the runs_after column,
+//                 so this function now operates on a transient
+//                 Map<personaId, parentIds[]> the caller provides
+//                 — typically built from a legacy import file.
 // Collaborators: lib/types/flow (FlowDraft), components/FlowEditor.
 // Pure — no DB access, no globals.
 // ------------------------------------------------------------------
 
 import type { FlowDraft, FlowDraftStep, Persona } from "../types";
 
-export function derivedFlowFromRunsAfter(personas: readonly Persona[]): FlowDraft {
+export function derivedFlowFromRunsAfter(
+  personas: readonly Persona[],
+  runsAfter: ReadonlyMap<string, readonly string[]>,
+): FlowDraft {
   const live = personas.filter((p) => p.deletedAt === null);
   if (live.length === 0) return { currentStepIndex: 0, steps: [] };
 
@@ -22,16 +27,15 @@ export function derivedFlowFromRunsAfter(personas: readonly Persona[]): FlowDraf
   // tombstoned).
   const parentsById = new Map<string, string[]>();
   for (const p of live) {
-    parentsById.set(
-      p.id,
-      p.runsAfter.filter((pid) => liveIds.has(pid)),
-    );
+    const declared = runsAfter.get(p.id) ?? [];
+    parentsById.set(p.id, declared.filter((pid) => liveIds.has(pid)));
   }
 
   const levelById = new Map<string, number>();
   // Iterate until every live persona has a level. Cycles are
-  // impossible by service-layer validation (cycle check), so this
-  // always terminates.
+  // impossible for legacy data (service-layer cycle check ran at
+  // write time pre-Phase A); the safety counter still bounds runtime
+  // for any data that slipped through.
   let changed = true;
   let safety = live.length + 1;
   while (changed && safety-- > 0) {

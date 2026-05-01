@@ -1,4 +1,4 @@
-// @convo target — slice 4 of #212 (#216).
+﻿// @convo target — slice 4 of #212 (#216).
 //
 // The resolver itself stays pure. @convo is parsed to mode="convo" with
 // empty targets; a wrapper inflates targets from the flow's next
@@ -19,7 +19,6 @@ function persona(id: string, name: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

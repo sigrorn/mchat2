@@ -1,4 +1,4 @@
-// Autocompact check tests — issues #105, #118.
+﻿// Autocompact check tests — issues #105, #118.
 import { describe, it, expect } from "vitest";
 import {
   resolveAutocompactTokens,
@@ -38,7 +38,6 @@ const PERSONA_128K: Persona = {
   colorOverride: null,
   createdAtMessageIndex: 0,
   sortOrder: 0,
-  runsAfter: [],
   deletedAt: null,
   apertusProductId: null,
   visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

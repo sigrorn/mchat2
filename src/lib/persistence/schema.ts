@@ -54,7 +54,6 @@ export interface PersonasTable {
   color_override: string | null;
   created_at_message_index: number;
   sort_order: number;
-  runs_after: string; // JSON-encoded array
   deleted_at: number | null;
   apertus_product_id: string | null;
   visibility_defaults: string; // JSON-encoded
@@ -193,14 +192,6 @@ export interface PersonaVisibilityTable {
   visible: number; // 0/1
 }
 
-// #195: edge table replacing the JSON-encoded personas.runs_after
-// column. Reads now come from this table; the legacy JSON column
-// stays populated as a dual-write safety net.
-export interface PersonaRunsAfterTable {
-  child_id: string;
-  parent_id: string;
-}
-
 // #196: relational form of conversations.context_warnings_fired.
 // Adds a fired_at timestamp the JSON form lacked. Reads now come
 // from this table; the legacy JSON column stays populated as a
@@ -221,7 +212,6 @@ export interface Database {
   attempts: AttemptsTable;
   conversation_personas_selected: ConversationPersonasSelectedTable;
   persona_visibility: PersonaVisibilityTable;
-  persona_runs_after: PersonaRunsAfterTable;
   conversation_context_warnings: ConversationContextWarningsTable;
   flows: FlowsTable;
   flow_steps: FlowStepsTable;

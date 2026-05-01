@@ -1,4 +1,4 @@
-// resolveTargetsWithFlow respects loopStartIndex when wrapping (#220).
+﻿// resolveTargetsWithFlow respects loopStartIndex when wrapping (#220).
 //
 // `@convo` walks forward from current_step_index looking for the next
 // `personas` step. When it wraps past the end, it should land back at
@@ -20,7 +20,6 @@ function persona(id: string, name: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

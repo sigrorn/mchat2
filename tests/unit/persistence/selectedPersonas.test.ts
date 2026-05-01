@@ -1,4 +1,4 @@
-// #65 — Persist persona selection across restarts.
+﻿// #65 — Persist persona selection across restarts.
 // #193: selectedPersonas now lives in the
 // conversation_personas_selected junction table; the test seeds
 // real personas (FK requirement) and round-trips through the repo.
@@ -16,8 +16,8 @@ afterEach(() => {
 async function seedPersonas(conversationId: string, ids: readonly string[]): Promise<void> {
   for (const id of ids) {
     await sql.execute(
-      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-       VALUES (?, ?, 'mock', ?, ?, 0, 0, '[]', '{}')`,
+      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+       VALUES (?, ?, 'mock', ?, ?, 0, 0, '{}')`,
       [id, conversationId, id, id],
     );
   }

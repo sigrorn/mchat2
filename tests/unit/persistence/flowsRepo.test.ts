@@ -1,4 +1,4 @@
-// flowsRepo CRUD — slice 3 of #212 (#215).
+﻿// flowsRepo CRUD — slice 3 of #212 (#215).
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
 import { sql } from "@/lib/tauri/sql";
@@ -16,9 +16,9 @@ beforeEach(async () => {
   );
   await sql.execute(
     `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
-      created_at_message_index, sort_order, runs_after, visibility_defaults, role_lens)
-      VALUES ('p_a', 'c_1', 'mock', 'A', 'a', 0, 0, '[]', '{}', '{}'),
-             ('p_b', 'c_1', 'mock', 'B', 'b', 0, 1, '[]', '{}', '{}')`,
+      created_at_message_index, sort_order, visibility_defaults, role_lens)
+      VALUES ('p_a', 'c_1', 'mock', 'A', 'a', 0, 0, '{}', '{}'),
+             ('p_b', 'c_1', 'mock', 'B', 'b', 0, 1, '{}', '{}')`,
   );
 });
 afterEach(() => {

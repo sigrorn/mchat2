@@ -172,14 +172,14 @@ describe("snapshot round-trip preserves conversation flow (#215)", () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const result = await importSnapshot(parsed.snapshot);
-    // A flow is now attached, derived from runs_after.
+    // A flow is now attached, derived from the snapshot's runs_after.
     const flow = await flowsRepo.getFlow(result.conversation.id);
     expect(flow).not.toBeNull();
     const personaSteps = flow!.steps.filter((s) => s.kind === "personas");
     expect(personaSteps).toHaveLength(2);
-    // runs_after on B is cleared post-conversion.
+    // Personas exist; #241 Phase C dropped the runsAfter column from
+    // the Persona shape entirely so the listing carries no DAG state.
     const ps = await listPersonas(result.conversation.id);
-    const newB = ps.find((p) => p.name === "B")!;
-    expect(newB.runsAfter).toEqual([]);
+    expect(ps.find((p) => p.name === "B")).toBeDefined();
   });
 });

@@ -1,4 +1,4 @@
-// Tests for the per-persona timing aggregator (#122).
+﻿// Tests for the per-persona timing aggregator (#122).
 import { describe, it, expect } from "vitest";
 import { aggregatePersonaTimings } from "@/lib/commands/personaTimings";
 import type { Message, Persona } from "@/lib/types";
@@ -15,7 +15,6 @@ function persona(id: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

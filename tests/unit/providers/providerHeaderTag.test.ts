@@ -1,4 +1,4 @@
-// #203 — when an openai_compat persona produced a message, the
+﻿// #203 — when an openai_compat persona produced a message, the
 // header should disclose which preset was used so a 404 (or any
 // other error) is attributable to the actual sub-provider, not just
 // a vague "openai_compat".
@@ -18,7 +18,6 @@ function persona(over: Partial<Persona> = {}): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

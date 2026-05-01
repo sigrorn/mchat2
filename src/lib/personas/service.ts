@@ -20,8 +20,6 @@ export class PersonaValidationError extends Error {
       | "name_required"
       | "name_reserved"
       | "name_in_use"
-      | "cycle"
-      | "unknown_parent"
       | "not_found"
       | "missing_apertus_product_id",
     message: string,
@@ -39,7 +37,6 @@ export interface CreatePersonaInput {
   modelOverride?: string | null;
   colorOverride?: string | null;
   visibilityDefaults?: Record<string, "y" | "n">;
-  runsAfter?: PersonaId[];
   currentMessageIndex: number;
   sortOrder?: number;
   apertusProductId?: string | null;
@@ -64,16 +61,6 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
       `'${name}' is already used in this conversation`,
     );
   }
-  if (input.runsAfter && input.runsAfter.length > 0) {
-    for (const parentId of input.runsAfter) {
-      if (!existing.some((p) => p.id === parentId)) {
-        throw new PersonaValidationError(
-          "unknown_parent",
-          "runsAfter references a non-existent persona",
-        );
-      }
-    }
-  }
   // Apertus product id used to be per-persona (#15) but is now a global
   // setting (#25) since it's an Infomaniak account-level value. The
   // send-time gate lives in useSend / the Apertus adapter.
@@ -88,7 +75,6 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     colorOverride: input.colorOverride ?? null,
     createdAtMessageIndex: input.currentMessageIndex,
     sortOrder: input.sortOrder ?? existing.length,
-    runsAfter: input.runsAfter ?? [],
     deletedAt: null,
     apertusProductId: input.apertusProductId?.trim() || null,
     visibilityDefaults: visDefaults,
@@ -108,7 +94,6 @@ export interface UpdatePersonaInput {
   modelOverride?: string | null;
   colorOverride?: string | null;
   visibilityDefaults?: Record<string, "y" | "n">;
-  runsAfter?: PersonaId[];
   sortOrder?: number;
   apertusProductId?: string | null;
   openaiCompatPreset?: Persona["openaiCompatPreset"];
@@ -136,13 +121,9 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     }
   }
 
-  // #241 Phase A: runsAfter is no longer surfaced through the persona
-  // editor. The only remaining caller (the auto-migration in
-  // migrateRunsAfterToFlow) sets runsAfter to []; cycle / self-parent /
-  // unknown-parent validation became unreachable and was removed along
-  // with the editor field. Edges still flowing through createPersona on
-  // legacy import paths get cleared by the auto-migration on the next
-  // conversation open.
+  // #241 Phase A removed runsAfter validation; Phase C dropped the
+  // field from Persona entirely. updatePersona never touches an
+  // ordering edge today.
 
   const apertusProductId =
     input.apertusProductId !== undefined
@@ -168,7 +149,6 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     modelOverride: input.modelOverride !== undefined ? input.modelOverride : current.modelOverride,
     colorOverride: input.colorOverride !== undefined ? input.colorOverride : current.colorOverride,
     visibilityDefaults: visDefaults,
-    runsAfter: input.runsAfter !== undefined ? input.runsAfter : current.runsAfter,
     sortOrder: input.sortOrder ?? current.sortOrder,
     apertusProductId,
     openaiCompatPreset:

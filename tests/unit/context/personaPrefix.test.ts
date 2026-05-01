@@ -1,4 +1,4 @@
-// #87 — Prefix assistant messages with persona name in context.
+﻿// #87 — Prefix assistant messages with persona name in context.
 import { describe, it, expect } from "vitest";
 import { buildContext } from "@/lib/context";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -33,7 +33,6 @@ function persona(id: string, name: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

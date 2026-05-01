@@ -1,4 +1,4 @@
-// recordSend — write a send's side-effects to the new
+﻿// recordSend — write a send's side-effects to the new
 // Run/RunTarget/Attempt model (#174 → #179). One Run per send, one
 // RunTarget per addressed persona, one Attempt per RunTarget on
 // initial send. Covers single-target, parallel multi-target, and DAG
@@ -25,8 +25,8 @@ async function seedConversation(id = "c_1"): Promise<void> {
 }
 async function seedPersona(id: string, slug: string): Promise<void> {
   await sql.execute(
-    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-     VALUES (?, 'c_1', 'openai', ?, ?, 0, 0, '[]', '{}')`,
+    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+     VALUES (?, 'c_1', 'openai', ?, ?, 0, 0, '{}')`,
     [id, slug, slug],
   );
 }

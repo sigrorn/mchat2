@@ -1,4 +1,4 @@
-// Tests for the auto-inserted identity pin — issue #3.
+﻿// Tests for the auto-inserted identity pin — issue #3.
 import { describe, it, expect } from "vitest";
 import {
   buildIdentityPinContent,
@@ -20,7 +20,6 @@ function persona(over: Partial<Persona> = {}): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

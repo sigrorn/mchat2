@@ -1,27 +1,25 @@
 // ------------------------------------------------------------------
-// Component: Auto-migration runs_after → conversation flow (#241)
-// Responsibility: Phase 0 of the runs_after removal. When a conversation
-//                 is opened (Trigger A) or personas are imported into it
-//                 (Trigger B) and any active persona still carries
-//                 runs_after edges, derive a flow via
-//                 derivedFlowFromRunsAfter, persist it (only if no flow
-//                 is already attached), clear runsAfter on the affected
-//                 personas, and append a trigger-specific notice
-//                 explaining the conversion.
-// Idempotence:    A second invocation finds runsAfter already cleared
-//                 and returns a no-op result. The presence of an
-//                 existing flow is independently respected — never
-//                 overwritten — but runsAfter is still cleared in that
-//                 case to avoid drift between the two surfaces.
+// Component: Auto-migration legacy runs_after → conversation flow (#241)
+// Responsibility: Phase 0 of the runs_after removal — and after Phase C
+//                 also the only consumer of legacy runs_after data
+//                 (which now lives transiently inside import payloads,
+//                 not on disk). Given a map from persona-id to its
+//                 declared parent-ids, derive a FlowDraft via the
+//                 level-grouping derivation, persist it (only if no
+//                 flow is already attached on the conversation), and
+//                 append a trigger-specific notice explaining the
+//                 conversion.
+// Idempotence:    Existing flow on the conversation is respected —
+//                 never overwritten — and the migration short-circuits
+//                 silently when the supplied map is empty.
 // Collaborators: lib/flows/derivation, lib/persistence/{personas,flows,
-//                messages}, lib/personas/service (updatePersona).
+//                messages}.
 // ------------------------------------------------------------------
 
 import { derivedFlowFromRunsAfter } from "../flows/derivation";
 import * as personasRepo from "../persistence/personas";
 import * as flowsRepo from "../persistence/flows";
 import * as messagesRepo from "../persistence/messages";
-import { updatePersona } from "../personas/service";
 
 const NOTICE_OPEN =
   "Converted this conversation's persona ordering rules (runs_after) to a conversation flow. Open the flow editor from the personas panel to review or edit the steps.";
@@ -34,48 +32,47 @@ export interface MigrationResult {
    *  existed (in which case it was left untouched) or no derivation
    *  was needed. */
   converted: boolean;
-  /** True iff at least one persona had its runsAfter cleared. */
-  cleared: boolean;
   /** True iff a notice was appended to the conversation. */
   noticeAppended: boolean;
 }
 
-const NO_OP: MigrationResult = {
-  converted: false,
-  cleared: false,
-  noticeAppended: false,
-};
+const NO_OP: MigrationResult = { converted: false, noticeAppended: false };
 
 export interface MigrateOptions {
   trigger: "open" | "import";
 }
 
+/**
+ * Convert a transient runs_after edge map into a conversation flow.
+ * `runsAfter` keys are persona-ids; values are parent persona-ids.
+ * Empty / undefined entries mean "no parents" (root of the DAG).
+ *
+ * The map is the only data source — Phase C of #241 dropped the
+ * persistent column, so callers (import paths) collect the edges
+ * from their input and pass them in here.
+ */
 export async function migrateRunsAfterToFlow(
   conversationId: string,
+  runsAfter: ReadonlyMap<string, readonly string[]>,
   opts: MigrateOptions,
 ): Promise<MigrationResult> {
-  const personas = await personasRepo.listPersonas(conversationId);
-  const live = personas.filter((p) => p.deletedAt === null);
-  const withRunsAfter = live.filter((p) => p.runsAfter.length > 0);
-  if (withRunsAfter.length === 0) return NO_OP;
+  // Drop empty entries up-front — no edges = nothing to convert.
+  const nonEmpty = new Map<string, readonly string[]>();
+  for (const [id, parents] of runsAfter) {
+    if (parents.length > 0) nonEmpty.set(id, parents);
+  }
+  if (nonEmpty.size === 0) return NO_OP;
 
   const existingFlow = await flowsRepo.getFlow(conversationId);
-
   let converted = false;
   if (!existingFlow) {
-    const draft = derivedFlowFromRunsAfter(live);
+    const personas = await personasRepo.listPersonas(conversationId);
+    const live = personas.filter((p) => p.deletedAt === null);
+    const draft = derivedFlowFromRunsAfter(live, nonEmpty);
     if (draft.steps.length > 0) {
       await flowsRepo.upsertFlow(conversationId, draft);
       converted = true;
     }
-  }
-
-  // Clear runsAfter on every affected persona — whether or not we
-  // persisted a flow — so the legacy state does not silently drift
-  // alongside the flow representation. updatePersona({runsAfter: []})
-  // skips the cycle/parent validation when the array is empty.
-  for (const p of withRunsAfter) {
-    await updatePersona({ id: p.id, runsAfter: [] });
   }
 
   const content = opts.trigger === "open" ? NOTICE_OPEN : NOTICE_IMPORT;
@@ -98,5 +95,5 @@ export async function migrateRunsAfterToFlow(
     audience: [],
   });
 
-  return { converted, cleared: true, noticeAppended: true };
+  return { converted, noticeAppended: true };
 }

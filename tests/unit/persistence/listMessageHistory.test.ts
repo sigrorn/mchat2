@@ -25,9 +25,9 @@ async function seedConv(id = "c_1"): Promise<void> {
 async function seedPersona(id: string, conversationId = "c_1"): Promise<void> {
   await sql.execute(
     `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
-                           created_at_message_index, sort_order, runs_after,
+                           created_at_message_index, sort_order,
                            visibility_defaults)
-     VALUES (?, ?, 'mock', ?, ?, 0, 0, '[]', '{}')`,
+     VALUES (?, ?, 'mock', ?, ?, 0, 0, '{}')`,
     [id, conversationId, id, id.replace(/^p_/, "")],
   );
 }

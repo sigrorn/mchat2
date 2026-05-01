@@ -1,4 +1,4 @@
-// #180 — buildContext should drop assistant rows whose ids appear in
+﻿// #180 — buildContext should drop assistant rows whose ids appear in
 // the supersededIds set, so retry/replay flows that no longer delete
 // the old rows don't poison the next attempt with stale context.
 import { describe, it, expect } from "vitest";
@@ -36,7 +36,6 @@ function makePersona(): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

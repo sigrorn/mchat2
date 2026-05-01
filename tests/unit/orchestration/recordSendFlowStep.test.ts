@@ -1,4 +1,4 @@
-// recordSend with flowStepId — slice 2 of #212 (#214).
+﻿// recordSend with flowStepId — slice 2 of #212 (#214).
 //
 // When a Run is dispatched as part of a conversation flow's `personas`
 // step, the resulting `runs` row gets stamped with the active flow
@@ -24,8 +24,8 @@ async function seedConversationWithFlow(): Promise<{ stepId: string }> {
   );
   await sql.execute(
     `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
-        created_at_message_index, sort_order, runs_after, visibility_defaults)
-      VALUES ('p_alice', 'c_1', 'openai', 'Alice', 'alice', 0, 0, '[]', '{}')`,
+        created_at_message_index, sort_order, visibility_defaults)
+      VALUES ('p_alice', 'c_1', 'openai', 'Alice', 'alice', 0, 0, '{}')`,
   );
   await sql.execute(
     `INSERT INTO flows (id, conversation_id, current_step_index)
@@ -78,8 +78,8 @@ describe("recordSend.flowStepId (#214)", () => {
     );
     await sql.execute(
       `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
-          created_at_message_index, sort_order, runs_after, visibility_defaults)
-        VALUES ('p_bob', 'c_2', 'openai', 'Bob', 'bob', 0, 0, '[]', '{}')`,
+          created_at_message_index, sort_order, visibility_defaults)
+        VALUES ('p_bob', 'c_2', 'openai', 'Bob', 'bob', 0, 0, '{}')`,
     );
     await recordSend({
       conversationId: "c_2",

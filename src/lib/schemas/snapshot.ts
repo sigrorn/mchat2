@@ -22,7 +22,9 @@ const personaSchema = z.object({
   colorOverride: z.string().nullable(),
   apertusProductId: z.string().nullable(),
   visibilityDefaults: z.record(z.union([z.literal("y"), z.literal("n")])),
-  runsAfter: z.array(z.string()),
+  // #241 Phase C: optional for legacy snapshots; modern snapshots
+  // never emit this field (the conversation flow carries ordering).
+  runsAfter: z.array(z.string()).optional(),
   sortOrder: z.number(),
   createdAtMessageIndex: z.number(),
   // #213: optional for back-compat with pre-#213 snapshots.

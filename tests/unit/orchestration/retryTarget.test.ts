@@ -1,4 +1,4 @@
-// Reconstructing the PersonaTarget for a manual retry — issue #43.
+﻿// Reconstructing the PersonaTarget for a manual retry — issue #43.
 import { describe, it, expect } from "vitest";
 import { buildRetryTarget } from "@/lib/orchestration/retryTarget";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -14,7 +14,6 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

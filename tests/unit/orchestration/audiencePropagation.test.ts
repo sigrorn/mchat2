@@ -1,4 +1,4 @@
-// streamRunner populates assistant.audience from the prior user row — issue #4.
+﻿// streamRunner populates assistant.audience from the prior user row — issue #4.
 // #200: rewritten to round-trip through sql.js instead of asserting on
 // INSERT INTO messages parameter positions.
 import { describe, it, expect, afterEach } from "vitest";
@@ -43,8 +43,8 @@ async function seedConversationAndPersonas(): Promise<void> {
   );
   for (const pid of ["p_a", "p_b"]) {
     await sql.execute(
-      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-       VALUES (?, 'c_1', 'mock', ?, ?, 0, 0, '[]', '{}')`,
+      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+       VALUES (?, 'c_1', 'mock', ?, ?, 0, 0, '{}')`,
       [pid, pid, pid],
     );
   }

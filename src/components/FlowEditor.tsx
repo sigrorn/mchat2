@@ -8,11 +8,10 @@
 //                lib/flows/derivation.
 // ------------------------------------------------------------------
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Flow, FlowDraft, FlowDraftStep, Persona } from "@/lib/types";
 import * as flowsRepo from "@/lib/persistence/flows";
 import { updatePersona } from "@/lib/personas/service";
-import { derivedFlowFromRunsAfter } from "@/lib/flows/derivation";
 import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 
@@ -32,7 +31,6 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clearRunsAfterOnSave, setClearRunsAfterOnSave] = useState(false);
   // Per-persona role lens drafts. Initialized from persona.roleLens
   // and replaced on save.
   const [lensDraft, setLensDraft] = useState<Record<string, Record<string, "user" | "assistant">>>({});
@@ -59,12 +57,6 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
       cancelled = true;
     };
   }, [conversationId, personas]);
-
-  const hasRunsAfter = useMemo(
-    () => personas.some((p) => p.runsAfter.length > 0),
-    [personas],
-  );
-  const showImportButton = hasRunsAfter && !existingFlow;
 
   const onAddStep = (kind: "user" | "personas"): void => {
     setDraft((d) => ({ ...d, steps: [...d.steps, { kind, personaIds: [] }] }));
@@ -146,11 +138,6 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
     });
   };
 
-  const onImportFromRules = (): void => {
-    const derived = derivedFlowFromRunsAfter([...personas]);
-    setDraft(derived);
-  };
-
   const onSave = async (): Promise<void> => {
     setSaving(true);
     setError(null);
@@ -170,14 +157,6 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
           Object.entries(next).every(([k, v]) => p.roleLens[k] === v);
         if (!same) {
           await updatePersona({ id: p.id, roleLens: next });
-        }
-      }
-      // Optional: clear runs_after on every persona that participates
-      // in the flow (per the import flow's checkbox, default off).
-      if (clearRunsAfterOnSave) {
-        for (const p of personas) {
-          if (p.runsAfter.length === 0) continue;
-          await updatePersona({ id: p.id, runsAfter: [] });
         }
       }
       onClose();
@@ -214,18 +193,6 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
         </header>
 
         <div className="flex-1 overflow-auto p-4">
-          {showImportButton ? (
-            <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3">
-              <p className="text-xs text-amber-900">
-                This conversation has <code>runs_after</code> rules. Import
-                them as a starting flow?
-              </p>
-              <OutlineButton onClick={onImportFromRules} className="mt-2">
-                Import from runs_after rules
-              </OutlineButton>
-            </div>
-          ) : null}
-
           <section>
             <h3 className="mb-1 text-xs font-semibold uppercase text-neutral-700">
               Steps ({draft.steps.length})
@@ -293,21 +260,6 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
               ))}
             </div>
           </section>
-
-          {showImportButton ? (
-            <div className="mt-4 flex items-center gap-2 text-xs text-neutral-800">
-              <input
-                type="checkbox"
-                checked={clearRunsAfterOnSave}
-                onChange={(e) => setClearRunsAfterOnSave(e.target.checked)}
-                id="clearRunsAfter"
-              />
-              <label htmlFor="clearRunsAfter">
-                Also clear <code>runs_after</code> rules on save (the flow
-                replaces them for this conversation)
-              </label>
-            </div>
-          ) : null}
 
           {error ? (
             <div className="mt-3 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-900">

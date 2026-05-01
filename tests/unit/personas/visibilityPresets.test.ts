@@ -1,4 +1,4 @@
-// #173 — visibility-preset shortcuts in the persona form. Three
+﻿// #173 — visibility-preset shortcuts in the persona form. Three
 // roles bulk-set the form's visDefs + seenByEdits maps; the user
 // can still tweak individual cells afterwards. Pure-data helper so
 // the React layer stays a thin caller.
@@ -18,7 +18,6 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

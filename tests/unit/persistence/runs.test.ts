@@ -1,4 +1,4 @@
-// Repo round-trip + zod boundary tests for the Run/RunTarget/Attempt
+﻿// Repo round-trip + zod boundary tests for the Run/RunTarget/Attempt
 // model (#174 → #176). Asserts:
 // - createRun / addRunTarget / appendAttempt persist and round-trip
 // - appendAttempt auto-increments sequence per run_target
@@ -39,8 +39,8 @@ async function seedConversation(id = "c_1"): Promise<void> {
 
 async function seedPersona(id = "p_1"): Promise<void> {
   await sql.execute(
-    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-     VALUES (?, 'c_1', 'openai', 'Alice', 'alice', 0, 0, '[]', '{}')`,
+    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+     VALUES (?, 'c_1', 'openai', 'Alice', 'alice', 0, 0, '{}')`,
     [id],
   );
 }

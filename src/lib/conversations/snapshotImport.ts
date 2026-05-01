@@ -63,16 +63,19 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     created.push(p);
   }
 
-  // Patch runsAfter + roleLens now that all IDs exist.
+  // Patch roleLens now that all IDs exist. (#241 Phase C dropped the
+  // persistent runs_after column — legacy snapshot edges flow into a
+  // transient map below for migrateRunsAfterToFlow rather than being
+  // written to Persona rows.)
+  const importedRunsAfter = new Map<string, readonly string[]>();
   for (let i = 0; i < snapshot.personas.length; i++) {
     const sp = snapshot.personas[i]!;
     const p = created[i]!;
-    const updates: { id: string; runsAfter?: string[]; roleLens?: Record<string, "user" | "assistant"> } = { id: p.id };
     if (sp.runsAfter && sp.runsAfter.length > 0) {
       const parentIds = sp.runsAfter
         .map((name) => nameToId.get(name.toLowerCase()))
         .filter((id): id is string => id !== undefined);
-      if (parentIds.length > 0) updates.runsAfter = parentIds;
+      if (parentIds.length > 0) importedRunsAfter.set(p.id, parentIds);
     }
     if (sp.roleLens && Object.keys(sp.roleLens).length > 0) {
       // #213: lens entries are name-keyed on disk; remap to fresh ids.
@@ -88,10 +91,9 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
           if (id) remapped[id] = value;
         }
       }
-      if (Object.keys(remapped).length > 0) updates.roleLens = remapped;
-    }
-    if (updates.runsAfter !== undefined || updates.roleLens !== undefined) {
-      await updatePersona(updates);
+      if (Object.keys(remapped).length > 0) {
+        await updatePersona({ id: p.id, roleLens: remapped });
+      }
     }
   }
 
@@ -186,12 +188,11 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
   // runs_after but no bundled flow auto-derive one at import time.
   // Skipped silently when the snapshot already had a flow attached
   // (handled in 5b above) — migrateRunsAfterToFlow respects the
-  // existing flow and just clears runsAfter to keep state coherent.
-  const importedHadRunsAfter = snapshot.personas.some(
-    (sp) => Array.isArray(sp.runsAfter) && sp.runsAfter.length > 0,
-  );
-  if (importedHadRunsAfter) {
-    await migrateRunsAfterToFlow(conv.id, { trigger: "import" });
+  // existing flow and only emits the re-export notice.
+  if (importedRunsAfter.size > 0) {
+    await migrateRunsAfterToFlow(conv.id, importedRunsAfter, {
+      trigger: "import",
+    });
   }
 
   // 6. Validate API keys.

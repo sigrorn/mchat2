@@ -1,4 +1,4 @@
-// recordRetry — write a retry's side-effects to the new
+﻿// recordRetry — write a retry's side-effects to the new
 // Run/RunTarget/Attempt model (#174 → #178). Reuses the failed
 // message's RunTarget (backfilled as rt_<msgid>) so the retry's
 // Attempt becomes sequence=2 on the same target. The failed
@@ -23,8 +23,8 @@ async function seedConversation(): Promise<void> {
 }
 async function seedPersona(): Promise<void> {
   await sql.execute(
-    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-     VALUES ('p_1', 'c_1', 'openai', 'Alice', 'alice', 0, 0, '[]', '{}')`,
+    `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+     VALUES ('p_1', 'c_1', 'openai', 'Alice', 'alice', 0, 0, '{}')`,
   );
 }
 async function seedFailedAssistantWithBackfill(msgId = "m_old"): Promise<void> {

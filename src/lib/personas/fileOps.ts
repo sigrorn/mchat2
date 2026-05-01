@@ -88,18 +88,23 @@ export async function importPersonasFromFile(
       created.push(p);
     }
     // Build a name-slug → id map across existing live + freshly created.
+    // #241 Phase C dropped runs_after on disk; legacy edges from the
+    // imported file flow into a transient map below for the
+    // migrateRunsAfterToFlow call rather than being persisted on
+    // Persona rows.
     const post = await repo.listPersonas(conversationId);
     const live = post.filter((p) => p.deletedAt === null);
     const idBySlug = new Map(live.map((p) => [p.nameSlug, p.id] as const));
+    const importedRunsAfter = new Map<string, readonly string[]>();
     for (const entry of resolved.toCreate) {
-      if (entry.runsAfter.length === 0) continue;
+      if (!entry.runsAfter || entry.runsAfter.length === 0) continue;
       const parentIds = entry.runsAfter
         .map((name) => idBySlug.get(slugify(name)))
         .filter((id): id is string => id !== undefined);
       if (parentIds.length === 0) continue;
-      const p = post.find((x) => x.nameSlug === slugify(entry.name));
-      if (!p) continue;
-      await updatePersona({ id: p.id, runsAfter: parentIds });
+      const child = post.find((x) => x.nameSlug === slugify(entry.name));
+      if (!child) continue;
+      importedRunsAfter.set(child.id, parentIds);
     }
     // #236: apply per-persona roleLens. The on-disk lens is name-keyed;
     // remap to ids against the post-import set. The literal "user" key
@@ -153,19 +158,17 @@ export async function importPersonasFromFile(
         invalidateRepoQuery(["flow"]);
       }
     }
-    // #241 Phase 0 / Trigger B: if the imported entries carried legacy
-    // runs_after edges, fold them into a conversation flow and append
-    // a re-export notice. Idempotent — when no imported persona has
-    // runs_after, the migration is a no-op and no notice is appended.
-    // Existing flow on the conversation is respected (not overwritten);
-    // only the imported runsAfter is cleared in that branch.
-    const importedHadRunsAfter = resolved.toCreate.some(
-      (e) => e.runsAfter.length > 0,
-    );
-    if (importedHadRunsAfter) {
-      const migration = await migrateRunsAfterToFlow(conversationId, {
-        trigger: "import",
-      });
+    // #241 Phase 0 / Trigger B: legacy runs_after edges from the
+    // imported file fold into a conversation flow + re-export notice.
+    // Existing flow on the conversation wins (the migration won't
+    // overwrite it); the notice still fires so the user knows their
+    // archived persona file is out of date.
+    if (importedRunsAfter.size > 0) {
+      const migration = await migrateRunsAfterToFlow(
+        conversationId,
+        importedRunsAfter,
+        { trigger: "import" },
+      );
       if (migration.converted) invalidateRepoQuery(["flow"]);
     }
     // #36: every imported persona needs the same identity pin that

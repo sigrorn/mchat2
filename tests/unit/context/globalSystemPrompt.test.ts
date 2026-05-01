@@ -1,4 +1,4 @@
-// System prompt layering: global + persona-identity + local — #23 + #39.
+﻿// System prompt layering: global + persona-identity + local — #23 + #39.
 import { describe, it, expect } from "vitest";
 import { buildContext } from "@/lib/context/builder";
 import type { Conversation, Persona, PersonaTarget } from "@/lib/types";
@@ -31,7 +31,6 @@ const persona: Persona = {
   colorOverride: null,
   createdAtMessageIndex: 0,
   sortOrder: 0,
-  runsAfter: [],
   deletedAt: null,
   apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

@@ -55,11 +55,11 @@ afterEach(() => {
 });
 
 describe("importPersonasFromFile auto-converts runs_after (#241 Trigger B)", () => {
-  it("derives a flow + clears runsAfter + appends a re-export notice", async () => {
+  it("derives a flow from legacy edges + appends a re-export notice", async () => {
     installFs({
       version: 1,
       personas: [
-        { name: "Alice", provider: "mock", runsAfter: [] },
+        { name: "Alice", provider: "mock" },
         { name: "Bob", provider: "mock", runsAfter: ["Alice"] },
       ],
     });
@@ -67,9 +67,11 @@ describe("importPersonasFromFile auto-converts runs_after (#241 Trigger B)", () 
     const r = await importPersonasFromFile("c_1", 0, null);
     if (!r.ok) throw new Error("import failed");
 
+    // #241 Phase C dropped runs_after from the Persona shape; the
+    // legacy edges in the file are interpreted at import time and
+    // never end up persisted on the persona row.
     const ps = await personasRepo.listPersonas("c_1");
-    const bob = ps.find((p) => p.name === "Bob")!;
-    expect(bob.runsAfter).toEqual([]);
+    expect(ps.find((p) => p.name === "Bob")).toBeDefined();
 
     const flow = await flowsRepo.getFlow("c_1");
     expect(flow).not.toBeNull();
@@ -87,7 +89,7 @@ describe("importPersonasFromFile auto-converts runs_after (#241 Trigger B)", () 
     installFs({
       version: 1,
       personas: [
-        { name: "Solo", provider: "mock", runsAfter: [] },
+        { name: "Solo", provider: "mock" },
       ],
     });
 

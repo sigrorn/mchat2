@@ -15,8 +15,6 @@ import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
 import * as conversationsRepo from "@/lib/persistence/conversations";
-import { migrateRunsAfterToFlow } from "@/lib/conversations/migrateRunsAfterToFlow";
-import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { findMatches } from "@/lib/ui/findMatches";
 import {
   computeScrollTarget,
@@ -74,22 +72,10 @@ export function ChatView(): JSX.Element {
     if (!currentId) return;
     void loadMessages(currentId);
     void loadPersonas(currentId);
-    // #241 Phase 0 / Trigger A: when a conversation is opened, fold any
-    // legacy runs_after edges into a conversation flow. Idempotent —
-    // re-opens are a no-op once the runsAfter columns are cleared. The
-    // refetches keep the freshly-attached flow + cleared runsAfter +
-    // appended notice visible without a manual reload.
-    void (async () => {
-      const result = await migrateRunsAfterToFlow(currentId, { trigger: "open" });
-      if (result.cleared) {
-        invalidateRepoQuery(["personas", currentId]);
-        invalidateRepoQuery(["flow"]);
-      }
-      if (result.noticeAppended) {
-        invalidateRepoQuery(["messages", currentId]);
-        await loadMessages(currentId);
-      }
-    })();
+    // #241 Phase C dropped the runs_after column, so the lazy-on-open
+    // auto-migration that lived here through Phase 0 no longer has a
+    // data source — legacy edges only enter via import paths now,
+    // which run the migration themselves with a transient map.
   }, [currentId, loadMessages, loadPersonas]);
 
   // #53/#211: compute matches for the find bar from the active

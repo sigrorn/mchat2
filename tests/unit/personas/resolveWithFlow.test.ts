@@ -1,4 +1,4 @@
-// resolveTargetsWithFlow wrapper — slice 4 of #212 (#216).
+﻿// resolveTargetsWithFlow wrapper — slice 4 of #212 (#216).
 //
 // A wrapper above the pure resolver. When a flow is attached and the
 // next step is `personas`, @convo and @all both narrow to that step's
@@ -20,7 +20,6 @@ function persona(id: string, name: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

@@ -28,9 +28,6 @@ export interface Persona {
   // context builder rules).
   createdAtMessageIndex: number;
   sortOrder: number;
-  // DAG edges: parent persona ids. Empty array = root. Multiple entries
-  // = AND-join (child waits for ALL listed parents to complete).
-  runsAfter: PersonaId[];
   // Tombstone (ms epoch). Null = active.
   deletedAt: number | null;
   // Provider-specific config. Currently only Apertus uses this — its

@@ -1,14 +1,11 @@
 // ------------------------------------------------------------------
 // Component: Personas repository (Kysely-backed)
-// Responsibility: CRUD over Persona rows with tombstoning. The
-//                 runs_after junction (#195) is dual-written: writes
-//                 hit both the legacy JSON column and the
-//                 persona_runs_after edge table; reads come from the
-//                 junction via loadRunsAfterMap.
+// Responsibility: CRUD over Persona rows with tombstoning.
 // History:       Migrated from raw sql.execute / sql.select to Kysely
-//                in #201. Public exports keep their signatures; the
-//                hand-written `Row` interface is gone — column types
-//                come from lib/persistence/schema.ts.
+//                in #201; Phase C of #241 dropped the runs_after
+//                column and the persona_runs_after junction, so the
+//                read/write paths shed loadRunsAfterMap +
+//                writeRunsAfter and the dual-write logic.
 // Collaborators: personas/service.ts, personas/resolver.ts, ids.ts.
 // ------------------------------------------------------------------
 
@@ -17,7 +14,7 @@ import type { PersonasTable } from "./schema";
 import type { Persona, ProviderId } from "../types";
 import { newPersonaId } from "./ids";
 
-function rowToPersona(r: PersonasTable, runsAfter: string[]): Persona {
+function rowToPersona(r: PersonasTable): Persona {
   return {
     id: r.id,
     conversationId: r.conversation_id,
@@ -29,50 +26,12 @@ function rowToPersona(r: PersonasTable, runsAfter: string[]): Persona {
     colorOverride: r.color_override,
     createdAtMessageIndex: r.created_at_message_index,
     sortOrder: r.sort_order,
-    // #195: read from persona_runs_after junction; legacy JSON column
-    // is dual-written but no longer the read source.
-    runsAfter,
     deletedAt: r.deleted_at,
     apertusProductId: r.apertus_product_id ?? null,
     visibilityDefaults: parseVisibilityDefaults(r.visibility_defaults),
     openaiCompatPreset: parseOpenaiCompatPreset(r.openai_compat_preset),
     roleLens: parseRoleLens(r.role_lens),
   };
-}
-
-async function loadRunsAfterMap(
-  personaIds: readonly string[],
-): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>();
-  for (const id of personaIds) out.set(id, []);
-  if (personaIds.length === 0) return out;
-  const rows = await db
-    .selectFrom("persona_runs_after")
-    .select(["child_id", "parent_id"])
-    .where("child_id", "in", personaIds)
-    .execute();
-  for (const r of rows) out.get(r.child_id)?.push(r.parent_id);
-  return out;
-}
-
-async function writeRunsAfter(
-  personaId: string,
-  parents: readonly string[],
-): Promise<void> {
-  await db
-    .deleteFrom("persona_runs_after")
-    .where("child_id", "=", personaId)
-    .execute();
-  if (parents.length === 0) return;
-  // ON CONFLICT DO NOTHING — defensive against the very rare case that
-  // a parent doesn't resolve (e.g. an import sequence where the parent
-  // persona row hasn't been created yet). Without it the FK violation
-  // aborts the whole write.
-  await db
-    .insertInto("persona_runs_after")
-    .values(parents.map((parent) => ({ child_id: personaId, parent_id: parent })))
-    .onConflict((oc) => oc.doNothing())
-    .execute();
 }
 
 function parseOpenaiCompatPreset(
@@ -140,8 +99,7 @@ export async function listPersonas(
     .where("conversation_id", "=", conversationId);
   if (!includeDeleted) q = q.where("deleted_at", "is", null);
   const rows = await q.orderBy("sort_order").orderBy("name").execute();
-  const runsAfterMap = await loadRunsAfterMap(rows.map((r) => r.id));
-  return rows.map((r) => rowToPersona(r, runsAfterMap.get(r.id) ?? []));
+  return rows.map(rowToPersona);
 }
 
 export async function getPersona(id: string): Promise<Persona | null> {
@@ -151,8 +109,7 @@ export async function getPersona(id: string): Promise<Persona | null> {
     .where("id", "=", id)
     .executeTakeFirst();
   if (!row) return null;
-  const map = await loadRunsAfterMap([id]);
-  return rowToPersona(row, map.get(id) ?? []);
+  return rowToPersona(row);
 }
 
 function personaToRow(p: Persona): PersonasTable {
@@ -167,7 +124,6 @@ function personaToRow(p: Persona): PersonasTable {
     color_override: p.colorOverride,
     created_at_message_index: p.createdAtMessageIndex,
     sort_order: p.sortOrder,
-    runs_after: JSON.stringify(p.runsAfter),
     deleted_at: p.deletedAt,
     apertus_product_id: p.apertusProductId,
     visibility_defaults: JSON.stringify(p.visibilityDefaults),
@@ -183,7 +139,6 @@ export async function createPersona(
 ): Promise<Persona> {
   const p: Persona = { ...partial, id: partial.id ?? newPersonaId() };
   await db.insertInto("personas").values(personaToRow(p)).execute();
-  await writeRunsAfter(p.id, p.runsAfter);
   return p;
 }
 
@@ -199,7 +154,6 @@ export async function updatePersona(p: Persona): Promise<void> {
       model_override: row.model_override,
       color_override: row.color_override,
       sort_order: row.sort_order,
-      runs_after: row.runs_after,
       deleted_at: row.deleted_at,
       apertus_product_id: row.apertus_product_id,
       visibility_defaults: row.visibility_defaults,
@@ -208,7 +162,6 @@ export async function updatePersona(p: Persona): Promise<void> {
     })
     .where("id", "=", p.id)
     .execute();
-  await writeRunsAfter(p.id, p.runsAfter);
 }
 
 export async function tombstonePersona(id: string, at: number = Date.now()): Promise<void> {

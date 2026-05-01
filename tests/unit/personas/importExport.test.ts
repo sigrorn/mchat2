@@ -20,7 +20,6 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     colorOverride: over.colorOverride ?? null,
     createdAtMessageIndex: over.createdAtMessageIndex ?? 0,
     sortOrder: over.sortOrder ?? 0,
-    runsAfter: over.runsAfter ?? [],
     deletedAt: over.deletedAt ?? null,
     apertusProductId: over.apertusProductId ?? null,
     visibilityDefaults: over.visibilityDefaults ?? {},
@@ -30,18 +29,20 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
 }
 
 describe("serializePersonas", () => {
-  it("emits version 1 envelope and resolves runsAfter to a name", () => {
+  it("emits a version 1 envelope listing each live persona by name", () => {
     const ps: Persona[] = [
       persona({ id: "p_a", name: "Alice", systemPromptOverride: "be brief" }),
-      persona({ id: "p_b", name: "Bob", runsAfter: ["p_a"] }),
+      persona({ id: "p_b", name: "Bob" }),
     ];
     const json = serializePersonas(ps);
     const parsed = JSON.parse(json) as { version: number; personas: unknown[] };
     expect(parsed.version).toBe(1);
     expect(parsed.personas).toHaveLength(2);
-    const second = parsed.personas[1] as { name: string; runsAfter: string[] };
-    expect(second.name).toBe("Bob");
-    expect(second.runsAfter).toEqual(["Alice"]);
+    // #241 Phase C: modern exports never emit runs_after — ordering
+    // lives on the conversation flow now.
+    for (const p of parsed.personas) {
+      expect(p as Record<string, unknown>).not.toHaveProperty("runsAfter");
+    }
   });
 
   it("skips tombstoned personas (deletedAt set)", () => {
@@ -102,7 +103,7 @@ function imp(over: Partial<ExportedPersona> & { name: string }): ExportedPersona
     colorOverride: over.colorOverride ?? null,
     apertusProductId: over.apertusProductId ?? null,
     visibilityDefaults: over.visibilityDefaults ?? {},
-    runsAfter: over.runsAfter ?? [],
+    ...(over.runsAfter !== undefined ? { runsAfter: over.runsAfter } : {}),
     ...(over.roleLens ? { roleLens: over.roleLens } : {}),
   };
 }

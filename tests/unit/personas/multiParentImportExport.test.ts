@@ -1,7 +1,12 @@
-// #66 — Multi-parent runsAfter in import/export.
+// #66 — Multi-parent runs_after in legacy import payloads.
+//
+// #241 Phase C dropped runs_after from disk and from modern exports.
+// The parser still understands runs_after on input (so legacy files
+// import cleanly), and resolveImport still resolves multi-parent
+// arrays — fileOps then forwards the resolved set to the auto-
+// migration as a transient map. These tests cover that surface.
 import { describe, it, expect } from "vitest";
 import {
-  serializePersonas,
   parsePersonasImport,
   resolveImport,
   type ExportedPersona,
@@ -20,10 +25,11 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     colorOverride: over.colorOverride ?? null,
     createdAtMessageIndex: over.createdAtMessageIndex ?? 0,
     sortOrder: over.sortOrder ?? 0,
-    runsAfter: over.runsAfter ?? [],
     deletedAt: over.deletedAt ?? null,
     apertusProductId: over.apertusProductId ?? null,
-    visibilityDefaults: over.visibilityDefaults ?? {}, openaiCompatPreset: null, roleLens: {},
+    visibilityDefaults: over.visibilityDefaults ?? {},
+    openaiCompatPreset: null,
+    roleLens: {},
   };
 }
 
@@ -36,25 +42,11 @@ function imp(over: Partial<ExportedPersona> & { name: string }): ExportedPersona
     colorOverride: over.colorOverride ?? null,
     apertusProductId: over.apertusProductId ?? null,
     visibilityDefaults: over.visibilityDefaults ?? {},
-    runsAfter: over.runsAfter ?? [],
+    ...(over.runsAfter !== undefined ? { runsAfter: over.runsAfter } : {}),
   };
 }
 
-describe("serializePersonas multi-parent (#66)", () => {
-  it("resolves multi-parent runsAfter ids to names", () => {
-    const ps: Persona[] = [
-      persona({ id: "p_a", name: "Alice" }),
-      persona({ id: "p_b", name: "Bob" }),
-      persona({ id: "p_c", name: "Carol", runsAfter: ["p_a", "p_b"] }),
-    ];
-    const json = serializePersonas(ps);
-    const parsed = JSON.parse(json) as { personas: { name: string; runsAfter: string[] }[] };
-    const carol = parsed.personas.find((p) => p.name === "Carol");
-    expect(carol?.runsAfter).toEqual(["Alice", "Bob"]);
-  });
-});
-
-describe("parsePersonasImport multi-parent (#66)", () => {
+describe("parsePersonasImport multi-parent (#66, legacy compat)", () => {
   it("accepts runsAfter as an array of names", () => {
     const r = parsePersonasImport(
       JSON.stringify({
@@ -87,7 +79,7 @@ describe("parsePersonasImport multi-parent (#66)", () => {
   });
 });
 
-describe("resolveImport multi-parent (#66)", () => {
+describe("resolveImport multi-parent (#66, legacy compat)", () => {
   it("resolves multi-parent runsAfter by name", () => {
     const existing: Persona[] = [persona({ id: "p_a", name: "Alice" })];
     const r = resolveImport(existing, [

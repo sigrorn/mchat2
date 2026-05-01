@@ -76,8 +76,8 @@ describe("migration v15 — selected_personas junction", () => {
        VALUES ('c_1', 'T', 1, 'lines', 'separated', '{}', '[]', '[]')`,
     );
     await sql.execute(
-      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-       VALUES ('p_x', 'c_1', 'mock', 'X', 'x', 0, 0, '[]', '{}')`,
+      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+       VALUES ('p_x', 'c_1', 'mock', 'X', 'x', 0, 0, '{}')`,
     );
     await sql.execute(
       `INSERT INTO conversation_personas_selected (conversation_id, persona_id) VALUES ('c_1', 'p_x')`,
@@ -96,8 +96,8 @@ describe("migration v15 — selected_personas junction", () => {
        VALUES ('c_1', 'T', 1, 'lines', 'separated', '{}', '[]', '[]')`,
     );
     await sql.execute(
-      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
-       VALUES ('p_x', 'c_1', 'mock', 'X', 'x', 0, 0, '[]', '{}')`,
+      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
+       VALUES ('p_x', 'c_1', 'mock', 'X', 'x', 0, 0, '{}')`,
     );
     await sql.execute(
       `INSERT INTO conversation_personas_selected (conversation_id, persona_id) VALUES ('c_1', 'p_x')`,

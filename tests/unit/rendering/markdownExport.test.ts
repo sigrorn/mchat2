@@ -1,4 +1,4 @@
-// Markdown export — issue #56.
+﻿// Markdown export — issue #56.
 import { describe, it, expect } from "vitest";
 import { exportToMarkdown } from "@/lib/rendering/markdownExport";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -33,7 +33,6 @@ function persona(id: string, name: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

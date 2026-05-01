@@ -1,4 +1,4 @@
-// Audience-based visibility in context builder — issue #4.
+﻿// Audience-based visibility in context builder — issue #4.
 import { describe, it, expect } from "vitest";
 import { buildContext } from "@/lib/context";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -33,7 +33,6 @@ function persona(id: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

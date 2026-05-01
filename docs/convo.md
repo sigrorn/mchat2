@@ -1,5 +1,11 @@
 # Conversation flows + persona role lens
 
+> **Status (2026-05-02):** the experiment shipped; `runs_after` was
+> retired per [docs/decisions/009-runs-after-removal.md](decisions/009-runs-after-removal.md).
+> The "Coexistence with `runs_after`" section below is preserved as
+> historical reference for what was true during the experiment;
+> current code has neither the column nor the validator.
+
 ## Context
 
 In mchat2 today, **the user is the only `user`-role speaker**. Every persona reply maps to `assistant`-role with a name prefix in the content (see [src/lib/context/builder.ts:131](../src/lib/context/builder.ts#L131)), and a `Run` always executes top-to-bottom in one shot via `executeDag` ([src/lib/orchestration/dagExecutor.ts](../src/lib/orchestration/dagExecutor.ts)). There is no machinery to pause for user input mid-Run, and no way for one persona to receive another persona's reply *as* the user prompt rather than as a third-party assistant message.

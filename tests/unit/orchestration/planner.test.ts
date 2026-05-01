@@ -18,7 +18,6 @@ function persona(id: string, sortOrder = 0): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

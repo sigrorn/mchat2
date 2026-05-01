@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+﻿import { describe, it, expect } from "vitest";
 import { buildContext } from "@/lib/context";
 import { makeMessage } from "@/lib/persistence/messages";
 import type { Conversation, Persona, PersonaTarget } from "@/lib/types";
@@ -32,7 +32,6 @@ function persona(over: Partial<Persona> = {}): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

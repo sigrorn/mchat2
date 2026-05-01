@@ -398,6 +398,21 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE messages ADD COLUMN flow_dispatched INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 27 — Drop the legacy runs_after persistence layer (#241 Phase C).
+  // The persona-editor field went away in Phase A; the read paths
+  // went away in Phase B. By the time this migration runs, every
+  // conversation that opened post-Phase 0 has had its runs_after
+  // edges folded into a flow + appended a notice. Stragglers (DBs
+  // upgraded directly from pre-Phase-0) lose the ordering — the
+  // personas keep working, just without the legacy DAG; the user
+  // can rebuild ordering through the flow editor.
+  [
+    `DROP TABLE IF EXISTS persona_runs_after`,
+    // SQLite ≥ 3.35 supports ALTER TABLE ... DROP COLUMN. Tauri ships
+    // a version newer than that; mirror the pattern used by other
+    // ALTER TABLE migrations in this file.
+    `ALTER TABLE personas DROP COLUMN runs_after`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

@@ -1,4 +1,4 @@
-// #94 → #202 — Per-persona visibility defaults are normalized into
+﻿// #94 → #202 — Per-persona visibility defaults are normalized into
 // the persona_visibility table at backfill time (#194), and
 // rebuildVisibilityFromPersonaDefaults rewrites the table from the
 // current per-persona defaults. The legacy in-memory helper
@@ -52,7 +52,6 @@ async function makePersona(
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults,

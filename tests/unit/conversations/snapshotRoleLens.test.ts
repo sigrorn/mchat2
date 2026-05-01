@@ -1,4 +1,4 @@
-// Snapshot round-trip for persona.roleLens — slice 1 of #212 (#213).
+﻿// Snapshot round-trip for persona.roleLens — slice 1 of #212 (#213).
 //
 // The on-disk snapshot keys lens entries by speaker *name* (not id) for
 // portability across exports. Persona-id speakers are translated to
@@ -142,7 +142,6 @@ describe("snapshot round-trip preserves persona roleLens (#213)", () => {
           colorOverride: null,
           apertusProductId: null,
           visibilityDefaults: {},
-          runsAfter: [],
           sortOrder: 0,
           createdAtMessageIndex: 0,
         },

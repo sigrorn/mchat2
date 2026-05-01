@@ -1,4 +1,4 @@
-// Pin-listing notice formatter — issue #11.
+﻿// Pin-listing notice formatter — issue #11.
 import { describe, it, expect } from "vitest";
 import { formatPinsNotice } from "@/lib/conversations/pinFormatter";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -16,7 +16,6 @@ function persona(id: string, name: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

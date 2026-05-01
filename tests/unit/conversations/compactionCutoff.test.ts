@@ -1,4 +1,4 @@
-// Tests for the per-persona compaction cutoff helper — issue #110.
+﻿// Tests for the per-persona compaction cutoff helper — issue #110.
 // Semantics: preserve the last N non-pinned user messages visible to each
 // persona; cutoff is the minimum across personas.
 import { describe, it, expect } from "vitest";
@@ -34,7 +34,6 @@ function persona(id: string, overrides: Partial<Persona> = {}): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

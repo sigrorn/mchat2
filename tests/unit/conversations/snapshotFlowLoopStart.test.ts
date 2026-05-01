@@ -1,4 +1,4 @@
-// Snapshot round-trip preserves flow.loopStartIndex (#220).
+﻿// Snapshot round-trip preserves flow.loopStartIndex (#220).
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { serializeSnapshot } from "@/lib/conversations/snapshot";
 import { parseSnapshot } from "@/lib/schemas/snapshot";
@@ -124,7 +124,6 @@ describe("snapshot round-trip preserves flow.loopStartIndex (#220)", () => {
           colorOverride: null,
           apertusProductId: null,
           visibilityDefaults: {},
-          runsAfter: [],
           sortOrder: 0,
           createdAtMessageIndex: 0,
         },

@@ -1,4 +1,4 @@
-// //stats formatter tests — issues #116, #119.
+﻿// //stats formatter tests — issues #116, #119.
 import { describe, it, expect } from "vitest";
 import { formatStats } from "@/lib/commands/stats";
 import type { Conversation, Message, Persona } from "@/lib/types";
@@ -32,7 +32,6 @@ function persona(id: string, name: string, provider: "openai" | "claude"): Perso
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

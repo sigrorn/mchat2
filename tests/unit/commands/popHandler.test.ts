@@ -1,4 +1,4 @@
-// Integration repro for the regression "//pop no longer removes
+﻿// Integration repro for the regression "//pop no longer removes
 // messages" reported 2026-04-27. Exercises handlePop through
 // createTestDb so we hit the real SQL + transaction machinery.
 import { describe, it, expect, afterEach } from "vitest";
@@ -146,8 +146,8 @@ function makeCtx(
 async function seedPersona(conversationId: string): Promise<void> {
   await sql.execute(
     `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
-        created_at_message_index, sort_order, runs_after, visibility_defaults)
-      VALUES ('p_alice', ?, 'openai', 'Alice', 'alice', 0, 0, '[]', '{}')`,
+        created_at_message_index, sort_order, visibility_defaults)
+      VALUES ('p_alice', ?, 'openai', 'Alice', 'alice', 0, 0, '{}')`,
     [conversationId],
   );
 }

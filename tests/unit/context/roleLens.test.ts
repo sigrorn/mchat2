@@ -43,7 +43,6 @@ function persona(id: string, name: string, roleLens: Persona["roleLens"] = {}): 
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {},

@@ -1,4 +1,4 @@
-// #200: round-trip tests through a real sql.js DB instead of
+﻿// #200: round-trip tests through a real sql.js DB instead of
 // SQL-string mocks. The previous version of this file matched on
 // substrings ("MAX(idx)", "INSERT INTO conversations") and parameter
 // positions, which gates Kysely-style query-builder migrations on
@@ -76,8 +76,8 @@ describe("conversationsRepo", () => {
 describe("personasRepo", () => {
   async function seedPersona(id: string, slug: string, deletedAt: number | null): Promise<void> {
     await sql.execute(
-      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults, deleted_at)
-       VALUES (?, 'c_1', 'openai', ?, ?, 0, 0, '[]', '{}', ?)`,
+      `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults, deleted_at)
+       VALUES (?, 'c_1', 'openai', ?, ?, 0, 0, '{}', ?)`,
       [id, slug, slug, deletedAt],
     );
   }

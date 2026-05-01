@@ -26,7 +26,9 @@ export interface ExportedFlow {
 }
 
 // On-disk representation. Exported personas drop ids and conversation-
-// scoped fields so the document is portable; runsAfter is by name.
+// scoped fields so the document is portable. #241 Phase C dropped the
+// runs_after field from disk; the type leaves it as optional purely so
+// legacy envelopes round-trip — modern exports never emit it.
 export interface ExportedPersona {
   name: string;
   provider: ProviderId;
@@ -35,7 +37,7 @@ export interface ExportedPersona {
   colorOverride: string | null;
   apertusProductId: string | null;
   visibilityDefaults: Record<string, "y" | "n">;
-  runsAfter: string[]; // names of parent personas in this file
+  runsAfter?: string[];
   // #236: per-persona role lens, keyed by speaker *name* (not id).
   // Literal 'user' key passes through unchanged. Optional for
   // back-compat with pre-#236 envelopes.
@@ -91,9 +93,6 @@ export function serializePersonas(
         colorOverride: p.colorOverride,
         apertusProductId: p.apertusProductId,
         visibilityDefaults: p.visibilityDefaults,
-        runsAfter: p.runsAfter
-          .map((id) => nameById.get(id))
-          .filter((n): n is string => n !== undefined),
         // #236: emit only when non-empty so legacy-shaped exports stay
         // byte-for-byte identical. Imports treat absent + {} the same.
         ...(Object.keys(lens).length > 0 ? { roleLens: lens } : {}),
@@ -186,6 +185,13 @@ export function resolveImport(
           visibilityWarnings.push(`${p.name}: dropped unknown visibility reference '${slug}'`);
         }
       }
+      // #241 Phase C: legacy runs_after edges no longer round-trip
+      // through Persona on disk. We still parse and keep the names of
+      // resolvable parents so fileOps can hand them to
+      // migrateRunsAfterToFlow as a transient map for legacy imports.
+      const declaredRunsAfter = (p.runsAfter ?? []).filter((n) =>
+        known.has(n.toLowerCase()),
+      );
       return {
         name: p.name,
         provider: p.provider,
@@ -194,7 +200,7 @@ export function resolveImport(
         colorOverride: p.colorOverride,
         apertusProductId: p.apertusProductId,
         visibilityDefaults: filtered,
-        runsAfter: p.runsAfter.filter((n) => known.has(n.toLowerCase())),
+        runsAfter: declaredRunsAfter,
         // #236: carry roleLens verbatim — fileOps remaps the
         // name keys to ids after createPersona assigns them.
         ...(p.roleLens && Object.keys(p.roleLens).length > 0

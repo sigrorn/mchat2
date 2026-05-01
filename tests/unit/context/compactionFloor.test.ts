@@ -1,4 +1,4 @@
-// #102 — Compaction floor excludes messages below it from context.
+﻿// #102 — Compaction floor excludes messages below it from context.
 import { describe, it, expect } from "vitest";
 import { buildContext } from "@/lib/context";
 import { makeMessage } from "@/lib/persistence/messages";
@@ -33,7 +33,6 @@ function persona(): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

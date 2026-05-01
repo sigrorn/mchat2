@@ -18,7 +18,10 @@ export interface SnapshotPersona {
   colorOverride: string | null;
   apertusProductId: string | null;
   visibilityDefaults: Record<string, "y" | "n">;
-  runsAfter: string[];
+  // #241 Phase C dropped the field from disk; the snapshot envelope
+  // still exposes it as optional so legacy snapshots round-trip.
+  // Modern exports never populate this.
+  runsAfter?: string[];
   sortOrder: number;
   createdAtMessageIndex: number;
   // #213: per-persona role lens, keyed by speaker *name* (not id) for
@@ -156,9 +159,6 @@ export function serializeSnapshot(
       colorOverride: p.colorOverride,
       apertusProductId: p.apertusProductId,
       visibilityDefaults: p.visibilityDefaults,
-      runsAfter: p.runsAfter
-        .map((id) => idToName.get(id))
-        .filter((n): n is string => n !== undefined),
       sortOrder: p.sortOrder,
       createdAtMessageIndex: p.createdAtMessageIndex,
       roleLens: serializeRoleLens(p.roleLens, idToName),

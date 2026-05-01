@@ -1,4 +1,4 @@
-// #78 — //visibility with no argument echoes current status.
+﻿// #78 — //visibility with no argument echoes current status.
 import { describe, it, expect } from "vitest";
 import { formatVisibilityStatus } from "@/lib/commands/visibilityStatus";
 import type { Persona } from "@/lib/types";
@@ -15,7 +15,6 @@ function persona(id: string, name: string): Persona {
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},

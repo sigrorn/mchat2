@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+﻿import { describe, it, expect } from "vitest";
 import { resolveTargets } from "@/lib/personas/resolver";
 import type { Persona } from "@/lib/types";
 
@@ -14,7 +14,6 @@ function persona(id: string, slug: string, provider: Persona["provider"] = "mock
     colorOverride: null,
     createdAtMessageIndex: 0,
     sortOrder: 0,
-    runsAfter: [],
     deletedAt: null,
     apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
