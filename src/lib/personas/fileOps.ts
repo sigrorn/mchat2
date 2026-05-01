@@ -12,6 +12,7 @@ import { createPersona, updatePersona } from "./service";
 import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
 import * as flowsRepo from "../persistence/flows";
+import { invalidateRepoQuery } from "../data/useRepoQuery";
 import { transaction } from "../persistence/transaction";
 import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
@@ -144,6 +145,11 @@ export async function importPersonasFromFile(
           loopStartIndex: safeLoopStart,
           steps: cleaned,
         });
+        // #236 follow-up: bump the flow query cache so PersonaPanel
+        // re-reads the freshly-imported flow and renders the
+        // "Conversation flow" row immediately instead of waiting for
+        // the next @convo / FlowEditor save to invalidate it.
+        invalidateRepoQuery(["flow"]);
       }
     }
     // #36: every imported persona needs the same identity pin that
