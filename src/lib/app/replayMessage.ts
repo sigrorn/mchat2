@@ -22,6 +22,7 @@ import { recordReplay } from "@/lib/orchestration/recordReplay";
 import { selectionAfterResolve } from "./sendSelection";
 import { runPlannedSend } from "./runPlannedSend";
 import { computeFlowRewindIndex } from "./flowRewind";
+import { upcomingPersonasStep } from "./flowSelectionSync";
 import type { ReplayMessageDeps } from "./deps";
 
 export interface ReplayMessageArgs {
@@ -113,7 +114,12 @@ export async function replayMessage(
   // auto-chain consecutive personas-steps the way sendMessage does;
   // the user re-types one step at a time. (This matches today's
   // "edit re-runs the next response, then stops" feel.)
+  // #234: when we rewind, also derive the flow_step_id of the
+  // personas-step that's about to be re-run so recordReplay can
+  // stamp it on the new run. Without that stamp, an edit→pop chain
+  // would lose flow lineage and #232's rewind would silently no-op.
   const flow = await deps.getFlow(conversation.id);
+  let replayFlowStepId: string | null = null;
   if (flow && supersededAssistantIds.length > 0) {
     const truncatedStepIds = await runsRepo.listFlowStepIdsForMessages(
       supersededAssistantIds,
@@ -121,6 +127,8 @@ export async function replayMessage(
     const rewindIndex = computeFlowRewindIndex(flow, truncatedStepIds);
     if (rewindIndex !== null) {
       await deps.setFlowStepIndex(flow.id, rewindIndex);
+      const rewoundFlow = { ...flow, currentStepIndex: rewindIndex };
+      replayFlowStepId = upcomingPersonasStep(rewoundFlow)?.id ?? null;
     }
   }
 
@@ -170,6 +178,10 @@ export async function replayMessage(
     now: Date.now(),
     supersededMessageIds: supersededAssistantIds,
     newAssistantMessages,
+    // #234: stamp the flow step that's being re-executed so a later
+    // //pop can walk the lineage. Null when no flow is attached or
+    // the rewind didn't fire.
+    flowStepId: replayFlowStepId,
   });
   return { ok: true };
 }

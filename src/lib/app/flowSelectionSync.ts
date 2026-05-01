@@ -12,7 +12,7 @@
 // Pure — no DB access.
 // ------------------------------------------------------------------
 
-import type { Flow } from "../types";
+import type { Flow, FlowStep } from "../types";
 
 // Walk the flow forward from current_step_index and return the first
 // `personas` step's persona-id list. Wraps to flow.loopStartIndex
@@ -69,6 +69,23 @@ export function flowChainPersonaIds(flow: Flow): string[] {
     idx = idx + 1 >= n ? loopStart : idx + 1;
   }
   return [...personaIds];
+}
+
+// #234: like nextPersonasStepPersonaIds but returns the whole step.
+// Used by replayMessage to derive the flow_step_id to stamp on the
+// replay run after rewinding the cursor — recordReplay needs the step
+// id, not just its persona-ids.
+export function upcomingPersonasStep(flow: Flow): FlowStep | null {
+  const n = flow.steps.length;
+  if (n === 0) return null;
+  const loopStart = flow.loopStartIndex;
+  let idx = flow.currentStepIndex;
+  for (let i = 0; i < n; i++) {
+    const step = flow.steps[idx];
+    if (step?.kind === "personas") return step;
+    idx = idx + 1 >= n ? loopStart : idx + 1;
+  }
+  return null;
 }
 
 // #226: which step index does this persona's *upcoming* dispatch

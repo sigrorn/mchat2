@@ -39,10 +39,14 @@ export interface RecordReplayInput {
   now: number;
   supersededMessageIds: readonly string[];
   newAssistantMessages: readonly RecordReplayNewMessage[];
+  // #234: stamp the replay run with the flow step that's being
+  // re-executed. Lets //pop's #232 rewind walk the lineage on a later
+  // edit-then-pop chain. Null/omitted = non-flow replay (today's path).
+  flowStepId?: string | null;
 }
 
 export async function recordReplay(input: RecordReplayInput): Promise<void> {
-  const { conversationId, now, supersededMessageIds, newAssistantMessages } = input;
+  const { conversationId, now, supersededMessageIds, newAssistantMessages, flowStepId } = input;
   if (supersededMessageIds.length === 0 && newAssistantMessages.length === 0) return;
 
   // Mark backfilled attempts as superseded. Convention: every message
@@ -60,6 +64,7 @@ export async function recordReplay(input: RecordReplayInput): Promise<void> {
     conversationId,
     kind: "replay",
     startedAt: now,
+    flowStepId: flowStepId ?? null,
   });
   for (const msg of newAssistantMessages) {
     const status = msg.errorMessage ? "error" : "complete";
