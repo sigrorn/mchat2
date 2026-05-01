@@ -5,19 +5,28 @@
 //                 Plain-text input flows through useSend.
 // ------------------------------------------------------------------
 
-import { useState } from "react";
-import type { Conversation, Persona } from "@/lib/types";
+import { useLayoutEffect, useRef, useState } from "react";
+import type { Conversation, Flow, Persona } from "@/lib/types";
 import { useSend } from "@/hooks/useSend";
 import { useSendStore, type ActiveStream } from "@/stores/sendStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { parseCommand } from "@/lib/commands/parseCommand";
 import { parseTargetModifiers } from "@/lib/commands/targetModifier";
 import { dispatchCommand } from "@/lib/commands/dispatch";
+import { findSpec } from "@/lib/commands/specs";
+import { triggerHelp } from "@/lib/commands/triggerHelp";
 import { makeCommandDeps } from "@/hooks/commandDeps";
 import { usePersonasStore } from "@/stores/personasStore";
 import { readCachedPersonas } from "@/hooks/cacheReaders";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import * as personasRepo from "@/lib/persistence/personas";
+import * as flowsRepo from "@/lib/persistence/flows";
+import {
+  applyCompletion,
+  candidatesFor,
+  tokenAtCursor,
+  type CompletionToken,
+} from "@/lib/composer/complete";
 import { shouldSubmit } from "./composerKeys";
 import { buildPlaceholder } from "@/lib/ui/composerPlaceholder";
 import { PrimaryButton, DangerButton } from "@/components/ui/Button";
@@ -37,9 +46,40 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
     () => personasRepo.listPersonas(conversation.id),
   );
   const cPersonas = personasQuery.data ?? EMPTY_PERSONAS;
+  // #238: flow attachment is read for the autocomplete sources object
+  // (currently @convo is always offered regardless, but the field is
+  // future-proofed). Cheap query — repoQuery deduplicates with the
+  // same key the panel uses.
+  const flowQuery = useRepoQuery<Flow | null>(
+    ["flow", conversation.id],
+    () => flowsRepo.getFlow(conversation.id),
+  );
+  const flow = flowQuery.data ?? null;
   const cSelection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
   const placeholder = buildPlaceholder(cPersonas, cSelection);
+
+  // #238: tab-completion state. textareaRef is needed for caret
+  // restoration after a cycle step rewrites the controlled value.
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const cycleRef = useRef<{
+    baseInput: string;
+    baseRange: { start: number; end: number };
+    candidates: string[];
+    cycleIndex: number;
+    appendSpaceOnComplete: boolean;
+  } | null>(null);
+  const pendingCaretRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const target = pendingCaretRef.current;
+    if (target === null) return;
+    pendingCaretRef.current = null;
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.selectionStart = target;
+      ta.selectionEnd = target;
+    }
+  }, [text]);
 
   const applyResult = (
     raw: string,
@@ -147,16 +187,96 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
     useSendStore.getState().cancelAll(conversation.id);
   };
 
+  // #238: Tab handler. Cycles through completion candidates for the
+  // token under the cursor; falls through to the browser default
+  // (focus-leave) when nothing applicable is on screen.
+  const handleTab = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    const ta = e.currentTarget;
+    const cursor = ta.selectionStart ?? text.length;
+
+    // Active cycle? Step it forward / backward.
+    if (cycleRef.current !== null) {
+      const c = cycleRef.current;
+      const delta = e.shiftKey ? -1 : 1;
+      const nextIndex = (c.cycleIndex + delta + c.candidates.length) % c.candidates.length;
+      e.preventDefault();
+      const r = applyCompletion(
+        c.baseInput,
+        c.baseRange,
+        c.candidates[nextIndex]!,
+        { appendSpaceOnComplete: c.appendSpaceOnComplete },
+      );
+      pendingCaretRef.current = r.cursor;
+      setText(r.text);
+      cycleRef.current = { ...c, cycleIndex: nextIndex };
+      return;
+    }
+
+    const token = tokenAtCursor(text, cursor);
+
+    // #238: //<TAB> with empty verb → fire help via the shared
+    // triggerHelp dedup. Composer text stays as // so the user can
+    // keep typing if they actually wanted a verb.
+    if (token.kind === "command" && token.prefix === "") {
+      e.preventDefault();
+      void triggerHelp(makeCommandDeps(), conversation.id);
+      return;
+    }
+
+    if (token.kind === "none") return; // pass through — Tab leaves the field.
+
+    const candidates = candidatesFor(token, {
+      personas: cPersonas.map((p) => ({ id: p.id, nameSlug: p.nameSlug })),
+      flowAttached: flow !== null,
+    });
+    if (candidates.length === 0) return; // no dead key — let Tab leave.
+
+    // Pick the spec's appendSpaceOnComplete setting for command tokens;
+    // for targets / selection modifiers, default to true.
+    const appendSpace = (() => {
+      if (token.kind !== "command") return true;
+      const verb = candidates[0]!.replace(/^\/\//, "");
+      return findSpec(verb)?.completion?.appendSpaceOnComplete ?? false;
+    })();
+
+    e.preventDefault();
+    const r = applyCompletion(text, token.range, candidates[0]!, {
+      appendSpaceOnComplete: appendSpace,
+    });
+    pendingCaretRef.current = r.cursor;
+    setText(r.text);
+    cycleRef.current = {
+      baseInput: text,
+      baseRange: token.range,
+      candidates,
+      cycleIndex: 0,
+      appendSpaceOnComplete: appendSpace,
+    };
+  };
+  void (null as unknown as CompletionToken); // keep import in case of future refactors
+
   return (
     <div className="flex-1 p-3">
       <textarea
+        ref={textareaRef}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          // Any direct edit resets the completion cycle.
+          cycleRef.current = null;
+          setText(e.target.value);
+        }}
         onKeyDown={(e) => {
           if (shouldSubmit(e)) {
             e.preventDefault();
             void onSend();
+            return;
           }
+          if (e.key === "Tab" && !e.nativeEvent.isComposing) {
+            handleTab(e);
+            return;
+          }
+          // Any other key resets the cycle (next Tab starts fresh).
+          if (cycleRef.current !== null) cycleRef.current = null;
         }}
         rows={3}
         placeholder={placeholder}
