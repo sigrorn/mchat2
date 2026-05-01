@@ -6,7 +6,7 @@ import {
   resolveImport,
   type ExportedPersona,
 } from "@/lib/personas/importExport";
-import type { Persona } from "@/lib/types";
+import type { Flow, Persona } from "@/lib/types";
 
 function persona(over: Partial<Persona> & { id: string; name: string }): Persona {
   return {
@@ -125,5 +125,170 @@ describe("resolveImport", () => {
   it("nulls runsAfter when the referenced name is not present", () => {
     const r = resolveImport(existing, [imp({ name: "Bob", runsAfter: ["Ghost"] })]);
     expect(r.toCreate[0]?.runsAfter).toEqual([]);
+  });
+});
+
+// #236 — personas export now optionally bundles the conversation's
+// flow + each persona's roleLens so a reusable persona kit (e.g. an
+// NVC setup) round-trips with all the configuration that makes it
+// actually work, not just the prompts.
+
+function flowWithSteps(
+  steps: Array<{ kind: "user" | "personas"; personaIds: string[]; instruction?: string | null }>,
+  cursor = 0,
+  loopStart = 0,
+): Flow {
+  return {
+    id: "f_1",
+    conversationId: "c_1",
+    currentStepIndex: cursor,
+    loopStartIndex: loopStart,
+    steps: steps.map((s, i) => ({
+      id: `s_${i}`,
+      flowId: "f_1",
+      sequence: i,
+      kind: s.kind,
+      personaIds: s.personaIds,
+      instruction: s.instruction ?? null,
+    })),
+  };
+}
+
+describe("serializePersonas with flow option (#236)", () => {
+  it("emits a `flow` block when flow option is supplied, with steps in name form", () => {
+    const ps: Persona[] = [
+      persona({ id: "p_a", name: "Claudio" }),
+      persona({ id: "p_b", name: "Geppetto" }),
+    ];
+    const flow = flowWithSteps([
+      { kind: "user", personaIds: [] },
+      { kind: "personas", personaIds: ["p_a"] },
+      { kind: "personas", personaIds: ["p_b"], instruction: "be brief" },
+    ]);
+    const json = serializePersonas(ps, { flow });
+    const parsed = JSON.parse(json) as {
+      flow?: {
+        currentStepIndex: number;
+        loopStartIndex?: number;
+        steps: Array<{ kind: string; personas: string[]; instruction?: string | null }>;
+      };
+    };
+    expect(parsed.flow).toBeDefined();
+    expect(parsed.flow?.steps).toHaveLength(3);
+    expect(parsed.flow?.steps[1]?.kind).toBe("personas");
+    expect(parsed.flow?.steps[1]?.personas).toEqual(["Claudio"]);
+    expect(parsed.flow?.steps[2]?.personas).toEqual(["Geppetto"]);
+    expect(parsed.flow?.steps[2]?.instruction).toBe("be brief");
+  });
+
+  it("emits per-persona roleLens with name keys (literal 'user' passes through)", () => {
+    const ps: Persona[] = [
+      persona({
+        id: "p_a",
+        name: "Claudio",
+        roleLens: { user: "user", p_b: "user" },
+      }),
+      persona({
+        id: "p_b",
+        name: "Geppetto",
+        roleLens: {},
+      }),
+    ];
+    const json = serializePersonas(ps);
+    const parsed = JSON.parse(json) as {
+      personas: Array<{ name: string; roleLens?: Record<string, string> }>;
+    };
+    const claudio = parsed.personas.find((p) => p.name === "Claudio");
+    expect(claudio?.roleLens).toEqual({ user: "user", Geppetto: "user" });
+    // Geppetto's empty lens is omitted (matches snapshot's behavior).
+    const geppetto = parsed.personas.find((p) => p.name === "Geppetto");
+    expect(geppetto?.roleLens).toBeUndefined();
+  });
+
+  it("omits the `flow` field when no flow option is supplied (back-compat)", () => {
+    const ps: Persona[] = [persona({ id: "p_a", name: "Alice" })];
+    const json = serializePersonas(ps);
+    const parsed = JSON.parse(json) as { flow?: unknown };
+    expect(parsed.flow).toBeUndefined();
+  });
+});
+
+describe("parsePersonasImport with flow + roleLens (#236)", () => {
+  it("accepts an envelope with a `flow` block and exposes it on the parse result", () => {
+    const r = parsePersonasImport(
+      JSON.stringify({
+        version: 1,
+        personas: [{ name: "Alice", provider: "claude" }],
+        flow: {
+          currentStepIndex: 0,
+          loopStartIndex: 0,
+          steps: [
+            { kind: "user", personas: [] },
+            { kind: "personas", personas: ["Alice"], instruction: "go" },
+          ],
+        },
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.flow).toBeDefined();
+    expect(r.flow?.steps).toHaveLength(2);
+    expect(r.flow?.steps[1]?.personas).toEqual(["Alice"]);
+    expect(r.flow?.steps[1]?.instruction).toBe("go");
+  });
+
+  it("accepts an envelope without `flow` (legacy, pre-#236)", () => {
+    const r = parsePersonasImport(
+      JSON.stringify({
+        version: 1,
+        personas: [{ name: "Alice", provider: "claude" }],
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.flow).toBeUndefined();
+  });
+
+  it("accepts per-persona `roleLens`", () => {
+    const r = parsePersonasImport(
+      JSON.stringify({
+        version: 1,
+        personas: [
+          {
+            name: "Alice",
+            provider: "claude",
+            roleLens: { user: "user", Bob: "user" },
+          },
+        ],
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.personas[0]?.roleLens).toEqual({ user: "user", Bob: "user" });
+  });
+});
+
+describe("resolveImport carries flow + roleLens through (#236)", () => {
+  it("threads flow through unchanged (caller resolves names → ids)", () => {
+    const flow = {
+      currentStepIndex: 0,
+      loopStartIndex: 0,
+      steps: [
+        { kind: "user" as const, personas: [] },
+        { kind: "personas" as const, personas: ["Bob"] },
+      ],
+    };
+    const r = resolveImport([persona({ id: "p_a", name: "Alice" })], [imp({ name: "Bob" })], flow);
+    expect(r.flow).toEqual(flow);
+  });
+
+  it("threads roleLens through on each created persona (names preserved as keys)", () => {
+    const r = resolveImport(
+      [persona({ id: "p_a", name: "Alice" })],
+      [
+        imp({ name: "Bob", roleLens: { user: "user", Alice: "user" } }),
+      ],
+    );
+    expect(r.toCreate[0]?.roleLens).toEqual({ user: "user", Alice: "user" });
   });
 });
