@@ -13,6 +13,7 @@ import { findFailedRowsInLastGroup } from "@/lib/orchestration/findFailedRowsInL
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as runsRepo from "@/lib/persistence/runs";
 import { computeFlowRewindIndex } from "@/lib/app/flowRewind";
+import { pauseFlowAt } from "@/lib/app/flowPause";
 import { transaction } from "@/lib/persistence/transaction";
 import type { Message } from "@/lib/types";
 import type { CommandContext, CommandResult } from "./types";
@@ -22,6 +23,9 @@ import type { CommandContext, CommandResult } from "./types";
 // survive the delete since they FK to runs/run_targets, not messages)
 // and rewind the flow cursor to the user-step that fed the earliest
 // popped personas-step. Mirrors the rewind in replayMessage (#219).
+// #233: when a rewind happens, also re-sync selection + flow_mode
+// via pauseFlowAt so the queued replay's implicit send routes to the
+// right persona instead of carrying stale selection from before pop.
 async function rewindFlowAfterPop(
   ctx: CommandContext,
   conversationId: string,
@@ -35,7 +39,7 @@ async function rewindFlowAfterPop(
   );
   const rewindIndex = computeFlowRewindIndex(flow, truncatedStepIds);
   if (rewindIndex !== null) {
-    await ctx.deps.setFlowStepIndex(flow.id, rewindIndex);
+    await pauseFlowAt(ctx.deps, conversationId, flow, rewindIndex);
   }
 }
 

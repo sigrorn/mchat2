@@ -31,7 +31,7 @@ import {
   shouldAdvanceCursor,
   wrapNextIndex,
 } from "./flowDispatch";
-import { nextPersonasStepPersonaIds } from "./flowSelectionSync";
+import { pauseFlowAt } from "./flowPause";
 import type { SendMessageDeps } from "./deps";
 
 export interface SendMessageArgs {
@@ -267,23 +267,15 @@ async function runDispatch(
 // flip flow_mode on, and auto-sync the conversation's persona
 // selection to the *next* personas-step's set so the user's next
 // implicit follow-up matches that step and advances the flow without
-// having to type @convo.
+// having to type @convo. #233: lifted to pauseFlowAt so handlePop's
+// rewind reuses the same unit-of-work.
 async function pauseFlow(
   deps: SendMessageDeps,
   conversationId: string,
   flow: Flow,
   pausedAtIndex: number,
 ): Promise<void> {
-  await deps.setFlowStepIndex(flow.id, pausedAtIndex);
-  await deps.setFlowMode(conversationId, true);
-  // Build a synthetic flow object with the new cursor so the
-  // walker picks the right next-personas-step (skipping setup
-  // when wrapping).
-  const updated: Flow = { ...flow, currentStepIndex: pausedAtIndex };
-  const syncedIds = nextPersonasStepPersonaIds(updated);
-  if (syncedIds && syncedIds.length > 0) {
-    deps.setSelection(conversationId, syncedIds);
-  }
+  await pauseFlowAt(deps, conversationId, flow, pausedAtIndex);
 }
 
 function stepToResolved(step: FlowStep, personas: readonly Persona[]): ResolveResult {
