@@ -59,3 +59,65 @@ that use case. Worth picking up if a debugging-comparison workflow
 comes up later — at that point the simplest extension is `//fork
 --with-trace` (or a settings toggle), reusing the same plumbing and
 adding a second pass that clones the run/runtarget/attempt rows.
+
+## File attachments / provider file uploads
+
+**Discussed:** 2026-05-01, while asking which currently supported
+providers can upload a file and include it in model context.
+
+The provider answer is not "all OpenAI-compatible APIs have files."
+The current app shape is simpler than that: `ProviderAdapter` accepts
+messages as `{ role, content: string }`, and the native/OpenAI-compatible
+adapters send text-only chat payloads. So no provider file upload path is
+wired in mchat2 today, even where the upstream provider supports it.
+
+Provider capability snapshot:
+
+- OpenAI: yes. Files API plus `file_id`, URL, and base64 file inputs.
+- Claude / Anthropic: yes. Files API can upload files and reference
+  them from Messages.
+- Gemini: yes. Gemini Files API uploads media/documents and includes
+  them in `generateContent` prompts.
+- Mistral: yes, mainly via document/OCR/QnA paths. Supports uploaded
+  files for OCR plus document QnA over URLs/base64/uploaded PDFs.
+- Perplexity: yes, but inline rather than a persistent app-style file
+  store. It supports `file_url` with public URLs or base64 for common
+  document formats.
+- OpenRouter: yes/partial. Supports PDF/file inputs via URL or base64
+  in chat requests; behaviour is model/router dependent.
+- OVHcloud AI Endpoints: partial. Supports some image inputs on the
+  Responses API, but not a generic portable file-search/files layer.
+- IONOS AI Model Hub: adjacent, not a generic chat file upload path.
+  It has OCR/image/document collection features, but not a portable
+  attachment API for the current OpenAI-compatible chat adapter.
+- Apertus / Infomaniak: no generic Apertus file-context path found.
+  Apertus is exposed here as text generation through Infomaniak's
+  OpenAI-compatible chat endpoint.
+- Mock: no.
+
+The architectural shape should be an attachment abstraction, not a
+provider flag bolted onto chat messages. The app would need to persist
+local file metadata and message attachment links, then let each provider
+adapter choose its send strategy:
+
+- persistent provider upload with a `file_id` (OpenAI, Anthropic,
+  some Mistral paths);
+- inline base64 or URL file parts (Perplexity, OpenRouter, some OpenAI
+  flows);
+- Gemini's own file lifecycle, including expiration semantics;
+- fallback local extraction to text for providers without file context.
+
+The tricky parts are lifecycle and replay semantics. Attachments must
+survive `//edit`, `//retry`, `//pop`, `@convo` replay, snapshot/fork,
+and compaction in a way that is explicit about whether the original file
+bytes, extracted text, provider upload id, or just a dangling reference
+is being reused. Provider upload ids can expire or be provider/account
+specific, so storing only a remote id is not enough.
+
+**Why deferred:** Useful, but it is a cross-cutting feature rather than
+a small provider toggle. It touches composer UI, persistence, context
+building, provider adapters, exports/snapshots, replay/edit/pop
+semantics, and privacy expectations around sending local files to
+remote providers. Worth doing only after deciding the product-level
+behaviour for "attach this file to this turn" versus "add this document
+to reusable conversation context."
