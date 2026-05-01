@@ -278,4 +278,8 @@ export type CommandDeps = MessagesReadDeps &
   // the freshly-created fork. FlowReadDeps gives the read; Conversation-
   // SwitchDeps gives the three-store handoff (mirrors snapshot import).
   FlowReadDeps &
+  // #232: //pop rewinds the flow cursor like replayMessage does so a
+  // subsequent @convo at the implied user-step actually triggers flow
+  // dispatch. setFlowMode included for symmetry with sendMessageDeps.
+  FlowWriteDeps &
   ConversationSwitchDeps;

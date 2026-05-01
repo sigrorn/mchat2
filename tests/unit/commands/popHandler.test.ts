@@ -5,6 +5,9 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as conversationsRepo from "@/lib/persistence/conversations";
+import * as flowsRepo from "@/lib/persistence/flows";
+import { recordSend } from "@/lib/orchestration/recordSend";
+import { sql } from "@/lib/tauri/sql";
 import { handlePop } from "@/lib/commands/handlers/history";
 import type { CommandContext } from "@/lib/commands/handlers/types";
 import type { Conversation, Message } from "@/lib/types";
@@ -112,8 +115,74 @@ function makeCtx(conv: Conversation, history: readonly Message[]): CommandContex
       setVisibilityPreset: async () => {},
       setVisibilityMatrix: async () => {},
       setDisplayMode: async () => {},
+      // #232: flow read/write so handlePop can rewind the cursor.
+      getFlow: (conversationId: string) => flowsRepo.getFlow(conversationId),
+      setFlowStepIndex: async (flowId: string, index: number) => {
+        await flowsRepo.setStepIndex(flowId, index);
+      },
+      setFlowMode: async () => {},
     } as unknown as CommandContext["deps"],
   } as CommandContext;
+}
+
+async function seedPersona(conversationId: string): Promise<void> {
+  await sql.execute(
+    `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
+        created_at_message_index, sort_order, runs_after, visibility_defaults)
+      VALUES ('p_alice', ?, 'openai', 'Alice', 'alice', 0, 0, '[]', '{}')`,
+    [conversationId],
+  );
+}
+
+// #232: seed a flow with steps [user, personas, user] and stamp the
+// passed assistant message's run with flow_step_id pointing at the
+// personas-step. Mirrors the production code path that recordSend
+// follows in sendMessage's flow loop.
+async function seedFlowWithStampedRun(
+  conversationId: string,
+  cursorAt: number,
+  assistantMessage: Message,
+): Promise<{ flowId: string; userStepId: string; personasStepId: string }> {
+  await sql.execute(
+    `INSERT INTO flows (id, conversation_id, current_step_index, loop_start_index)
+      VALUES ('f_1', ?, ?, 0)`,
+    [conversationId, cursorAt],
+  );
+  await sql.execute(
+    `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_0', 'f_1', 0, 'user')`,
+  );
+  await sql.execute(
+    `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_1', 'f_1', 1, 'personas')`,
+  );
+  await sql.execute(
+    `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_2', 'f_1', 2, 'user')`,
+  );
+  await sql.execute(
+    `INSERT INTO flow_step_personas (flow_step_id, persona_id) VALUES ('fs_1', 'p_alice')`,
+  );
+  await recordSend({
+    conversationId,
+    now: 5000,
+    flowStepId: "fs_1",
+    newAssistantMessages: [
+      {
+        id: assistantMessage.id,
+        personaId: "p_alice",
+        targetKey: "alice",
+        provider: "openai",
+        model: "gpt-4",
+        content: assistantMessage.content,
+        createdAt: 5100,
+        inputTokens: 0,
+        outputTokens: 0,
+        ttftMs: null,
+        streamMs: null,
+        errorMessage: null,
+        errorTransient: false,
+      },
+    ],
+  });
+  return { flowId: "f_1", userStepId: "fs_0", personasStepId: "fs_1" };
 }
 
 describe("//pop integration (#regression report 2026-04-27)", () => {
@@ -135,5 +204,83 @@ describe("//pop integration (#regression report 2026-04-27)", () => {
     // First turn survives, plus the notice that //pop ran.
     expect(after.filter((m) => m.role === "notice")).toHaveLength(1);
     expect(after.filter((m) => m.role !== "notice")).toHaveLength(2);
+  });
+});
+
+describe("//pop flow cursor rewind (#232)", () => {
+  it("//pop (no arg) rewinds the cursor to the user-step that fed the popped personas-step", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedPersona(conv.id);
+    const turn = await seedTurn(conv.id, "first", "first reply");
+    // Cursor at fs_2 (user step that follows personas-step). The popped
+    // assistant row was produced at fs_1; the rewind target is fs_0.
+    await seedFlowWithStampedRun(conv.id, 2, turn.assistant);
+    const before = await messagesRepo.listMessages(conv.id);
+
+    const ctx = makeCtx(conv, before);
+    await handlePop(ctx, { userNumber: null });
+
+    const flow = await flowsRepo.getFlow(conv.id);
+    expect(flow?.currentStepIndex).toBe(0);
+  });
+
+  it("//pop N rewinds the cursor to the user-step that fed the earliest popped personas-step", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedPersona(conv.id);
+    const turn = await seedTurn(conv.id, "first", "first reply");
+    await seedFlowWithStampedRun(conv.id, 2, turn.assistant);
+    const before = await messagesRepo.listMessages(conv.id);
+    // turn.user is the first non-pinned user message → user number 1.
+
+    const ctx = makeCtx(conv, before);
+    await handlePop(ctx, { userNumber: 1 });
+
+    const flow = await flowsRepo.getFlow(conv.id);
+    expect(flow?.currentStepIndex).toBe(0);
+  });
+
+  it("//pop with no flow attached is a no-op for the cursor (no flow to rewind)", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedTurn(conv.id, "first", "first reply");
+    const before = await messagesRepo.listMessages(conv.id);
+
+    const ctx = makeCtx(conv, before);
+    await handlePop(ctx, { userNumber: null });
+
+    const flow = await flowsRepo.getFlow(conv.id);
+    expect(flow).toBeNull();
+  });
+
+  it("//pop leaves the cursor alone when popped assistants have no flow_step_id", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedPersona(conv.id);
+    await seedTurn(conv.id, "first", "first reply");
+    // Flow exists but the popped assistant row has no associated run
+    // (assistant produced outside the flow path).
+    await sql.execute(
+      `INSERT INTO flows (id, conversation_id, current_step_index, loop_start_index)
+        VALUES ('f_1', ?, 2, 0)`,
+      [conv.id],
+    );
+    await sql.execute(
+      `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_0', 'f_1', 0, 'user')`,
+    );
+    await sql.execute(
+      `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_1', 'f_1', 1, 'personas')`,
+    );
+    await sql.execute(
+      `INSERT INTO flow_steps (id, flow_id, sequence, kind) VALUES ('fs_2', 'f_1', 2, 'user')`,
+    );
+    const before = await messagesRepo.listMessages(conv.id);
+
+    const ctx = makeCtx(conv, before);
+    await handlePop(ctx, { userNumber: null });
+
+    const flow = await flowsRepo.getFlow(conv.id);
+    expect(flow?.currentStepIndex).toBe(2);
   });
 });
