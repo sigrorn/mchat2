@@ -136,20 +136,13 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     }
   }
 
-  if (input.runsAfter !== undefined && input.runsAfter.length > 0) {
-    const siblings = await repo.listPersonas(current.conversationId);
-    for (const parentId of input.runsAfter) {
-      if (parentId === current.id) {
-        throw new PersonaValidationError("cycle", "A persona cannot depend on itself");
-      }
-      if (!siblings.some((p) => p.id === parentId)) {
-        throw new PersonaValidationError("unknown_parent", "Unknown parent persona");
-      }
-    }
-    if (wouldCreateCycle(current.id, input.runsAfter, siblings)) {
-      throw new PersonaValidationError("cycle", "runsAfter would create a cycle");
-    }
-  }
+  // #241 Phase A: runsAfter is no longer surfaced through the persona
+  // editor. The only remaining caller (the auto-migration in
+  // migrateRunsAfterToFlow) sets runsAfter to []; cycle / self-parent /
+  // unknown-parent validation became unreachable and was removed along
+  // with the editor field. Edges still flowing through createPersona on
+  // legacy import paths get cleared by the auto-migration on the next
+  // conversation open.
 
   const apertusProductId =
     input.apertusProductId !== undefined
@@ -194,31 +187,6 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
   }
 
   return next;
-}
-
-// DFS from each proposed parent upward through the multi-parent graph.
-// If we reach `candidate`, adding these edges would close a cycle.
-function wouldCreateCycle(
-  candidate: PersonaId,
-  proposedParents: PersonaId[],
-  all: Persona[],
-): boolean {
-  const byId = new Map(all.map((p) => [p.id, p] as const));
-  const visited = new Set<PersonaId>();
-  const stack = [...proposedParents];
-  while (stack.length > 0) {
-    const cursor = stack.pop()!;
-    if (cursor === candidate) return true;
-    if (visited.has(cursor)) continue;
-    visited.add(cursor);
-    const p = byId.get(cursor);
-    if (p) {
-      for (const pid of p.runsAfter) {
-        stack.push(pid);
-      }
-    }
-  }
-  return false;
 }
 
 export async function deletePersona(id: PersonaId): Promise<void> {

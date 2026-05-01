@@ -354,7 +354,6 @@ function PersonaRow({
     colorOverride?: string | null;
     visibilityDefaults?: Record<string, "y" | "n">;
     seenByEdits?: Record<string, "y" | "n">;
-    runsAfter?: string[];
     apertusProductId?: string | null;
     openaiCompatPreset?: Persona["openaiCompatPreset"];
   }) => Promise<void>;
@@ -369,7 +368,6 @@ function PersonaRow({
   );
   const [prompt, setPrompt] = useState(persona.systemPromptOverride ?? "");
   const [model, setModel] = useState(persona.modelOverride ?? "");
-  const [runsAfter, setRunsAfter] = useState<string[]>(persona.runsAfter);
   const [colorOverride, setColorOverride] = useState<string | null>(persona.colorOverride);
   const [visDefs, setVisDefs] = useState<Record<string, "y" | "n">>(persona.visibilityDefaults);
   const [seenByEdits, setSeenByEdits] = useState<Record<string, "y" | "n">>({});
@@ -385,7 +383,6 @@ function PersonaRow({
         modelOverride: model ? model : null,
         colorOverride,
         visibilityDefaults: visDefs,
-        runsAfter,
         openaiCompatPreset: provider === "openai_compat" ? openaiCompatPreset : null,
       };
       if (Object.keys(seenByEdits).length > 0) patch.seenByEdits = seenByEdits;
@@ -456,9 +453,6 @@ function PersonaRow({
                 of the generic "openai_compat" placeholder. */}
             <PersonaProviderLabel persona={persona} />
             {persona.modelOverride ? ` · ${persona.modelOverride}` : ""}
-            {persona.runsAfter.length > 0
-              ? ` · after ${persona.runsAfter.map((id) => labelFor(id, allPersonas)).join(", ")}`
-              : ""}
             {/* #226: debug step badge — shows which flow step number
                 this persona's upcoming dispatch corresponds to, so the
                 user can spot a stuck cursor without opening the
@@ -499,29 +493,6 @@ function PersonaRow({
             modelListId={modelListId}
             modelOptions={modelOptions}
           />
-          <Field label="Runs after">
-            <div className="flex flex-wrap gap-2">
-              {allPersonas
-                .filter((p) => p.id !== persona.id)
-                .map((p) => (
-                  <label key={p.id} className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={runsAfter.includes(p.id)}
-                      onChange={(e) =>
-                        setRunsAfter((prev) =>
-                          e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id),
-                        )
-                      }
-                    />
-                    <span className="text-neutral-800">{p.name}</span>
-                  </label>
-                ))}
-              {allPersonas.filter((p) => p.id !== persona.id).length === 0 && (
-                <span className="text-neutral-400">(no other personas)</span>
-              )}
-            </div>
-          </Field>
           {error ? <div className="text-red-600">{error}</div> : null}
           <div className="flex gap-2">
             <PrimaryButton onClick={() => void save()} size="sm">
@@ -737,10 +708,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
-}
-
-function labelFor(id: string, all: readonly Persona[]): string {
-  return all.find((p) => p.id === id)?.name ?? id;
 }
 
 // #171: render the persona's provider/preset label with its hosting
