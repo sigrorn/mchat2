@@ -7,6 +7,7 @@ import {
   nextPersonasStepPersonaIds,
   upcomingStepIndexForPersona,
   flowChainPersonaIds,
+  upcomingPersonasStep,
 } from "@/lib/app/flowSelectionSync";
 import type { Flow } from "@/lib/types";
 
@@ -276,5 +277,68 @@ describe("flowChainPersonaIds (#227)", () => {
   it("returns empty array for an empty flow", () => {
     const f = flow([], 0);
     expect(flowChainPersonaIds(f)).toEqual([]);
+  });
+});
+
+// #234 — replayMessage needs the *step id* of the personas-step that
+// will run, not just its persona-ids, so it can stamp recordReplay's
+// flow_step_id. upcomingPersonasStep returns the FlowStep itself
+// (or null) — a small wrapper around the same walker as
+// nextPersonasStepPersonaIds.
+describe("upcomingPersonasStep (#234)", () => {
+  it("returns the upcoming personas-step from a user-step cursor", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+        { kind: "user", personaIds: [] },
+      ],
+      0,
+    );
+    const step = upcomingPersonasStep(f);
+    expect(step?.id).toBe("s_1");
+    expect(step?.kind).toBe("personas");
+  });
+
+  it("returns the cursor's own step when cursor is on a personas-step", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      1,
+    );
+    expect(upcomingPersonasStep(f)?.id).toBe("s_1");
+  });
+
+  it("respects loopStartIndex when wrapping past the last step", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] }, // setup user
+        { kind: "personas", personaIds: ["p_setup"] }, // setup personas
+        { kind: "user", personaIds: [] }, // ← loop start
+        { kind: "personas", personaIds: ["p_loop"] },
+        { kind: "user", personaIds: [] }, // cursor here
+      ],
+      4,
+      2,
+    );
+    expect(upcomingPersonasStep(f)?.id).toBe("s_3");
+  });
+
+  it("returns null when the cycle has no personas-step", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "user", personaIds: [] },
+      ],
+      0,
+    );
+    expect(upcomingPersonasStep(f)).toBeNull();
+  });
+
+  it("returns null for an empty flow", () => {
+    const f = flow([], 0);
+    expect(upcomingPersonasStep(f)).toBeNull();
   });
 });

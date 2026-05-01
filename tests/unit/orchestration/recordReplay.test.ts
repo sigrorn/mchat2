@@ -163,6 +163,82 @@ describe("recordReplay", () => {
     expect(runs.filter((r) => r.kind === "replay")).toHaveLength(0);
   });
 
+  it("stamps flow_step_id on the replay run when supplied (#234)", async () => {
+    handle = await createTestDb();
+    await seedConversation();
+    await seedPersona("p_1", "alice");
+    // Seed a flow + personas-step so the FK lands on a real row.
+    await sql.execute(
+      `INSERT INTO flows (id, conversation_id, current_step_index, loop_start_index)
+        VALUES ('f_1', 'c_1', 0, 0)`,
+    );
+    await sql.execute(
+      `INSERT INTO flow_steps (id, flow_id, sequence, kind)
+        VALUES ('fs_1', 'f_1', 1, 'personas')`,
+    );
+
+    await recordReplay({
+      conversationId: "c_1",
+      now: 5000,
+      flowStepId: "fs_1",
+      supersededMessageIds: [],
+      newAssistantMessages: [
+        {
+          id: "m_replay",
+          personaId: "p_1",
+          targetKey: "alice",
+          provider: "openai",
+          model: "gpt-4",
+          content: "fresh",
+          createdAt: 5100,
+          inputTokens: 0,
+          outputTokens: 0,
+          ttftMs: null,
+          streamMs: null,
+          errorMessage: null,
+          errorTransient: false,
+        },
+      ],
+    });
+
+    const runs = await listRunsForConversation("c_1");
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.flowStepId).toBe("fs_1");
+  });
+
+  it("leaves flow_step_id null on the replay run when not supplied (today's behavior) (#234)", async () => {
+    handle = await createTestDb();
+    await seedConversation();
+    await seedPersona("p_1", "alice");
+
+    await recordReplay({
+      conversationId: "c_1",
+      now: 5000,
+      supersededMessageIds: [],
+      newAssistantMessages: [
+        {
+          id: "m_replay",
+          personaId: "p_1",
+          targetKey: "alice",
+          provider: "openai",
+          model: "gpt-4",
+          content: "fresh",
+          createdAt: 5100,
+          inputTokens: 0,
+          outputTokens: 0,
+          ttftMs: null,
+          streamMs: null,
+          errorMessage: null,
+          errorTransient: false,
+        },
+      ],
+    });
+
+    const runs = await listRunsForConversation("c_1");
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.flowStepId).toBeNull();
+  });
+
   it("tolerates supersededMessageIds without backfilled attempts (defensive)", async () => {
     // Real edge case: messages created post-#175 won't have a
     // matching `att_<msgid>` row until the send/retry sub-issues land.
