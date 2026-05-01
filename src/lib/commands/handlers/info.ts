@@ -6,16 +6,19 @@
 // Collaborators: lib/commands/dispatch.ts.
 // ------------------------------------------------------------------
 
-import { formatHelp } from "@/lib/commands/help";
 import { formatPersonasInfo } from "@/lib/commands/personasInfo";
 import { formatStats } from "@/lib/commands/stats";
 import { formatExecutionOrder } from "@/lib/commands/executionOrder";
+import { triggerHelp } from "@/lib/commands/triggerHelp";
 import { logBuffer } from "@/lib/observability/logBuffer";
 import { formatLogSnapshot } from "@/lib/observability/format";
 import type { CommandContext, CommandResult } from "./types";
 
 export async function handleHelp(ctx: CommandContext): Promise<CommandResult | void> {
-  await ctx.deps.appendNotice(ctx.conversation.id, formatHelp());
+  // #237: dedup against the last visible row. Repeated //help (or a
+  // mix of //help and the //<TAB> shortcut from #238) emits the help
+  // notice once until something else lands in the chat.
+  await triggerHelp(ctx.deps, ctx.conversation.id);
 }
 
 export async function handlePersonas(ctx: CommandContext): Promise<CommandResult | void> {

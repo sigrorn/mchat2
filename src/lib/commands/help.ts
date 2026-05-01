@@ -1,12 +1,39 @@
 // ------------------------------------------------------------------
 // Component: Help text
 // Responsibility: Return the full //help output listing all commands
-//                 as markdown tables for column alignment.
-// Collaborators: components/Composer.tsx.
+//                 as markdown tables for column alignment. The body
+//                 is generated from the COMMAND_SPECS registry so
+//                 //help, autocomplete, and the parser cannot drift
+//                 (#237).
+// Collaborators: lib/commands/specs (registry), lib/commands/triggerHelp,
+//                components/Composer.tsx.
 // ------------------------------------------------------------------
 
-export function formatHelp(): string {
-  return `## Message targeting
+import { COMMAND_SPECS, type CommandSection, type CommandSpec } from "./specs";
+
+const SECTION_ORDER: Array<{ key: CommandSection; title: string }> = [
+  { key: "context", title: "Context & limits" },
+  { key: "pins", title: "Pins" },
+  { key: "editing", title: "Editing" },
+  { key: "display", title: "Display" },
+  { key: "selection", title: "Selection" },
+  { key: "info", title: "Info" },
+  { key: "maintenance", title: "Maintenance" },
+];
+
+function specsForSection(section: CommandSection): CommandSpec[] {
+  return COMMAND_SPECS.filter((s) => s.section === section);
+}
+
+function renderSection(title: string, specs: readonly CommandSpec[]): string {
+  if (specs.length === 0) return "";
+  const rows = specs.flatMap((s) =>
+    s.usages.map((u) => `| \`${u.form}\` | ${u.description} |`),
+  );
+  return `## ${title}\n\n| Command | Description |\n|---|---|\n${rows.join("\n")}`;
+}
+
+const MESSAGE_TARGETING = `## Message targeting
 
 | Form | Description |
 |---|---|
@@ -15,85 +42,9 @@ export function formatHelp(): string {
 | \`@others message\` | Send to non-selected personas |
 | _(no prefix)_ | Send to currently selected personas |
 | \`+name\` | Add persona to current selection |
-| \`-name\` | Remove persona from current selection |
+| \`-name\` | Remove persona from current selection |`;
 
-## Context & limits
-
-| Command | Description |
-|---|---|
-| \`//limit N\` | Hide messages before user message #N |
-| \`//limit 0\` | Hide all current messages |
-| \`//limit NONE\` | Clear the limit |
-| \`//limitsize\` | Auto-set token budget to tightest provider |
-| \`//limitsize N\` | Set token budget to N thousand tokens |
-
-## Pins
-
-| Command | Description |
-|---|---|
-| \`//pin @name text\` | Pin a message for a persona |
-| \`//pin @all text\` | Pin a message for all personas |
-| \`//pins\` | List all pinned messages |
-| \`//pins name\` | List pins for a specific persona |
-| \`//unpin N\` | Unpin user message #N |
-| \`//unpin ALL\` | Remove all pins |
-
-## Editing
-
-| Command | Description |
-|---|---|
-| \`//edit\` | Edit the last user message |
-| \`//edit N\` | Edit user message #N |
-| \`//edit -N\` | Edit the Nth-from-last user message |
-| \`//pop\` | Remove the last user message and its responses |
-| \`//retry\` | Retry the last failed response |
-
-## Display
-
-| Command | Description |
-|---|---|
-| \`//lines\` | Line-by-line display (default) |
-| \`//cols\` | Side-by-side column display |
-| \`//visibility\` | Show current visibility settings |
-| \`//visibility full\` | All personas see all responses |
-| \`//visibility separated\` | Each persona sees only its own responses |
-| \`//visibility default\` | Reset to persona visibility defaults |
-
-## Selection
-
-| Command | Description |
-|---|---|
-| \`//select name, ...\` | Set selection to listed personas |
-| \`//select ALL\` | Select all personas |
-
-## Info
-
-| Command | Description |
-|---|---|
-| \`//order\` | Show DAG execution order |
-| \`//personas\` | List active personas with details |
-| \`//stats\` | Show conversation token statistics |
-| \`//help\` | Show this help text |
-| \`//version\` | Show build version info |
-| \`//log\` | Show last 50 stream-lifecycle events (debug) |
-| \`//log N\` | Show last N events |
-| \`//log clear\` | Empty the event log |
-
-## Maintenance
-
-| Command | Description |
-|---|---|
-| \`//compact\` | Summarize the full conversation for each persona |
-| \`//compact -N\` | Compact, preserving last N user messages (sample: \`//compact -2\`) |
-| \`//autocompact Nk\` | Auto-compact when context reaches N k-tokens — the 'k' suffix is required (sample: \`//autocompact 12k\`) |
-| \`//autocompact N%\` | Auto-compact at N% of the tightest model's context window (sample: \`//autocompact 75%\`) |
-| \`//autocompact Nk preserve -N\` | Auto-compact with threshold + preserve last N user messages (sample: \`//autocompact 12k preserve -2\`) |
-| \`//autocompact off\` | Disable auto-compaction (default) |
-| \`//vacuum\` | Compact the SQLite database |
-| \`//fork\` | Branch a copy of this conversation (everything sent so far) |
-| \`//fork N\` | Branch a copy keeping user messages 1..N-1 with their replies |
-
-## Keyboard shortcuts
+const KEYBOARD_SHORTCUTS = `## Keyboard shortcuts
 
 | Shortcut | Action |
 |---|---|
@@ -101,4 +52,12 @@ export function formatHelp(): string {
 | \`Ctrl+/-/0\` | Zoom in/out/reset |
 | \`Enter\` | Send message |
 | \`Shift+Enter\` | New line |`;
+
+export function formatHelp(): string {
+  const body = SECTION_ORDER.map(({ key, title }) =>
+    renderSection(title, specsForSection(key)),
+  )
+    .filter((s) => s !== "")
+    .join("\n\n");
+  return [MESSAGE_TARGETING, body, KEYBOARD_SHORTCUTS].join("\n\n");
 }
