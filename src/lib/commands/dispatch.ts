@@ -22,7 +22,6 @@ import {
   handleHelp,
   handlePersonas,
   handleStats,
-  handleOrder,
   handleVersion,
   handleLog,
 } from "./handlers/info";
@@ -75,8 +74,6 @@ export async function dispatchCommand(
       return handlePersonas(ctx);
     case "stats":
       return handleStats(ctx);
-    case "order":
-      return handleOrder(ctx);
     case "version":
       return handleVersion(ctx);
     case "log":

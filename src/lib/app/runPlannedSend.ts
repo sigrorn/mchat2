@@ -3,20 +3,18 @@
 // Responsibility: Run the plan/queue-status/run-targets/reload block
 //                 shared between send and replay (#150). Originally
 //                 lived under src/hooks/; lifted here in #151 with
-//                 store calls routed through deps.
-// Collaborators: lib/app/runOneTarget, lib/orchestration/{sendPlanner,
-//                dagExecutor}, lib/app/shouldBufferTokens.
+//                 store calls routed through deps. Phase B of #241
+//                 trimmed it to single + parallel; the runs_after-
+//                 driven DAG branch is gone.
+// Collaborators: lib/app/runOneTarget, lib/orchestration/sendPlanner,
+//                lib/app/shouldBufferTokens.
 // ------------------------------------------------------------------
 
-import type { Conversation, DagNode, Persona, PersonaTarget } from "@/lib/types";
+import type { Conversation, Persona, PersonaTarget } from "@/lib/types";
 import type { ResolveResult } from "@/lib/personas/resolver";
 import { planSend } from "@/lib/orchestration/sendPlanner";
-import { executeDag } from "@/lib/orchestration/dagExecutor";
 import type { StreamRunOutcome } from "@/lib/orchestration/streamRunner";
-import {
-  aggregateDagOutcomes,
-  type TargetOutcome,
-} from "@/lib/orchestration/outcomeAggregation";
+import type { TargetOutcome } from "@/lib/orchestration/outcomeAggregation";
 import { runOneTarget } from "./runOneTarget";
 import { shouldBufferTokens } from "./shouldBufferTokens";
 import type { RunPlannedSendDeps } from "./deps";
@@ -62,11 +60,7 @@ export async function runPlannedSend(
   });
 
   const allTargets: PersonaTarget[] =
-    plan.kind === "single"
-      ? [plan.target]
-      : plan.kind === "parallel"
-        ? [...plan.targets]
-        : Array.from(plan.plan.nodes.values()).map((n) => n.target);
+    plan.kind === "single" ? [plan.target] : [...plan.targets];
   for (const t of allTargets) {
     deps.setTargetStatus(conversation.id, t.key, "queued");
   }
@@ -85,7 +79,7 @@ export async function runPlannedSend(
   if (plan.kind === "single") {
     const o = await runOne(plan.target);
     outcomes.push({ targetKey: plan.target.key, kind: o.kind, messageId: o.messageId });
-  } else if (plan.kind === "parallel") {
+  } else {
     const results = await Promise.all(
       plan.targets.map(async (t): Promise<TargetOutcome> => {
         const o = await runOne(t);
@@ -93,24 +87,6 @@ export async function runPlannedSend(
       }),
     );
     outcomes.push(...results);
-  } else {
-    const recordedOutcomes = new Map<
-      string,
-      { kind: "completed" | "failed" | "cancelled"; messageId: string }
-    >();
-    await executeDag({
-      plan: plan.plan,
-      runNode: async (n: DagNode) => {
-        const outcome = await runOne(n.target);
-        recordedOutcomes.set(n.key, {
-          kind: outcome.kind,
-          messageId: outcome.messageId,
-        });
-        await deps.reloadMessages(conversation.id);
-        return outcome.kind;
-      },
-    });
-    outcomes.push(...aggregateDagOutcomes(plan.plan, recordedOutcomes));
   }
 
   await deps.reloadMessages(conversation.id);

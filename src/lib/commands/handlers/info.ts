@@ -1,6 +1,6 @@
 // ------------------------------------------------------------------
 // Component: Info command handlers
-// Responsibility: //help, //personas, //stats, //order, //version.
+// Responsibility: //help, //personas, //stats, //version.
 //                 Read-only commands that append a notice describing
 //                 some aspect of the current conversation.
 // Collaborators: lib/commands/dispatch.ts.
@@ -8,7 +8,6 @@
 
 import { formatPersonasInfo } from "@/lib/commands/personasInfo";
 import { formatStats } from "@/lib/commands/stats";
-import { formatExecutionOrder } from "@/lib/commands/executionOrder";
 import { triggerHelp } from "@/lib/commands/triggerHelp";
 import { logBuffer } from "@/lib/observability/logBuffer";
 import { formatLogSnapshot } from "@/lib/observability/format";
@@ -36,12 +35,6 @@ export async function handleStats(ctx: CommandContext): Promise<CommandResult | 
     conversation.id,
     formatStats(conversation, [...messages], [...personas]),
   );
-}
-
-export async function handleOrder(ctx: CommandContext): Promise<CommandResult | void> {
-  const { conversation } = ctx;
-  const personas = ctx.deps.getPersonas(conversation.id);
-  await ctx.deps.appendNotice(conversation.id, formatExecutionOrder([...personas]));
 }
 
 export async function handleVersion(ctx: CommandContext): Promise<CommandResult | void> {

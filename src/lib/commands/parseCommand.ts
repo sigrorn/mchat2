@@ -25,7 +25,6 @@ export type ParsedCommand =
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
   | { kind: "visibilityStatus" }
   | { kind: "visibilityDefault" }
-  | { kind: "order" }
   | { kind: "help" }
   | { kind: "personas" }
   | { kind: "stats" }

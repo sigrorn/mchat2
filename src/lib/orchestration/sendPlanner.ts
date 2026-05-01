@@ -1,30 +1,32 @@
 // ------------------------------------------------------------------
 // Component: Send planner
-// Responsibility: Turn a resolved set of PersonaTargets + active
-//                 personas into a SendPlan (single | parallel | dag).
-//                 DAG is built only when the user's intent spans
-//                 personas that have runsAfter relationships.
-// Collaborators: personas/resolver.ts, orchestration/dagExecutor.ts.
+// Responsibility: Turn a resolved set of PersonaTargets into a
+//                 SendPlan (single | parallel). Multi-target sends
+//                 dispatch flat-parallel; flow-driven ordering is
+//                 handled by flowExecutor (#216) before the planner
+//                 ever sees the targets.
+// History:        Phase B of #241 removed the runs_after-driven DAG
+//                 path. SendPlan still exposes the discriminated union
+//                 shape for forward compatibility with future ordering
+//                 modes; the "dag" kind is no longer produced.
+// Collaborators: personas/resolver.ts, lib/app/runPlannedSend.ts.
 // ------------------------------------------------------------------
 
-import type { DagNode, DagPlan, Persona, PersonaTarget, ResolveMode, SendPlan } from "../types";
+import type { Persona, PersonaTarget, ResolveMode, SendPlan } from "../types";
 
 export interface PlanSendInput {
   mode: ResolveMode;
   targets: PersonaTarget[];
-  // All active personas in the conversation (used to check runsAfter).
+  // Conversation personas, retained so sortOrder ties stay stable for
+  // multi-persona responses.
   personas: Persona[];
+  // Run id for the upcoming send. Threaded through to the recordSend
+  // path even though the planner itself no longer attaches it to a
+  // DAG plan.
   runId: number;
 }
 
-// Targeted, 'others', and 'convo' modes ignore DAG — the user's
-// explicit list (or the flow step's persona-set) is exactly what runs,
-// in parallel. 'all' and 'implicit' honor runsAfter. #216: 'convo'
-// always lists a single flow step's set, which by construction has no
-// runs_after-driven ordering between members in v1 (sub-step DAG is a
-// future enhancement).
 export function planSend(input: PlanSendInput): SendPlan | null {
-  const { mode, personas } = input;
   if (input.targets.length === 0) return null;
   if (input.targets.length === 1) {
     const t = input.targets[0];
@@ -32,16 +34,9 @@ export function planSend(input: PlanSendInput): SendPlan | null {
     return { kind: "single", target: t };
   }
   // #117: sort targets by persona.sortOrder for stable display order in
-  // multi-persona responses. DAG topological constraints (runsAfter)
-  // still take precedence; within a DAG level, sortOrder breaks ties.
-  const sortedTargets = sortTargetsBySortOrder(input.targets, personas);
-  const honorsDag = mode === "all" || mode === "implicit";
-  if (!honorsDag) return { kind: "parallel", targets: sortedTargets };
-  const plan = buildDag(sortedTargets, personas, input.runId);
-  if (plan.nodes.size === 0) return null;
-  const anyEdges = [...plan.nodes.values()].some((n) => n.parents.length > 0);
-  if (!anyEdges) return { kind: "parallel", targets: sortedTargets };
-  return { kind: "dag", plan };
+  // multi-persona responses.
+  const sortedTargets = sortTargetsBySortOrder(input.targets, input.personas);
+  return { kind: "parallel", targets: sortedTargets };
 }
 
 // Stable sort: (sortOrder asc, then original index as tiebreaker for
@@ -58,42 +53,4 @@ function sortTargetsBySortOrder(
   }));
   withIndex.sort((a, b) => a.order - b.order || a.i - b.i);
   return withIndex.map((x) => x.t);
-}
-
-// Build the induced subgraph: only edges between selected personas
-// count. A persona whose parent is outside the selection becomes a root
-// in this DAG (edges out of the subgraph are ignored).
-function buildDag(targets: PersonaTarget[], personas: Persona[], runId: number): DagPlan {
-  const selectedKeys = new Set(targets.map((t) => t.key));
-  const personaById = new Map(personas.map((p) => [p.id, p] as const));
-  const nodes = new Map<string, DagNode>();
-
-  for (const t of targets) {
-    const parents: string[] = [];
-    if (t.personaId) {
-      const p = personaById.get(t.personaId);
-      if (p) {
-        for (const parentId of p.runsAfter) {
-          if (selectedKeys.has(parentId)) parents.push(parentId);
-        }
-      }
-    }
-    nodes.set(t.key, {
-      key: t.key,
-      target: t,
-      parents,
-      children: [],
-      status: "pending",
-    });
-  }
-
-  for (const n of nodes.values()) {
-    for (const pk of n.parents) {
-      const p = nodes.get(pk);
-      if (p) p.children.push(n.key);
-    }
-  }
-
-  const roots = [...nodes.values()].filter((n) => n.parents.length === 0).map((n) => n.key);
-  return { runId, nodes, roots };
 }

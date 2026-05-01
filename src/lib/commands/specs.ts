@@ -182,11 +182,6 @@ function parseSelect(arg: string): ParsedCommand {
   return { kind: "select", payload: { names } };
 }
 
-function parseOrder(arg: string): ParsedCommand {
-  if (arg !== "") return { kind: "error", message: "order: this command takes no arguments." };
-  return { kind: "order" };
-}
-
 function parsePersonasInfo(arg: string): ParsedCommand {
   if (arg !== "") return { kind: "error", message: "personas: this command takes no arguments." };
   return { kind: "personas" };
@@ -438,13 +433,6 @@ export const COMMAND_SPECS: readonly CommandSpec[] = [
     completion: { appendSpaceOnComplete: true },
   },
   // Info
-  {
-    verb: "order",
-    section: "info",
-    usages: [{ form: "//order", description: "Show DAG execution order" }],
-    parse: parseOrder,
-    completion: { appendSpaceOnComplete: false },
-  },
   {
     verb: "personas",
     section: "info",
