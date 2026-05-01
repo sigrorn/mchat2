@@ -15,6 +15,7 @@ import * as messagesRepo from "../persistence/messages";
 import * as flowsRepo from "../persistence/flows";
 import { PROVIDER_REGISTRY } from "../providers/registry";
 import { keychain } from "../tauri/keychain";
+import { migrateRunsAfterToFlow } from "./migrateRunsAfterToFlow";
 
 export interface ImportResult {
   conversation: Conversation;
@@ -179,6 +180,18 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
         steps: cleaned,
       });
     }
+  }
+
+  // 5c. #241 Phase 0 / Trigger B: legacy snapshots that carry
+  // runs_after but no bundled flow auto-derive one at import time.
+  // Skipped silently when the snapshot already had a flow attached
+  // (handled in 5b above) — migrateRunsAfterToFlow respects the
+  // existing flow and just clears runsAfter to keep state coherent.
+  const importedHadRunsAfter = snapshot.personas.some(
+    (sp) => Array.isArray(sp.runsAfter) && sp.runsAfter.length > 0,
+  );
+  if (importedHadRunsAfter) {
+    await migrateRunsAfterToFlow(conv.id, { trigger: "import" });
   }
 
   // 6. Validate API keys.

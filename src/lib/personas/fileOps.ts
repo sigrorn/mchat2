@@ -16,6 +16,7 @@ import { invalidateRepoQuery } from "../data/useRepoQuery";
 import { transaction } from "../persistence/transaction";
 import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
+import { migrateRunsAfterToFlow } from "../conversations/migrateRunsAfterToFlow";
 import type { Flow, Persona } from "../types";
 
 function prefixWorkingDir(filename: string, workingDir: string | null): string {
@@ -151,6 +152,21 @@ export async function importPersonasFromFile(
         // the next @convo / FlowEditor save to invalidate it.
         invalidateRepoQuery(["flow"]);
       }
+    }
+    // #241 Phase 0 / Trigger B: if the imported entries carried legacy
+    // runs_after edges, fold them into a conversation flow and append
+    // a re-export notice. Idempotent — when no imported persona has
+    // runs_after, the migration is a no-op and no notice is appended.
+    // Existing flow on the conversation is respected (not overwritten);
+    // only the imported runsAfter is cleared in that branch.
+    const importedHadRunsAfter = resolved.toCreate.some(
+      (e) => e.runsAfter.length > 0,
+    );
+    if (importedHadRunsAfter) {
+      const migration = await migrateRunsAfterToFlow(conversationId, {
+        trigger: "import",
+      });
+      if (migration.converted) invalidateRepoQuery(["flow"]);
     }
     // #36: every imported persona needs the same identity pin that
     // CreateForm sets up — without it the LLM defaults to its provider
