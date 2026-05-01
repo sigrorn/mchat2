@@ -55,7 +55,10 @@ describe("planFlowDispatch (#217)", () => {
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
-  it("no-op when cursor is at a `personas` step (not user)", () => {
+  it("no-op when cursor is at a `personas` step and targets do NOT match (side conversation)", () => {
+    // #235: cursor on a personas-step but targets are different — the
+    // user is having a side conversation, not retrying the step. Stay
+    // out of the flow path.
     const f = flow(
       [
         { kind: "personas", personaIds: ["p_a"] },
@@ -63,7 +66,7 @@ describe("planFlowDispatch (#217)", () => {
       ],
       0,
     );
-    const plan = planFlowDispatch(f, [target("p_a")], "convo");
+    const plan = planFlowDispatch(f, [target("p_b")], "convo");
     expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
@@ -211,6 +214,71 @@ describe("planFlowDispatch (#217)", () => {
       "others",
     );
     expect(plan.shouldDispatchAsFlow).toBe(true);
+  });
+
+  it("retry-in-place: cursor on a personas-step + matching targets → flow-dispatched at cursor (#235)", () => {
+    // After a failed/cancelled step, sendMessage leaves the cursor on
+    // the personas-step so the user can re-type to retry. The retry
+    // should re-enter the flow path (stamp flow_step_id, get the
+    // marker, chain forward) — not fall through to runPlannedSend
+    // because of the user-step gate.
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a", "p_b"] },
+        { kind: "user", personaIds: [] },
+      ],
+      1,
+    );
+    const plan = planFlowDispatch(f, [target("p_a"), target("p_b")], "convo");
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+    // Retry stays at the same step — no advance.
+    expect(plan.nextStepIndex).toBe(1);
+    expect(plan.nextStep?.id).toBe("s_1");
+  });
+
+  it("retry-in-place via @all also dispatches as flow (#235)", () => {
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      1,
+    );
+    const plan = planFlowDispatch(f, [target("p_a")], "all");
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+    expect(plan.nextStepIndex).toBe(1);
+  });
+
+  it("retry-in-place via implicit (single-persona match) also dispatches as flow (#235)", () => {
+    // After a failure, the cursor on the personas-step has selection
+    // synced to its persona-set. An implicit follow-up at that point
+    // should retry the step in-place.
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      1,
+    );
+    const plan = planFlowDispatch(f, [target("p_a")], "implicit");
+    expect(plan.shouldDispatchAsFlow).toBe(true);
+    expect(plan.nextStepIndex).toBe(1);
+  });
+
+  it("explicit @persona on a personas-step still does NOT dispatch as flow (#235)", () => {
+    // The mode='targeted' + length===1 carve-out from #222 still
+    // applies on personas-steps too — single-@ is always a side
+    // conversation, even when its target equals the cursor's step.
+    const f = flow(
+      [
+        { kind: "user", personaIds: [] },
+        { kind: "personas", personaIds: ["p_a"] },
+      ],
+      1,
+    );
+    const plan = planFlowDispatch(f, [target("p_a")], "targeted");
+    expect(plan.shouldDispatchAsFlow).toBe(false);
   });
 
   it("cursor wraps around to next personas step", () => {
