@@ -1,6 +1,10 @@
 // User-message navigation arrows — issue #137.
 import { describe, it, expect } from "vitest";
-import { computeScrollTarget, computeUserMsgNav } from "@/lib/ui/userMessageNav";
+import {
+  computeScrollTarget,
+  computeUserMsgNav,
+  userMsgPositionsFromMeasurements,
+} from "@/lib/ui/userMessageNav";
 
 const u = (id: string, offsetTop: number) => ({ id, offsetTop });
 
@@ -181,5 +185,94 @@ describe("computeUserMsgNav", () => {
     expect(r.downDisabled).toBe(true);
     expect(r.nextId).toBe(null);
     expect(r.nextIsBottom).toBe(false);
+  });
+});
+
+// #245: ChatView used to read user-message offsets via
+// `el.querySelector("[data-message-id=...]")`, which only finds bubbles
+// currently mounted by react-virtual (overscan=6). For long
+// conversations, all user messages outside the visible window were
+// silently dropped from the nav, causing ▲ from the bottom to land on
+// the last user message and then disable, and ▼ from a middle user
+// message to skip straight to the bottom of the chat.
+//
+// The fix sources positions from the virtualizer's measurementsCache
+// (which has an entry for every item, measured or estimated). This
+// helper is the pure mapping from `(navIds, indexMap, measurements,
+// paddingTop)` to the same `UserMsgPos[]` shape `computeUserMsgNav`
+// already consumes.
+describe("userMsgPositionsFromMeasurements (#245)", () => {
+  it("maps every nav id whose item index has a measurement", () => {
+    const navIds = ["a", "b", "c"];
+    const indexMap = new Map([
+      ["a", 0],
+      ["b", 1],
+      ["c", 2],
+    ]);
+    const measurements = [{ start: 0 }, { start: 100 }, { start: 250 }];
+    expect(userMsgPositionsFromMeasurements(navIds, indexMap, measurements, 12)).toEqual([
+      { id: "a", offsetTop: 12 },
+      { id: "b", offsetTop: 112 },
+      { id: "c", offsetTop: 262 },
+    ]);
+  });
+
+  it("includes virtualized-out items — the regression for #245", () => {
+    // 60-item conversation, only items near index 50 are mounted in
+    // the DOM. Pre-fix, ChatView's querySelector loop would only return
+    // the near-bottom user message; the far-up one was missing, and
+    // the up arrow disabled itself after one click. With measurements
+    // sourced from the virtualizer, BOTH positions are returned even
+    // though only one of them is currently rendered.
+    const navIds = ["far-up", "near-bottom"];
+    const indexMap = new Map([
+      ["far-up", 2],
+      ["near-bottom", 50],
+    ]);
+    const measurements = Array.from({ length: 60 }, (_, i) => ({ start: i * 100 }));
+    expect(userMsgPositionsFromMeasurements(navIds, indexMap, measurements, 0)).toEqual([
+      { id: "far-up", offsetTop: 200 },
+      { id: "near-bottom", offsetTop: 5000 },
+    ]);
+  });
+
+  it("skips ids missing from the index map", () => {
+    const navIds = ["a", "stale", "b"];
+    const indexMap = new Map([
+      ["a", 0],
+      ["b", 1],
+    ]);
+    const measurements = [{ start: 0 }, { start: 100 }];
+    expect(userMsgPositionsFromMeasurements(navIds, indexMap, measurements, 0)).toEqual([
+      { id: "a", offsetTop: 0 },
+      { id: "b", offsetTop: 100 },
+    ]);
+  });
+
+  it("skips ids whose item index is out of bounds for measurements", () => {
+    // Defensive: a stale index map referencing an index past the
+    // current measurements array shouldn't blow up — just drop that id.
+    const navIds = ["a", "b"];
+    const indexMap = new Map([
+      ["a", 0],
+      ["b", 5],
+    ]);
+    const measurements = [{ start: 0 }, { start: 100 }];
+    expect(userMsgPositionsFromMeasurements(navIds, indexMap, measurements, 0)).toEqual([
+      { id: "a", offsetTop: 0 },
+    ]);
+  });
+
+  it("preserves the order of navIds (computeUserMsgNav sorts by offsetTop anyway)", () => {
+    const navIds = ["c", "a", "b"];
+    const indexMap = new Map([
+      ["a", 0],
+      ["b", 1],
+      ["c", 2],
+    ]);
+    const measurements = [{ start: 0 }, { start: 100 }, { start: 250 }];
+    expect(
+      userMsgPositionsFromMeasurements(navIds, indexMap, measurements, 0).map((p) => p.id),
+    ).toEqual(["c", "a", "b"]);
   });
 });
