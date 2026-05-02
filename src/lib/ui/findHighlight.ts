@@ -93,9 +93,18 @@ export function highlightMatches(
 }
 
 /** Strip every <mark data-find="..."> from the container, replacing
- *  each with its text content. Idempotent. */
+ *  each with its text content. Idempotent.
+ *
+ *  #244: returns immediately when there are no marks to strip. The
+ *  effect in MessageBubble runs once per token batch during streaming,
+ *  and the trailing `container.normalize()` was merging adjacent text
+ *  nodes that react-markdown was tracking as separate — so React's
+ *  next reconciliation landed in the wrong sub-trees and dropped late
+ *  paragraph tokens. With nothing to clean up, the DOM is left
+ *  untouched and streaming behaves as it did before #239. */
 export function clearHighlights(container: HTMLElement): void {
   const marks = container.querySelectorAll(`mark[${MARK_ATTR}]`);
+  if (marks.length === 0) return;
   for (const mark of Array.from(marks)) {
     const parent = mark.parentNode;
     if (!parent) continue;
