@@ -13,7 +13,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `devtools` exposes Ctrl+Shift+I (and the right-click → Inspect menu)
+# in release builds so production crashes are inspectable without
+# rebuilding in dev mode. mchat2 is single-user and ships unsigned to
+# the developer's own machine; the cost of always-on devtools is nil.
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-http = "2"

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
+import { installCrashLog } from "./lib/observability/crashLog";
 import "./index.css";
 
 async function boot(): Promise<void> {
@@ -13,13 +14,22 @@ async function boot(): Promise<void> {
   // entirely and the mocks chunk never ships. The runtime !inTauri
   // check still guards `npm run tauri dev`, which runs vite-dev inside
   // the Tauri webview (so __IS_DEV__ is true but mocks must not load).
+  let inTauri = false;
   if (__IS_DEV__) {
-    const inTauri = typeof globalThis !== "undefined" && "__TAURI_INTERNALS__" in globalThis;
+    inTauri = typeof globalThis !== "undefined" && "__TAURI_INTERNALS__" in globalThis;
     if (!inTauri) {
       const { installBrowserMocks } = await import("./lib/testing/installBrowserMocks");
       await installBrowserMocks();
     }
+  } else {
+    inTauri = true;
   }
+  // Capture uncaught errors / unhandled promise rejections to
+  // <appDataDir>/crash.log so post-mortem diagnosis on a `tauri build`
+  // doesn't depend on devtools being open at the moment of failure.
+  // Skipped under the browser fakes path (no Tauri fs plugin to write
+  // through).
+  if (inTauri) installCrashLog();
   const root = document.getElementById("root");
   if (!root) return;
   ReactDOM.createRoot(root).render(
