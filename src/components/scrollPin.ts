@@ -34,3 +34,34 @@ export function shouldFollowTail(
 ): boolean {
   return isPinned && currentScrollHeight > prevScrollHeight;
 }
+
+// #246: layout-effect-friendly version of `shouldFollowTail` that
+// derives "was the user pinned?" from live scroll metrics instead of
+// a mutable ref. The previous implementation read `pinnedRef.current`,
+// which is updated by an asynchronous browser scroll event — so a
+// streaming token re-render that fired before the user's scroll event
+// had been dispatched would see stale-true and yank back to the
+// bottom mid-read.
+//
+// Anchor on the *previous* scrollHeight: the question is "where was
+// the user when the new content arrived?" `el.scrollTop` reflects a
+// wheel-scroll synchronously, so reading it lets the layout effect
+// catch the wheel-scroll on the very next render even when the
+// scroll event is still queued.
+//
+// Initial render (prev=0) naturally yanks when content is present:
+// `prevScrollHeight - (scrollTop + clientHeight)` is negative, which
+// is ≤ threshold, so wasPinned is true.
+export function decideTailFollow(
+  prevScrollHeight: number,
+  currentScrollHeight: number,
+  scrollTop: number,
+  clientHeight: number,
+  threshold = 8,
+): boolean {
+  if (currentScrollHeight <= prevScrollHeight) return false;
+  return isPinnedToBottom(
+    { scrollTop, clientHeight, scrollHeight: prevScrollHeight },
+    threshold,
+  );
+}

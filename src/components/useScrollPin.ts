@@ -18,7 +18,7 @@
 // ------------------------------------------------------------------
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
-import { isPinnedToBottom, shouldFollowTail } from "./scrollPin";
+import { decideTailFollow, isPinnedToBottom } from "./scrollPin";
 
 export interface UseScrollPinResult {
   pinnedRef: React.MutableRefObject<boolean>;
@@ -46,12 +46,18 @@ export function useScrollPin(
 
   // Layout effect runs synchronously after DOM mutation, before paint,
   // so the user never sees an intermediate frame where new content is
-  // below the fold.
+  // below the fold. #246: decide tail-follow from live scrollTop +
+  // previous scrollHeight, not from pinnedRef — the ref lags an async
+  // browser scroll event, so a streaming token re-render that runs
+  // between a wheel-scroll and its scroll-event tick used to see a
+  // stale-true ref and yank the user back mid-read.
   const prevScrollHeightRef = useRef(0);
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    if (shouldFollowTail(prevScrollHeightRef.current, el.scrollHeight, pinnedRef.current)) {
+    if (
+      decideTailFollow(prevScrollHeightRef.current, el.scrollHeight, el.scrollTop, el.clientHeight)
+    ) {
       el.scrollTop = el.scrollHeight;
     }
     prevScrollHeightRef.current = el.scrollHeight;
