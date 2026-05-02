@@ -23,6 +23,7 @@ import { classify } from "@/lib/rendering/codeBlocks";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { formatUserHeader } from "@/lib/conversations/userHeader";
 import { clearHighlights, highlightMatches } from "@/lib/ui/findHighlight";
+import { formatBubbleTimestamp } from "@/lib/ui/formatBubbleTimestamp";
 import { DiagramBlock } from "./DiagramBlock";
 import {
   areBubblePropsEqual,
@@ -248,8 +249,8 @@ function MessageBubbleImpl({
       className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
-      <div className="mb-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-neutral-600">
-        <div>
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+        <div className="min-w-0 truncate">
           {message.pinned ? (
             <span className="mr-1" aria-label="pinned">
               📌
@@ -257,15 +258,26 @@ function MessageBubbleImpl({
           ) : null}
           {headerParts.join(" · ")}
         </div>
-        {onEdit ? (
-          <button
-            onClick={onEdit}
-            className="ml-2 rounded border border-neutral-300 px-1.5 py-0 text-[10px] font-normal normal-case text-neutral-500 hover:bg-neutral-100"
-            title="Edit this message and regenerate replies"
+        {/* #243: edit button (when present) sits left of the timestamp,
+            timestamp anchors to the right edge of the row. tabular-nums
+            keeps digit columns stable across rows. */}
+        <div className="flex shrink-0 items-center gap-2">
+          {onEdit ? (
+            <button
+              onClick={onEdit}
+              className="rounded border border-neutral-300 px-1.5 py-0 text-[10px] font-normal normal-case text-neutral-500 hover:bg-neutral-100"
+              title="Edit this message and regenerate replies"
+            >
+              edit
+            </button>
+          ) : null}
+          <span
+            className="font-normal normal-case tabular-nums text-neutral-500"
+            title={new Date(message.createdAt).toISOString()}
           >
-            edit
-          </button>
-        ) : null}
+            {formatBubbleTimestamp(message.createdAt)}
+          </span>
+        </div>
       </div>
       {message.errorMessage ? (
         <div className="flex items-start justify-between gap-2">
