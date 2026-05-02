@@ -101,4 +101,29 @@ describe("highlightMatches (#239)", () => {
     expect(count).toBe(2);
     expect(root.querySelectorAll("mark")[0]?.getAttribute("data-find")).toBe("active");
   });
+
+  // #244: clearHighlights used to call container.normalize() unconditionally,
+  // which merged adjacent text nodes that react-markdown was tracking as
+  // separate. During streaming (the effect runs once per token batch),
+  // that mutated the DOM under React's reconciler and dropped late tokens
+  // for paragraph-shaped content. The fix short-circuits when there is
+  // nothing to strip — leaving the DOM untouched.
+  it("does not merge adjacent text nodes when there are no marks to strip (#244)", () => {
+    const container = document.createElement("div");
+    const a = document.createTextNode("Hello ");
+    const b = document.createTextNode("World ");
+    const c = document.createTextNode("again");
+    container.appendChild(a);
+    container.appendChild(b);
+    container.appendChild(c);
+    expect(container.childNodes).toHaveLength(3);
+
+    clearHighlights(container);
+
+    // Pre-fix: container.normalize() collapsed all three into one text
+    // node. Post-fix: clearHighlights early-returns and the structure
+    // react-markdown laid down survives.
+    expect(container.childNodes).toHaveLength(3);
+    expect(container.textContent).toBe("Hello World again");
+  });
 });
