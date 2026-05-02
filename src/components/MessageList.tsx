@@ -29,6 +29,10 @@ import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { filterSupersededMessages } from "@/lib/orchestration/filterSupersededMessages";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import { computeMatchScrollOffset } from "@/lib/ui/scrollCenter";
+import {
+  userMsgPositionsFromMeasurements,
+  type UserMsgPos,
+} from "@/lib/ui/userMessageNav";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
 import { MessageBubble } from "./MessageBubble";
@@ -63,6 +67,8 @@ export function MessageList({
   scrollContainerRef,
   pinnedRef: pinnedRefProp,
   onScroll: onScrollProp,
+  navIds,
+  onNavPositionsChange,
 }: {
   conversationId: string;
   activeMatchMessageId?: string | null;
@@ -82,6 +88,14 @@ export function MessageList({
   // effect from yanking back to the bottom.
   pinnedRef?: React.MutableRefObject<boolean>;
   onScroll?: () => void;
+  // #245: ChatView passes the IDs the arrows navigate between (user
+  // messages, or assistant messages from a chosen persona) and we feed
+  // their virtualizer-known offsets back. This replaces ChatView's
+  // querySelector loop, which only saw bubbles currently mounted by
+  // react-virtual and so dropped any nav target outside the overscan
+  // window.
+  navIds?: readonly string[];
+  onNavPositionsChange?: (positions: UserMsgPos[]) => void;
 }): JSX.Element {
   // #184/#211: messages come from useRepoQuery. The cache is seeded
   // by messagesStore.load() and patched in-place by streaming
@@ -313,6 +327,33 @@ export function MessageList({
   };
 
   const virtualItems = virtualizer.getVirtualItems();
+
+  // #245: emit virtualizer-known positions for the chat header's
+  // up/down arrows. ChatView used to query the DOM via
+  // `data-message-id`, which only resolved to bubbles currently
+  // mounted by the virtualizer (overscan=6) — every user message
+  // outside that window vanished from the nav. `measurementsCache`
+  // is fully populated by `getVirtualItems()` above (one entry per
+  // item, measured or estimated), so reading from it covers
+  // virtualized-out targets too. Layout effect so the parent's nav
+  // state is consistent with the just-painted DOM by the time a
+  // click handler reads it.
+  useEffect(() => {
+    if (!onNavPositionsChange) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
+    const positions = userMsgPositionsFromMeasurements(
+      navIds ?? [],
+      itemIndexByMessageId,
+      virtualizer.measurementsCache,
+      paddingTop,
+    );
+    onNavPositionsChange(positions);
+    // virtualItems is the render-derived signal that the cache has
+    // just been recomputed; depending on it (rather than on the
+    // mutated cache reference) keeps us re-emitting on item moves.
+  }, [navIds, itemIndexByMessageId, virtualItems, virtualizer, onNavPositionsChange, containerRef]);
 
   return (
     <div
