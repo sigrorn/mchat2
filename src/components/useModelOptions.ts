@@ -1,12 +1,10 @@
 // ------------------------------------------------------------------
 // Component: useModelOptions
 // Responsibility: Load the model picker datalist for a given provider.
-//                 Reads the keychain (API key per provider), the
-//                 Apertus product-id setting, and listModelInfos().
-//                 Was duplicated between PersonaRow and CreateForm
-//                 inside PersonaPanel.tsx (#139).
-// Collaborators: lib/providers/models, lib/tauri/keychain,
-//                lib/persistence/settings, lib/settings/keys.
+//                 Reads the keychain (API key per provider) and
+//                 listModelInfos(). Pre-#258 also threaded the legacy
+//                 Apertus product-id setting; that path is gone.
+// Collaborators: lib/providers/models, lib/tauri/keychain.
 // ------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
@@ -14,8 +12,6 @@ import type { Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { listModelInfos, type ModelInfo } from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
-import { getSetting } from "@/lib/persistence/settings";
-import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import { PRICING } from "@/lib/pricing/table";
 
 export interface UseModelOptionsOpts {
@@ -45,11 +41,9 @@ export function useModelOptions(
       const key = PROVIDER_REGISTRY[provider].requiresKey
         ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
         : null;
-      const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
-      const extra = {
-        apertusProductId: pid,
-        ...(presetKey ? { openaiCompatPreset: JSON.parse(presetKey) as Persona["openaiCompatPreset"] } : {}),
-      };
+      const extra = presetKey
+        ? { openaiCompatPreset: JSON.parse(presetKey) as Persona["openaiCompatPreset"] }
+        : {};
       const infos = await listModelInfos(provider, key, extra);
       if (!cancelled) setModelOptions(infos);
     })();

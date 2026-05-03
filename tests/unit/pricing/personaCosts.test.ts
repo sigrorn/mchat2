@@ -17,7 +17,6 @@ function persona(id: string, provider: Persona["provider"] = "claude"): Persona 
     createdAtMessageIndex: 0,
     sortOrder: 0,
     deletedAt: null,
-    apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   };
 }

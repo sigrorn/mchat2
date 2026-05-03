@@ -31,6 +31,11 @@ import {
 // converter can still recognise it as input even after #257 Phase B
 // drops "apertus" from ProviderId. The transform never produces
 // "apertus" as output — only routes existing strings through.
+//
+// #258 Phase C: apertusProductId removed from Persona, but the
+// converter still surfaces a productId from inputs that carry one
+// (legacy snapshots and DB rows pre-Phase-0). The field on this
+// input shape stays so legacy reads keep working.
 export type LegacyOrCurrentProviderId = ProviderId | "apertus";
 
 export interface ConvertibleApertusInput {
@@ -108,9 +113,12 @@ export async function migrateApertusInConversation(
     const r = convertApertusPersonaShape({
       // Loaded persona rows can still carry the legacy "apertus"
       // string post-#257; the converter accepts that via the legacy
-      // input type.
+      // input type. #258 Phase C dropped Persona.apertusProductId
+      // from the type; pre-Phase-C rows that still hold a value pass
+      // null through here — the productId surfaces from snapshot-
+      // import legacy data instead.
       provider: p.provider as LegacyOrCurrentProviderId,
-      apertusProductId: p.apertusProductId,
+      apertusProductId: null,
       openaiCompatPreset: p.openaiCompatPreset,
       modelOverride: p.modelOverride,
     });
@@ -123,7 +131,6 @@ export async function migrateApertusInConversation(
     await personasRepo.updatePersona({
       ...p,
       provider: "openai_compat",
-      apertusProductId: r.persona.apertusProductId,
       openaiCompatPreset: r.persona.openaiCompatPreset,
     });
   }

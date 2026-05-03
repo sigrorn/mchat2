@@ -39,7 +39,7 @@ export interface CreatePersonaInput {
   visibilityDefaults?: Record<string, "y" | "n">;
   currentMessageIndex: number;
   sortOrder?: number;
-  apertusProductId?: string | null;
+  // #258 Phase C: apertusProductId removed.
   // #171: which openai-compat preset this persona resolves to.
   // Required when provider === "openai_compat", null otherwise.
   openaiCompatPreset?: Persona["openaiCompatPreset"];
@@ -80,7 +80,6 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     createdAtMessageIndex: input.currentMessageIndex,
     sortOrder: input.sortOrder ?? existing.length,
     deletedAt: null,
-    apertusProductId: input.apertusProductId?.trim() || null,
     visibilityDefaults: visDefaults,
     openaiCompatPreset: input.openaiCompatPreset ?? null,
     roleLens: input.roleLens ?? {},
@@ -100,7 +99,7 @@ export interface UpdatePersonaInput {
   colorOverride?: string | null;
   visibilityDefaults?: Record<string, "y" | "n">;
   sortOrder?: number;
-  apertusProductId?: string | null;
+  // #258 Phase C: apertusProductId removed from updatePersona input too.
   openaiCompatPreset?: Persona["openaiCompatPreset"];
   roleLens?: Persona["roleLens"];
 }
@@ -128,12 +127,9 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
 
   // #241 Phase A removed runsAfter validation; Phase C dropped the
   // field from Persona entirely. updatePersona never touches an
-  // ordering edge today.
-
-  const apertusProductId =
-    input.apertusProductId !== undefined
-      ? input.apertusProductId?.trim() || null
-      : current.apertusProductId;
+  // ordering edge today. #258 Phase C similarly dropped
+  // apertusProductId from Persona — the field used to be threaded
+  // through here.
 
   const provider = input.provider ?? current.provider;
 
@@ -155,7 +151,6 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     colorOverride: input.colorOverride !== undefined ? input.colorOverride : current.colorOverride,
     visibilityDefaults: visDefaults,
     sortOrder: input.sortOrder ?? current.sortOrder,
-    apertusProductId,
     openaiCompatPreset:
       input.openaiCompatPreset !== undefined
         ? input.openaiCompatPreset

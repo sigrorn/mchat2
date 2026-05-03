@@ -497,6 +497,15 @@ export const MIGRATIONS: string[][] = [
         )
       WHERE inherited_history = 1 AND created_at_message_index = 0`,
   ],
+  // 31 — Drop personas.apertus_product_id (#258 Phase C). The native
+  // apertus adapter is gone (#257 Phase B); every product-id value
+  // moved into the openai_compat infomaniak preset's PRODUCT_ID
+  // template var at #255 Phase 0. The column has no readers left in
+  // code post-Phase B. SQLite ≥ 3.35 supports DROP COLUMN; Tauri
+  // ships a newer version, and migration 27 used the same pattern.
+  [
+    `ALTER TABLE personas DROP COLUMN apertus_product_id`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

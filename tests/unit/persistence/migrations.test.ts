@@ -105,9 +105,9 @@ describe("runMigrations", () => {
 
   it("does not issue COMMIT after a failed migration", async () => {
     // Match against the latest migration's signature statement
-    // (#260 adds inherited_history to personas).
+    // (#258 Phase C drops apertus_product_id from personas).
     const mock = makeMockSql(MIGRATIONS.length - 1, {
-      failOn: (q) => /ALTER TABLE personas ADD COLUMN inherited_history/i.test(q),
+      failOn: (q) => /ALTER TABLE personas DROP COLUMN apertus_product_id/i.test(q),
     });
     await expect(runMigrations()).rejects.toThrow();
     // After the failure, no further BEGIN/COMMIT pairs should appear.

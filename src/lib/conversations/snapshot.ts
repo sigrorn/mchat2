@@ -16,7 +16,11 @@ export interface SnapshotPersona {
   systemPromptOverride: string | null;
   modelOverride: string | null;
   colorOverride: string | null;
-  apertusProductId: string | null;
+  // #258 Phase C: native apertus removed; snapshots no longer write
+  // this field. The import path tolerates legacy values via the
+  // optional zod field on SnapshotPersonaSchema and routes them
+  // through migrateApertusInConversation post-create.
+  apertusProductId?: string | null;
   visibilityDefaults: Record<string, "y" | "n">;
   // #241 Phase C dropped the field from disk; the snapshot envelope
   // still exposes it as optional so legacy snapshots round-trip.
@@ -157,7 +161,9 @@ export function serializeSnapshot(
       systemPromptOverride: p.systemPromptOverride,
       modelOverride: p.modelOverride,
       colorOverride: p.colorOverride,
-      apertusProductId: p.apertusProductId,
+      // #258 Phase C: apertusProductId no longer on Persona; modern
+      // snapshots omit it. Legacy snapshots that still carry the
+      // field round-trip through the optional schema field.
       visibilityDefaults: p.visibilityDefaults,
       sortOrder: p.sortOrder,
       createdAtMessageIndex: p.createdAtMessageIndex,

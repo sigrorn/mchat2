@@ -122,7 +122,6 @@ describe("snapshot round-trip preserves flow.loopStartIndex (#220)", () => {
           systemPromptOverride: null,
           modelOverride: null,
           colorOverride: null,
-          apertusProductId: null,
           visibilityDefaults: {},
           sortOrder: 0,
           createdAtMessageIndex: 0,

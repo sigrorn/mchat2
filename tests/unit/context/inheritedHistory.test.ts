@@ -51,7 +51,6 @@ function persona(args: {
     createdAtMessageIndex: args.createdAt,
     sortOrder: 0,
     deletedAt: null,
-    apertusProductId: null,
     visibilityDefaults: {},
     openaiCompatPreset: null,
     roleLens: {},

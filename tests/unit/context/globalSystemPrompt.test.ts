@@ -32,7 +32,6 @@ const persona: Persona = {
   createdAtMessageIndex: 0,
   sortOrder: 0,
   deletedAt: null,
-  apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
 };
 

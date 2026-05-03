@@ -362,7 +362,6 @@ function PersonaRow({
     colorOverride?: string | null;
     visibilityDefaults?: Record<string, "y" | "n">;
     seenByEdits?: Record<string, "y" | "n">;
-    apertusProductId?: string | null;
     openaiCompatPreset?: Persona["openaiCompatPreset"];
   }) => Promise<void>;
   onDelete: () => Promise<void>;

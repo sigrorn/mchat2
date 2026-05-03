@@ -73,7 +73,14 @@ export async function importPersonasFromFile(
     const created: Persona[] = [];
     // Two-pass for runsAfter: first create everything without parent
     // links, then patch them in once all ids exist.
+    // #258 Phase C: legacy entry.apertusProductId is no longer a
+    // createPersona input. Captured here for the post-create
+    // migrator to write to the openai_compat infomaniak preset.
+    let legacyApertusProductId: string | null = null;
     for (const entry of resolved.toCreate) {
+      if (entry.apertusProductId && legacyApertusProductId === null) {
+        legacyApertusProductId = entry.apertusProductId;
+      }
       const p = await createPersona({
         conversationId,
         provider: entry.provider,
@@ -81,12 +88,12 @@ export async function importPersonasFromFile(
         systemPromptOverride: entry.systemPromptOverride,
         modelOverride: entry.modelOverride,
         colorOverride: entry.colorOverride,
-        apertusProductId: entry.apertusProductId,
         visibilityDefaults: entry.visibilityDefaults,
         currentMessageIndex,
       });
       created.push(p);
     }
+    void legacyApertusProductId; // surfaced via the on-conversation migrator path
     // Build a name-slug → id map across existing live + freshly created.
     // #241 Phase C dropped runs_after on disk; legacy edges from the
     // imported file flow into a transient map below for the

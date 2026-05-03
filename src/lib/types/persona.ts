@@ -30,10 +30,9 @@ export interface Persona {
   sortOrder: number;
   // Tombstone (ms epoch). Null = active.
   deletedAt: number | null;
-  // Provider-specific config. Currently only Apertus uses this — its
-  // base URL embeds a per-persona Product-Id (#15). A second provider
-  // with knobs would justify refactoring this to a JSON blob.
-  apertusProductId: string | null;
+  // #258 Phase C: apertusProductId field removed. Native apertus
+  // adapter retired in #257 Phase B; product-ids live on the
+  // openai_compat infomaniak preset's PRODUCT_ID template var now.
   // #94: per-persona visibility defaults, keyed by persona nameSlug.
   // 'y' = this persona sees the other's output; 'n' = hidden.
   // Absent = use conversation default. Cross-editing keeps all

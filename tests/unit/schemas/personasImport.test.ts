@@ -13,7 +13,6 @@ const validEntry = {
   systemPromptOverride: null,
   modelOverride: null,
   colorOverride: null,
-  apertusProductId: null,
   visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   runsAfter: [],
 };

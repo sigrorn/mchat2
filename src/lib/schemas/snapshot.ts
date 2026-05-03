@@ -20,7 +20,12 @@ const personaSchema = z.object({
   systemPromptOverride: z.string().nullable(),
   modelOverride: z.string().nullable(),
   colorOverride: z.string().nullable(),
-  apertusProductId: z.string().nullable(),
+  // #258 Phase C: native apertus removed; modern snapshots no longer
+  // emit this field. Kept as optional + nullable so legacy snapshots
+  // round-trip through parse — the value (when present) flows into
+  // the openai_compat infomaniak preset's PRODUCT_ID template var
+  // during import.
+  apertusProductId: z.string().nullable().optional(),
   visibilityDefaults: z.record(z.union([z.literal("y"), z.literal("n")])),
   // #241 Phase C: optional for legacy snapshots; modern snapshots
   // never emit this field (the conversation flow carries ordering).

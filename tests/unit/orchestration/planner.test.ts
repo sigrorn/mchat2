@@ -19,7 +19,6 @@ function persona(id: string, sortOrder = 0): Persona {
     createdAtMessageIndex: 0,
     sortOrder,
     deletedAt: null,
-    apertusProductId: null,
     visibilityDefaults: {},
     openaiCompatPreset: null,
     roleLens: {},

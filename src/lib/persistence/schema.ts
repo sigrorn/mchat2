@@ -62,7 +62,7 @@ export interface PersonasTable {
   created_at_message_index: number;
   sort_order: number;
   deleted_at: number | null;
-  apertus_product_id: string | null;
+  // #258 Phase C: apertus_product_id column removed.
   visibility_defaults: string; // JSON-encoded
   openai_compat_preset: string | null; // JSON-encoded or null
   // #213: per-persona role lens. JSON map

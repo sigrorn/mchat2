@@ -27,7 +27,6 @@ function rowToPersona(r: PersonasTable): Persona {
     createdAtMessageIndex: r.created_at_message_index,
     sortOrder: r.sort_order,
     deletedAt: r.deleted_at,
-    apertusProductId: r.apertus_product_id ?? null,
     visibilityDefaults: parseVisibilityDefaults(r.visibility_defaults),
     openaiCompatPreset: parseOpenaiCompatPreset(r.openai_compat_preset),
     roleLens: parseRoleLens(r.role_lens),
@@ -126,7 +125,6 @@ function personaToRow(p: Persona): PersonasTable {
     created_at_message_index: p.createdAtMessageIndex,
     sort_order: p.sortOrder,
     deleted_at: p.deletedAt,
-    apertus_product_id: p.apertusProductId,
     visibility_defaults: JSON.stringify(p.visibilityDefaults),
     openai_compat_preset: p.openaiCompatPreset
       ? JSON.stringify(p.openaiCompatPreset)
@@ -157,7 +155,6 @@ export async function updatePersona(p: Persona): Promise<void> {
       color_override: row.color_override,
       sort_order: row.sort_order,
       deleted_at: row.deleted_at,
-      apertus_product_id: row.apertus_product_id,
       visibility_defaults: row.visibility_defaults,
       openai_compat_preset: row.openai_compat_preset,
       role_lens: row.role_lens,

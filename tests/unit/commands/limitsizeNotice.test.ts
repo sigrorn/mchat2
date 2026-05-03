@@ -1,4 +1,4 @@
-﻿// #72 — //limitsize notice shows which persona(s) have the tightest limit.
+// #72 � //limitsize notice shows which persona(s) have the tightest limit.
 import { describe, it, expect } from "vitest";
 import { tightestBudgetNotice } from "@/lib/commands/limitsizeNotice";
 import type { Persona } from "@/lib/types";
@@ -16,7 +16,6 @@ function persona(name: string, provider: Persona["provider"]): Persona {
     createdAtMessageIndex: 0,
     sortOrder: 0,
     deletedAt: null,
-    apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   };
 }

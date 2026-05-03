@@ -1,4 +1,4 @@
-ï»¿// Autocompact check tests â€” issues #105, #118.
+// Autocompact check tests — issues #105, #118.
 import { describe, it, expect } from "vitest";
 import {
   resolveAutocompactTokens,
@@ -39,7 +39,6 @@ const PERSONA_128K: Persona = {
   createdAtMessageIndex: 0,
   sortOrder: 0,
   deletedAt: null,
-  apertusProductId: null,
   visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
 };
 
@@ -74,7 +73,7 @@ describe("resolveAutocompactTokens (kTokens mode, absolute)", () => {
 describe("pendingWarnings (#118: per-persona ratios)", () => {
   it("returns empty when autocompact is on", () => {
     const conv = { ...BASE_CONV, autocompactThreshold: { mode: "kTokens" as const, value: 48 } };
-    // Persona at 100% of its max â€” still no warning because autocompact handles it.
+    // Persona at 100% of its max — still no warning because autocompact handles it.
     const usages = [usage(PERSONA_128K, 128000, 128000)];
     expect(pendingWarnings(conv, usages)).toEqual([]);
   });
@@ -107,8 +106,8 @@ describe("pendingWarnings (#118: per-persona ratios)", () => {
   });
 
   it("mixed-window scenario from #118: no warning despite one large context", () => {
-    // 21k tokens vs 128k OpenAI max = 16.4% â€” below threshold.
-    // 12k tokens vs 16k Apertus max = 75% â€” below threshold.
+    // 21k tokens vs 128k OpenAI max = 16.4% — below threshold.
+    // 12k tokens vs 16k Apertus max = 75% — below threshold.
     // Neither persona crosses 80%.
     const apertus: Persona = {
       ...PERSONA_128K,
@@ -169,8 +168,8 @@ describe("autocompactTriggers (#118: per-persona)", () => {
   it("percent mode: triggers when a persona's own ratio >= threshold%", () => {
     const conv = { ...BASE_CONV, autocompactThreshold: { mode: "percent" as const, value: 75 } };
     const usages = [
-      usage(PERSONA_128K, 90000, 128000), // 70% â€” below
-      usage(PERSONA_200K, 160000, 200000), // 80% â€” above
+      usage(PERSONA_128K, 90000, 128000), // 70% — below
+      usage(PERSONA_200K, 160000, 200000), // 80% — above
     ];
     const triggered = autocompactTriggers(conv, usages);
     expect(triggered.map((u) => u.persona.name)).toEqual(["Claude"]);

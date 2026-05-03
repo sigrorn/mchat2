@@ -17,6 +17,10 @@ import { PROVIDER_REGISTRY } from "../providers/registry";
 import { keychain } from "../tauri/keychain";
 import { migrateRunsAfterToFlow } from "./migrateRunsAfterToFlow";
 import { migrateApertusInConversation } from "./migrateApertusToOpenaiCompat";
+import {
+  loadOpenAICompatConfig,
+  setBuiltinPresetConfig,
+} from "../providers/openaiCompatStorage";
 
 export interface ImportResult {
   conversation: Conversation;
@@ -45,8 +49,20 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
   // 2. Create personas (two-pass for runsAfter).
   const nameToId = new Map<string, string>();
   const created: Persona[] = [];
+  // #258 Phase C: legacy snapshots may still carry apertusProductId
+  // on apertus-provider personas. Capture the first non-null value
+  // here so we can write it to the openai_compat infomaniak preset's
+  // global PRODUCT_ID template var below — the column the value used
+  // to live in is gone, so migrateApertusInConversation's read path
+  // can't surface it post-Phase-C.
+  let legacyApertusProductIdFromSnapshot: string | null = null;
 
   for (const sp of snapshot.personas) {
+    if (sp.provider === ("apertus" as unknown as ProviderId)
+        && sp.apertusProductId
+        && legacyApertusProductIdFromSnapshot === null) {
+      legacyApertusProductIdFromSnapshot = sp.apertusProductId;
+    }
     const p = await createPersona({
       conversationId: conv.id,
       provider: sp.provider,
@@ -54,7 +70,6 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
       systemPromptOverride: sp.systemPromptOverride,
       modelOverride: sp.modelOverride,
       colorOverride: sp.colorOverride,
-      apertusProductId: sp.apertusProductId,
       visibilityDefaults: sp.visibilityDefaults ?? {},
       currentMessageIndex: sp.createdAtMessageIndex,
       sortOrder: sp.sortOrder,
@@ -196,11 +211,24 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     });
   }
 
-  // 5d. #255 Phase 0: legacy snapshots authored against the native
-  // apertus adapter convert in-place to openai_compat (Infomaniak
-  // preset). The migrator rewrites every persona row, the messages'
-  // provider column, mirrors the api key, and appends a notice. No-op
-  // for snapshots that already use openai_compat.
+  // 5d. #255 Phase 0 / #258 Phase C: legacy snapshots authored against
+  // the native apertus adapter convert in-place to openai_compat
+  // (Infomaniak preset). The migrator rewrites every persona row,
+  // the messages' provider column, mirrors the api key, and appends a
+  // notice. No-op for snapshots that already use openai_compat.
+  // The captured productId is written to the global preset config
+  // first so the migrator's idempotent "don't clobber existing"
+  // check leaves it in place.
+  if (legacyApertusProductIdFromSnapshot) {
+    const cfg = await loadOpenAICompatConfig();
+    const existing = cfg.builtins["infomaniak"]?.templateVars["PRODUCT_ID"];
+    if (!existing) {
+      await setBuiltinPresetConfig("infomaniak", {
+        templateVars: { PRODUCT_ID: legacyApertusProductIdFromSnapshot },
+        extraHeaders: cfg.builtins["infomaniak"]?.extraHeaders ?? {},
+      });
+    }
+  }
   await migrateApertusInConversation(conv.id);
 
   // 6. Validate API keys. Re-list personas after the apertus migration

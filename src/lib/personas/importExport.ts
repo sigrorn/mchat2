@@ -35,7 +35,9 @@ export interface ExportedPersona {
   systemPromptOverride: string | null;
   modelOverride: string | null;
   colorOverride: string | null;
-  apertusProductId: string | null;
+  // #258 Phase C: optional only — modern exports omit it. Kept on
+  // the type so legacy envelopes round-trip through parse → resolve.
+  apertusProductId?: string | null;
   visibilityDefaults: Record<string, "y" | "n">;
   runsAfter?: string[];
   // #236: per-persona role lens, keyed by speaker *name* (not id).
@@ -91,7 +93,8 @@ export function serializePersonas(
         systemPromptOverride: p.systemPromptOverride,
         modelOverride: p.modelOverride,
         colorOverride: p.colorOverride,
-        apertusProductId: p.apertusProductId,
+        // #258 Phase C: apertusProductId field gone from Persona;
+        // modern exports don't emit it.
         visibilityDefaults: p.visibilityDefaults,
         // #236: emit only when non-empty so legacy-shaped exports stay
         // byte-for-byte identical. Imports treat absent + {} the same.
@@ -132,7 +135,10 @@ export interface ResolvedImport {
     systemPromptOverride: string | null;
     modelOverride: string | null;
     colorOverride: string | null;
-    apertusProductId: string | null;
+    // #258 Phase C: surfaced from legacy envelopes only; modern
+    // imports never carry this. fileOps writes it to the openai_compat
+    // infomaniak preset's PRODUCT_ID template var when present.
+    apertusProductId?: string | null;
     visibilityDefaults: Record<string, "y" | "n">;
     runsAfter: string[]; // resolved names
     // #236: name-keyed role lens carried verbatim from the envelope
@@ -198,7 +204,12 @@ export function resolveImport(
         systemPromptOverride: p.systemPromptOverride,
         modelOverride: p.modelOverride,
         colorOverride: p.colorOverride,
-        apertusProductId: p.apertusProductId,
+        // #258 Phase C: legacy envelopes may still include this field;
+        // pass it through (typed as optional) so fileOps can write it
+        // to the global openai_compat infomaniak config when present.
+        ...(p.apertusProductId !== undefined && p.apertusProductId !== null
+          ? { apertusProductId: p.apertusProductId }
+          : {}),
         visibilityDefaults: filtered,
         runsAfter: declaredRunsAfter,
         // #236: carry roleLens verbatim — fileOps remaps the

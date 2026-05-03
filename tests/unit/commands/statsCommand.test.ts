@@ -33,7 +33,6 @@ function persona(id: string, name: string, provider: "openai" | "claude"): Perso
     createdAtMessageIndex: 0,
     sortOrder: 0,
     deletedAt: null,
-    apertusProductId: null,
     visibilityDefaults: {}, openaiCompatPreset: null, roleLens: {},
   };
 }

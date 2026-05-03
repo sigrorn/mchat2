@@ -26,7 +26,6 @@ function persona(over: Partial<Persona> & { id: string; name: string }): Persona
     createdAtMessageIndex: over.createdAtMessageIndex ?? 0,
     sortOrder: over.sortOrder ?? 0,
     deletedAt: over.deletedAt ?? null,
-    apertusProductId: over.apertusProductId ?? null,
     visibilityDefaults: over.visibilityDefaults ?? {},
     openaiCompatPreset: null,
     roleLens: {},
@@ -40,7 +39,6 @@ function imp(over: Partial<ExportedPersona> & { name: string }): ExportedPersona
     systemPromptOverride: over.systemPromptOverride ?? null,
     modelOverride: over.modelOverride ?? null,
     colorOverride: over.colorOverride ?? null,
-    apertusProductId: over.apertusProductId ?? null,
     visibilityDefaults: over.visibilityDefaults ?? {},
     ...(over.runsAfter !== undefined ? { runsAfter: over.runsAfter } : {}),
   };
