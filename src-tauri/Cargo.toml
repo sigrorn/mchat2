@@ -1,6 +1,6 @@
 [package]
 name = "mchat2"
-version = "2.50.1"
+version = "2.52.1"
 description = "Multi-provider LLM chat workbench"
 edition = "2021"
 rust-version = "1.77"
