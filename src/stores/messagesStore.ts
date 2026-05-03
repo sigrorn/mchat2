@@ -13,7 +13,7 @@ import { create } from "zustand";
 import type { Message } from "@/lib/types";
 import * as repo from "@/lib/persistence/messages";
 import { listSupersededMessageIds } from "@/lib/persistence/runs";
-import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
+import { getRepoQueryCache, invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { useConversationsStore } from "./conversationsStore";
 
 // Cache helpers: writes to repoQueryCache so useRepoQuery consumers
@@ -121,6 +121,12 @@ export const useMessagesStore = create<State>((set, get) => ({
     // reads from the cache, so without this its dot wouldn't light up
     // until the next cold reload.
     useConversationsStore.getState().refreshLastMessageAt(m.conversationId, m.createdAt);
+    // #253: spend-rows cache picks up the new placeholder so the
+    // persona panel's spend table re-fetches. cost_usd is NULL until
+    // the stream completes; that NULL surfaces as a "?" in the cell
+    // until streamRunner snapshots it (which separately invalidates
+    // ["spend-rows"] again).
+    invalidateRepoQuery(["spend-rows"]);
   },
   patchContent(conversationId, messageId, content) {
     cacheUpdate(conversationId, (msgs) =>

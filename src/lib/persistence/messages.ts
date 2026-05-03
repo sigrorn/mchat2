@@ -211,6 +211,34 @@ export async function updateMessageCost(id: string, costUsd: number | null): Pro
     .execute();
 }
 
+// #253: minimal projection for the persona-panel spend table. Pulls
+// only the columns the aggregator needs — provider, cost_usd,
+// usage_estimated, created_at — so a multi-thousand-message DB
+// doesn't ship full bodies up to the UI just to sum a few floats.
+// Skips rows without a provider (user/system/notice rows). No
+// conversation filter: spend tracking is global by design.
+export interface SpendRowProjection {
+  provider: ProviderId;
+  costUsd: number | null;
+  usageEstimated: boolean;
+  createdAt: number;
+}
+
+export async function listSpendRows(): Promise<SpendRowProjection[]> {
+  const rows = await db
+    .selectFrom("messages")
+    .select(["provider", "cost_usd", "usage_estimated", "created_at"])
+    .where("role", "=", "assistant")
+    .where("provider", "is not", null)
+    .execute();
+  return rows.map((r) => ({
+    provider: r.provider as ProviderId,
+    costUsd: r.cost_usd,
+    usageEstimated: r.usage_estimated !== 0,
+    createdAt: r.created_at,
+  }));
+}
+
 // #122 — record streaming timings on successful stream completion.
 // Not called for failed/cancelled streams (their timings stay NULL,
 // which excludes them from //stats averages).

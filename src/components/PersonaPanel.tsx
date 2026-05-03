@@ -40,6 +40,7 @@ import { useSendStore, type StreamStatus } from "@/stores/sendStore";
 import { useUiStore } from "@/stores/uiStore";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 import { FlowEditor } from "./FlowEditor";
+import { ProviderSpendTable } from "./ProviderSpendTable";
 
 const EMPTY_STATUS: Readonly<Record<string, StreamStatus>> = Object.freeze({});
 
@@ -307,6 +308,13 @@ function PersonaPanelExpanded({
           </span>
         </div>
       ) : null}
+      {/* #253: spend table — global view (all conversations, all time)
+          deliberately placed here while we feel out the right home for
+          it. The view is per-provider with current API keys; rows
+          without a key are filtered out. */}
+      <div className="px-3 pb-3">
+        <ProviderSpendTable />
+      </div>
       {showFlowEditor ? (
         <FlowEditor
           conversationId={conversation.id}

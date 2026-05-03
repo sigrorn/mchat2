@@ -22,6 +22,7 @@ import type { ProviderAdapter } from "../providers/adapter";
 import { PROVIDER_REGISTRY, type ProviderMeta } from "../providers/registry";
 import * as messagesRepo from "../persistence/messages";
 import { PRICING } from "../pricing/table";
+import { invalidateRepoQuery } from "../data/useRepoQuery";
 import { withRetry, DEFAULT_RETRY, type RetryPolicy } from "./retryManager";
 import { buildOutboundRows, buildInboundRows } from "../tracing/traceWriter";
 import { logBuffer } from "../observability/logBuffer";
@@ -328,6 +329,10 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
         (outputTokens / 1_000_000) * entry.outputUsdPerMTok
       : null;
   await messagesRepo.updateMessageCost(placeholder.id, costUsd);
+  // #253: spend-rows cache reflects the just-snapshotted cost.
+  // Without this, the persona-panel spend table would keep showing
+  // the placeholder's NULL ("?") until the next message append.
+  invalidateRepoQuery(["spend-rows"]);
   // #122 — record timings only on successful completion. Failed /
   // cancelled / silent streams leave ttft_ms + stream_ms NULL so
   // //stats averages exclude them.

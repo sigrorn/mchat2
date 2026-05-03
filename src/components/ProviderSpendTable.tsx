@@ -1,0 +1,143 @@
+// ------------------------------------------------------------------
+// Component: ProviderSpendTable (#253)
+// Responsibility: Render per-provider USD spend (current month / last
+//                 month / total, UTC) underneath the persona panel.
+//                 Pure-render around computeProviderSpend; data comes
+//                 from listSpendRows (#252's snapshot column) and the
+//                 keychain (filters out providers without a current
+//                 key per the user's rule).
+// Collaborators: lib/pricing/providerSpend, lib/persistence/messages
+//                (listSpendRows), lib/tauri/keychain, PersonaPanel.
+// ------------------------------------------------------------------
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  computeProviderSpend,
+  type ProviderSpend,
+  type SpendRow,
+} from "@/lib/pricing/providerSpend";
+import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import * as messagesRepo from "@/lib/persistence/messages";
+import { keychain } from "@/lib/tauri/keychain";
+import { PROVIDER_REGISTRY, ALL_PROVIDER_IDS } from "@/lib/providers/registry";
+import type { ProviderId } from "@/lib/types";
+
+const EMPTY_ROWS: readonly SpendRow[] = Object.freeze([]);
+
+// "$X.XX" with 4 decimals when the cell has any known cost. Null
+// renders as "?" — pricing was unknown for at least one row and there
+// were no known rows to sum. Mixed (some known + some unknown) shows
+// the partial sum suffixed with " + ?" so the user can see "we know
+// at least this much, plus some unmeasured."
+function formatCell(cell: { usdKnown: number; anyUnknown: boolean }): string {
+  const hasKnown = cell.usdKnown > 0;
+  if (!hasKnown && cell.anyUnknown) return "?";
+  if (!hasKnown) return "—";
+  if (cell.anyUnknown) return `$${cell.usdKnown.toFixed(4)} + ?`;
+  return `$${cell.usdKnown.toFixed(4)}`;
+}
+
+// A provider has a "current API key" iff (a) its adapter doesn't
+// require one (mock), or (b) its keychainKey or any sub-keyed entry
+// exists in the keychain. The sub-keyed branch covers openai_compat,
+// which stores one key per preset (`openai_compat.apiKey.<preset>`).
+function providerHasKey(provider: ProviderId, keychainKeys: readonly string[]): boolean {
+  const meta = PROVIDER_REGISTRY[provider];
+  if (!meta.requiresKey) return true;
+  return keychainKeys.some(
+    (k) => k === meta.keychainKey || k.startsWith(meta.keychainKey + "."),
+  );
+}
+
+export function ProviderSpendTable(): JSX.Element | null {
+  const spendQuery = useRepoQuery<readonly SpendRow[]>(
+    ["spend-rows"],
+    async () => {
+      const rows = await messagesRepo.listSpendRows();
+      return rows.map((r) => ({
+        provider: r.provider,
+        costUsd: r.costUsd,
+        usageEstimated: r.usageEstimated,
+        createdAt: r.createdAt,
+      }));
+    },
+  );
+  const rows = spendQuery.data ?? EMPTY_ROWS;
+
+  // Keychain isn't reactive — load once + reload when this component
+  // mounts (the persona panel re-renders on conversation switches).
+  const [keychainKeys, setKeychainKeys] = useState<readonly string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void keychain
+      .list()
+      .then((ks) => {
+        if (!cancelled) setKeychainKeys(ks);
+      })
+      .catch(() => {
+        if (!cancelled) setKeychainKeys([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleProviders = useMemo(
+    () => ALL_PROVIDER_IDS.filter((p) => providerHasKey(p, keychainKeys)),
+    [keychainKeys],
+  );
+
+  const spendMap = useMemo(() => computeProviderSpend(rows, Date.now()), [rows]);
+
+  const visible: ProviderSpend[] = useMemo(
+    () =>
+      visibleProviders
+        .map((p) => spendMap.get(p) ?? emptySpend(p))
+        .sort((a, b) => a.provider.localeCompare(b.provider)),
+    [visibleProviders, spendMap],
+  );
+
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="mt-3 border-t border-neutral-200 pt-3">
+      <div className="mb-1 text-xs font-medium text-neutral-700">Spend (USD)</div>
+      <table className="w-full text-xs tabular-nums">
+        <thead>
+          <tr className="text-left text-neutral-500">
+            <th className="font-normal">Provider</th>
+            <th className="text-right font-normal">This month</th>
+            <th className="text-right font-normal">Last month</th>
+            <th className="text-right font-normal">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visible.map((s) => (
+            <tr key={s.provider}>
+              <td className="text-neutral-800">
+                {PROVIDER_REGISTRY[s.provider].displayName}
+                {s.anyApproximate ? " ~" : ""}
+              </td>
+              <td className="text-right">{formatCell(s.currentMonth)}</td>
+              <td className="text-right">{formatCell(s.lastMonth)}</td>
+              <td className="text-right">{formatCell(s.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-1 text-[10px] text-neutral-400">
+        UTC month boundaries. ~ = some token counts were estimated by the adapter.
+      </div>
+    </div>
+  );
+}
+
+function emptySpend(provider: ProviderId): ProviderSpend {
+  return {
+    provider,
+    anyApproximate: false,
+    currentMonth: { usdKnown: 0, anyUnknown: false },
+    lastMonth: { usdKnown: 0, anyUnknown: false },
+    total: { usdKnown: 0, anyUnknown: false },
+  };
+}
