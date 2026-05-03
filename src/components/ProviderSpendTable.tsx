@@ -134,9 +134,15 @@ export function ProviderSpendTable(): JSX.Element | null {
                 {PROVIDER_REGISTRY[s.provider].displayName}
                 {s.anyApproximate ? " ~" : ""}
               </td>
-              <td className="text-right">{formatCell(s.currentMonth)}</td>
-              <td className="text-right">{formatCell(s.lastMonth)}</td>
-              <td className="text-right">{formatCell(s.total)}</td>
+              {/* #253 follow-up: whitespace-nowrap on value cells.
+                  Without this, "$X.XX + ?" wrapped inside a narrow
+                  persona-panel column, growing the row taller and
+                  visually colliding with the next provider's cells.
+                  Letting the column auto-widen is fine — the panel
+                  has plenty of horizontal room. */}
+              <td className="whitespace-nowrap text-right">{formatCell(s.currentMonth)}</td>
+              <td className="whitespace-nowrap text-right">{formatCell(s.lastMonth)}</td>
+              <td className="whitespace-nowrap text-right">{formatCell(s.total)}</td>
             </tr>
           ))}
         </tbody>
