@@ -53,6 +53,14 @@ export interface Persona {
   // human user → user). Lets one persona treat another persona's (or
   // the user's) messages as user-role for review/coaching scenarios.
   roleLens: Record<string, "user" | "assistant">;
+  // #260: when true, this persona was added with scope="inherit" and
+  // therefore sees the conversation's pre-creation history regardless
+  // of `addressedTo` (on user rows) and `audience` (on assistant rows).
+  // The cutoff at `createdAtMessageIndex` is also relaxed for inherit-
+  // ing personas. Visibility matrix and pin-target filters still apply.
+  // Optional with default false on read so callers building synthetic
+  // Persona objects don't have to set it.
+  inheritedHistory?: boolean;
 }
 
 // How the user's send intent was resolved.
