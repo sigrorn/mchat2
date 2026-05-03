@@ -34,14 +34,18 @@ import { PROVIDER_REGISTRY } from "./registry";
 // is a no-op, but at least the path is now resolver-driven so adding
 // a missing entry is a one-line patch.
 //
-// Apertus 70B Instruct value (16384) preserves the cap the native
-// apertus adapter enforced pre-#257. Whether that's the model's real
-// upstream window or a deliberate tier ceiling on Infomaniak's side
-// is unsettled — the value worked, so we keep it. Bump in a follow-up
-// if a user receipt proves a higher real cap.
+// Apertus 70B Instruct now reflects the model's documented 64k window
+// (#261 follow-up): the legacy 16384 value came from #55, which was
+// set in response to an HTTP 400 from Infomaniak's earlier deployment.
+// Empirically retested on 2026-05-03 with a ~22k-token sentinel prompt
+// — the wire accepted it and the model recalled a codeword placed at
+// the head of the prompt, proving Infomaniak's current Apertus 2509
+// deployment honors the full upstream window. If they later cap below
+// 64k, the next over-budget request will surface a 400 and this
+// number comes back down.
 export const CONTEXT_WINDOWS: Partial<Record<ProviderId, Record<string, number>>> = {
   openai_compat: {
-    "swiss-ai/Apertus-70B-Instruct-2509": 16384,
+    "swiss-ai/Apertus-70B-Instruct-2509": 65536,
     "openai/gpt-oss-120b": 131072,
     "Llama-3.3-70B-Instruct": 131072,
     "Mistral-Small-3.2-24B-Instruct-2506": 131072,

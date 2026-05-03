@@ -37,11 +37,14 @@ function makePersona(over: Partial<Persona>): Persona {
 describe("maxContextTokensForProviderModel", () => {
   it("returns the per-model entry when present (Apertus 70B 2509)", () => {
     // The native apertus adapter (pre-#257) carried 16384 as its
-    // hard cap. The lookup keeps that value alive for the converted
-    // openai_compat / Infomaniak path.
+    // hard cap, set in response to an HTTP 400 from #55. Empirically
+    // retested 2026-05-03 with a ~22k-token sentinel prompt: wire
+    // accepted, model recalled a codeword from the head of the
+    // prompt — confirms Infomaniak's current Apertus 2509 deployment
+    // honors the full 64k upstream window.
     expect(
       maxContextTokensForProviderModel("openai_compat", "swiss-ai/Apertus-70B-Instruct-2509"),
-    ).toBe(16384);
+    ).toBe(65536);
   });
 
   it("falls back to provider-level default when the model is not in the table", () => {
@@ -77,7 +80,7 @@ describe("maxContextTokensForPersona", () => {
       provider: "openai_compat",
       modelOverride: "swiss-ai/Apertus-70B-Instruct-2509",
     });
-    expect(maxContextTokensForPersona(persona)).toBe(16384);
+    expect(maxContextTokensForPersona(persona)).toBe(65536);
   });
 
   it("falls back to the provider's defaultModel when modelOverride is null", () => {
