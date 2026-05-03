@@ -413,6 +413,25 @@ export const MIGRATIONS: string[][] = [
     // ALTER TABLE migrations in this file.
     `ALTER TABLE personas DROP COLUMN runs_after`,
   ],
+  // 28 — Sidebar unread indicator (#250). Two timestamps on
+  // conversations: last_seen_at (stamped when the conversation becomes
+  // the active one) and last_message_at (bumped on every appendMessage).
+  // hasUnread compares the two. Backfill last_message_at from the
+  // newest existing message's created_at so existing conversations
+  // start in a sensible state — last_seen_at stays at the default 0
+  // until the user activates each conversation, so every conversation
+  // with messages will show as unread on first launch after the
+  // upgrade. That's the right behaviour: the user hasn't "seen" them
+  // through the new mechanism yet.
+  [
+    `ALTER TABLE conversations ADD COLUMN last_seen_at INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE conversations ADD COLUMN last_message_at INTEGER NOT NULL DEFAULT 0`,
+    `UPDATE conversations
+        SET last_message_at = COALESCE(
+          (SELECT MAX(created_at) FROM messages WHERE conversation_id = conversations.id),
+          0
+        )`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

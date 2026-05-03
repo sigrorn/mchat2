@@ -68,15 +68,31 @@ export function ChatView(): JSX.Element {
   const loadMessages = useMessagesStore((s) => s.load);
   const loadPersonas = usePersonasStore((s) => s.load);
 
+  const markSeen = useConversationsStore((s) => s.markSeen);
   useEffect(() => {
     if (!currentId) return;
     void loadMessages(currentId);
     void loadPersonas(currentId);
+    // #250: stamp last_seen_at on activation so the sidebar's unread
+    // dot clears for this conversation. lastMessageAt may already be
+    // ahead (a stream landed while the user was elsewhere); the stamp
+    // brings them level so hasUnread returns false on the next render.
+    void markSeen(currentId, Date.now());
+    const departing = currentId;
     // #241 Phase C dropped the runs_after column, so the lazy-on-open
     // auto-migration that lived here through Phase 0 no longer has a
     // data source — legacy edges only enter via import paths now,
     // which run the migration themselves with a transient map.
-  }, [currentId, loadMessages, loadPersonas]);
+    return () => {
+      // #250: re-stamp on departure. Tokens that streamed in while
+      // the user was viewing this conversation moved lastMessageAt
+      // forward in the cache without touching lastSeenAt; without
+      // this catch-up, switching away would falsely show a dot for
+      // content the user already saw being typed out. Tokens that
+      // arrive *after* this re-stamp will correctly trip the dot.
+      void markSeen(departing, Date.now());
+    };
+  }, [currentId, loadMessages, loadPersonas, markSeen]);
 
   // #53/#211: compute matches for the find bar from the active
   // conversation. Hook order requires these before any early return;

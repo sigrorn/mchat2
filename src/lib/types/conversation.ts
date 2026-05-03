@@ -65,4 +65,12 @@ export interface Conversation {
   // flow" row in the persona panel; manually editing the persona
   // selection drops it back to false. Defaults to false.
   flowMode?: boolean;
+  // #250: stamps that drive the sidebar unread dot. lastSeenAt is set
+  // when ChatView activates the conversation; lastMessageAt is bumped
+  // on every appendMessage. The dot renders iff lastMessageAt >
+  // lastSeenAt and the conversation isn't currently active. Default
+  // 0 means "never seen / never had a message," which the predicate
+  // treats as not-unread.
+  lastSeenAt?: number;
+  lastMessageAt?: number;
 }

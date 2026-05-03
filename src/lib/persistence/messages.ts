@@ -135,6 +135,16 @@ async function doAppend(
     createdAt: partial.createdAt ?? Date.now(),
   };
   await db.insertInto("messages").values(messageToRow(msg)).execute();
+  // #250: bump the conversation's last_message_at so the sidebar's
+  // unread dot lights up the moment a new row lands. Done inline here
+  // (rather than as a separate caller responsibility) so every code
+  // path that produces messages — sends, replays, retries, notices,
+  // streaming placeholders — stays in sync without extra plumbing.
+  await db
+    .updateTable("conversations")
+    .set({ last_message_at: msg.createdAt })
+    .where("id", "=", msg.conversationId)
+    .execute();
   return msg;
 }
 
@@ -149,6 +159,24 @@ export async function updateMessageContent(
     .set({ content, error_message: errorMessage, error_transient: errorTransient ? 1 : 0 })
     .where("id", "=", id)
     .execute();
+  // #250: stream completion bumps the conversation's last_message_at
+  // so the sidebar's unread dot lights up when an assistant reply
+  // finishes streaming in a conversation the user has stepped away
+  // from. The token-pump's per-batch patches don't bump the column
+  // (DB cost), so this is the moment the user's "is the answer
+  // ready?" signal lands.
+  const row = await db
+    .selectFrom("messages")
+    .select(["conversation_id"])
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (row) {
+    await db
+      .updateTable("conversations")
+      .set({ last_message_at: Date.now() })
+      .where("id", "=", row.conversation_id)
+      .execute();
+  }
 }
 
 export async function updateMessageUsage(

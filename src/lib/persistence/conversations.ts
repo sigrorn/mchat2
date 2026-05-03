@@ -40,6 +40,9 @@ function rowToConversation(
     autocompactThreshold: parseAutocompactThreshold(r.autocompact_threshold),
     contextWarningsFired,
     flowMode: r.flow_mode === 1,
+    // #250: stamps that drive the sidebar unread dot.
+    lastSeenAt: r.last_seen_at,
+    lastMessageAt: r.last_message_at,
   };
 }
 
@@ -237,7 +240,30 @@ function conversationToRow(conv: Conversation): ConversationsTable {
       : null,
     context_warnings_fired: JSON.stringify(conv.contextWarningsFired ?? []),
     flow_mode: conv.flowMode ? 1 : 0,
+    last_seen_at: conv.lastSeenAt ?? 0,
+    last_message_at: conv.lastMessageAt ?? 0,
   };
+}
+
+// #250: stamp last_seen_at to record that the user activated this
+// conversation. ChatView calls this from its currentId effect.
+export async function setLastSeen(conversationId: string, ts: number): Promise<void> {
+  await db
+    .updateTable("conversations")
+    .set({ last_seen_at: ts })
+    .where("id", "=", conversationId)
+    .execute();
+}
+
+// #250: bump last_message_at when a new message lands in the
+// conversation (called by appendMessage's success path). Idempotent
+// for in-order calls — the column only ever moves forward.
+export async function bumpLastMessageAt(conversationId: string, ts: number): Promise<void> {
+  await db
+    .updateTable("conversations")
+    .set({ last_message_at: ts })
+    .where("id", "=", conversationId)
+    .execute();
 }
 
 export async function listConversations(): Promise<Conversation[]> {

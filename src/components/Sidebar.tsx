@@ -21,6 +21,7 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { SidebarFooter } from "./SidebarFooter";
 import { useConversationExports } from "./useConversationExports";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
+import { hasUnread } from "@/lib/conversations/unread";
 
 const EMPTY_CONVERSATIONS: readonly Conversation[] = Object.freeze([]) as readonly Conversation[];
 
@@ -156,11 +157,27 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
                   e.preventDefault();
                   setMenu({ id: c.id, x: e.clientX, y: e.clientY });
                 }}
-                className={`block w-full truncate px-3 py-2 text-left text-sm text-neutral-900 hover:bg-neutral-200 ${
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-neutral-900 hover:bg-neutral-200 ${
                   currentId === c.id ? "bg-neutral-200 font-medium" : ""
                 }`}
               >
-                {c.title}
+                <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                {/* #250: unread dot — content arrived in this
+                    conversation since the user last viewed it. Hidden
+                    for the active conversation, since the user is
+                    looking at it (or just stamped lastSeenAt by
+                    activating it). */}
+                {hasUnread({
+                  lastMessageAt: c.lastMessageAt ?? 0,
+                  lastSeenAt: c.lastSeenAt ?? 0,
+                  isActive: currentId === c.id,
+                }) ? (
+                  <span
+                    aria-label="unread"
+                    title="New content since you last viewed this conversation"
+                    className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
+                  />
+                ) : null}
               </button>
             )}
           </li>

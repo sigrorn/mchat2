@@ -34,6 +34,8 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "autocompact_threshold",
     "context_warnings_fired",
     "flow_mode",
+    "last_seen_at",
+    "last_message_at",
   ],
   personas: [
     "id",

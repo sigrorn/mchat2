@@ -14,6 +14,7 @@ import type { Message } from "@/lib/types";
 import * as repo from "@/lib/persistence/messages";
 import { listSupersededMessageIds } from "@/lib/persistence/runs";
 import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
+import { useConversationsStore } from "./conversationsStore";
 
 // Cache helpers: writes to repoQueryCache so useRepoQuery consumers
 // see updates without re-fetching. Reads inside this file go through
@@ -115,11 +116,21 @@ export const useMessagesStore = create<State>((set, get) => ({
   },
   append(m) {
     cacheUpdate(m.conversationId, (msgs) => [...msgs, m]);
+    // #250: keep the conversations cache's lastMessageAt in step with
+    // the SQL bump that doAppend already wrote — Sidebar's hasUnread
+    // reads from the cache, so without this its dot wouldn't light up
+    // until the next cold reload.
+    useConversationsStore.getState().refreshLastMessageAt(m.conversationId, m.createdAt);
   },
   patchContent(conversationId, messageId, content) {
     cacheUpdate(conversationId, (msgs) =>
       msgs.map((m) => (m.id === messageId ? { ...m, content } : m)),
     );
+    // #250: streaming tokens light up the sidebar dot in real time.
+    // The DB column moves only at appendMessage and updateMessageContent
+    // (boundaries that survive a reload); the in-memory bump here is
+    // free because it only touches the conversations cache reference.
+    useConversationsStore.getState().refreshLastMessageAt(conversationId, Date.now());
   },
   patchError(conversationId, messageId, errorMessage, errorTransient) {
     cacheUpdate(conversationId, (msgs) =>

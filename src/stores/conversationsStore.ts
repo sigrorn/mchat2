@@ -53,6 +53,16 @@ interface State {
   setAutocompact: (id: string, threshold: AutocompactThreshold | null) => Promise<void>;
   setContextWarningsFired: (id: string, fired: number[]) => Promise<void>;
   setFlowMode: (id: string, on: boolean) => Promise<void>;
+  // #250: stamp the conversation's last_seen_at to clear its sidebar
+  // unread dot. Called from ChatView when the conversation becomes
+  // active and after appendMessage/patches land in the active one.
+  markSeen: (id: string, ts: number) => Promise<void>;
+  // #250: refresh the cached conversation row from DB. The
+  // appendMessage path bumps last_message_at directly via SQL so
+  // every code path that creates messages updates the column without
+  // routing through the store; the store mirrors that bump back into
+  // the cache so the sidebar's hasUnread re-renders.
+  refreshLastMessageAt: (id: string, ts: number) => void;
   remove: (id: string) => Promise<void>;
 }
 
@@ -168,6 +178,19 @@ export const useConversationsStore = create<State>((set, get) => ({
     const next: Conversation = { ...current, title: trimmed };
     await repo.updateConversation(next);
     cacheUpdate(replaceById(next));
+  },
+  async markSeen(id, ts) {
+    const current = cacheGet().find((c) => c.id === id);
+    if (!current) return;
+    if ((current.lastSeenAt ?? 0) >= ts) return; // monotonic — never go backwards
+    const next: Conversation = { ...current, lastSeenAt: ts };
+    await repo.setLastSeen(id, ts);
+    cacheUpdate(replaceById(next));
+  },
+  refreshLastMessageAt(id, ts) {
+    cacheUpdate((list) =>
+      list.map((c) => (c.id === id && (c.lastMessageAt ?? 0) < ts ? { ...c, lastMessageAt: ts } : c)),
+    );
   },
   async remove(id) {
     await repo.deleteConversation(id);

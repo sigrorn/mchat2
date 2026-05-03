@@ -41,6 +41,13 @@ export interface ConversationsTable {
   // attached. Flips on after a flow-advancing send and off when the
   // user manually edits the selection.
   flow_mode: number;
+  // #250: ms-epoch stamps that drive the sidebar unread dot.
+  // last_seen_at is stamped to Date.now() each time the conversation
+  // becomes the active one; last_message_at is bumped to the current
+  // time whenever appendMessage inserts a row. Both default to 0 so
+  // a fresh conversation isn't "unread" until something lands in it.
+  last_seen_at: number;
+  last_message_at: number;
 }
 
 export interface PersonasTable {
