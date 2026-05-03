@@ -49,7 +49,16 @@ export const PRICING: PricingTable = {
     "mock-1": { inputUsdPerMTok: 0, outputUsdPerMTok: 0 },
   },
   // #169: openai_compat is preset-routed; concrete pricing varies per
-  // host and per model. The empty table forces the fallback "unknown
-  // model" estimate until a future commit fills in per-preset rates.
-  openai_compat: {},
+  // host and per model. #255 adds the four Infomaniak/Apertus model
+  // ids that previously lived under PRICING.apertus, so when an
+  // apertus persona converts to openai_compat (Infomaniak preset) the
+  // spend table keeps populating instead of dropping to "?". Other
+  // preset-specific rates can land here as they're confirmed against
+  // user receipts.
+  openai_compat: {
+    "swiss-ai/Apertus-70B-Instruct-2509": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+    "openai/gpt-oss-120b": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+    "Llama-3.3-70B-Instruct": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+    "Mistral-Small-3.2-24B-Instruct-2506": { inputUsdPerMTok: 0.5, outputUsdPerMTok: 1.5 },
+  },
 };
