@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import { installCrashLog } from "./lib/observability/crashLog";
+import { dropApertusKeychainResidue } from "./lib/observability/dropApertusKeychainResidue";
 import "./index.css";
 
 async function boot(): Promise<void> {
@@ -30,6 +31,11 @@ async function boot(): Promise<void> {
   // Skipped under the browser fakes path (no Tauri fs plugin to write
   // through).
   if (inTauri) installCrashLog();
+  // #259 Phase D: drop the orphaned apertus_api_key + apertus.productId
+  // keychain entries left over from the native adapter. One-shot
+  // best-effort cleanup; subsequent launches see an empty result and
+  // skip the remove call.
+  if (inTauri) void dropApertusKeychainResidue();
   const root = document.getElementById("root");
   if (!root) return;
   ReactDOM.createRoot(root).render(

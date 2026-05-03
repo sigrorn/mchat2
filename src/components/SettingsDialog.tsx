@@ -27,13 +27,15 @@ const KEY_PROVIDERS = ALL_PROVIDER_IDS.filter(
 // to each provider whose API key is unset (#140 spec). Keep this
 // table close to the dialog that uses it; the openai-compat presets
 // own their own registrationUrl on the preset definition.
+// #259 Phase D: apertus entry removed. The Infomaniak registration
+// link now lives on the openai_compat infomaniak preset's
+// registrationUrl (openaiCompatPresets.ts).
 const NATIVE_REGISTRATION_URLS: Record<string, string> = {
   claude: "https://console.anthropic.com/",
   openai: "https://platform.openai.com/signup",
   gemini: "https://aistudio.google.com/apikey",
   perplexity: "https://www.perplexity.ai/settings/api",
   mistral: "https://console.mistral.ai/",
-  apertus: "https://manager.infomaniak.com/",
 };
 
 type Tab = "standard" | "openai_compat";

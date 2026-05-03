@@ -9,9 +9,10 @@
 // App-wide system prompt prepended above persona/conversation tier (#23).
 export const GLOBAL_SYSTEM_PROMPT_KEY = "general.systemPrompt";
 
-// Infomaniak Apertus account product id (#25). Account-level value that
-// pairs with the API key, not with any individual persona.
-export const APERTUS_PRODUCT_ID_KEY = "apertus.productId";
+// #259 Phase D: APERTUS_PRODUCT_ID_KEY removed. The product-id moved
+// onto the openai_compat infomaniak preset's PRODUCT_ID template var
+// in #255 Phase 0; the orphan setting row is dropped from the
+// keychain at launch by dropApertusKeychainResidue.
 
 // User-chosen working directory for import/export dialogs and debug
 // trace files (#46). Required before the debug toggle is enabled.
