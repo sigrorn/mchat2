@@ -24,17 +24,22 @@ import type { ProviderId } from "@/lib/types";
 
 const EMPTY_ROWS: readonly SpendRow[] = Object.freeze([]);
 
-// "$X.XX" with 4 decimals when the cell has any known cost. Null
+// "$X.XX" rounded to cents when the cell has any known cost. Null
 // renders as "?" — pricing was unknown for at least one row and there
 // were no known rows to sum. Mixed (some known + some unknown) shows
 // the partial sum suffixed with " + ?" so the user can see "we know
 // at least this much, plus some unmeasured."
+//
+// #253 follow-up: rounded to two decimals (cents) — sub-cent precision
+// matters for token-level math but reads as noise here, and the user
+// pays in whole cents anyway. Snapshots stay at full precision in the
+// DB; rounding is render-only.
 function formatCell(cell: { usdKnown: number; anyUnknown: boolean }): string {
   const hasKnown = cell.usdKnown > 0;
   if (!hasKnown && cell.anyUnknown) return "?";
   if (!hasKnown) return "—";
-  if (cell.anyUnknown) return `$${cell.usdKnown.toFixed(4)} + ?`;
-  return `$${cell.usdKnown.toFixed(4)}`;
+  if (cell.anyUnknown) return `$${cell.usdKnown.toFixed(2)} + ?`;
+  return `$${cell.usdKnown.toFixed(2)}`;
 }
 
 // A provider has a "current API key" iff (a) its adapter doesn't
@@ -83,7 +88,13 @@ export function ProviderSpendTable(): JSX.Element | null {
   }, []);
 
   const visibleProviders = useMemo(
-    () => ALL_PROVIDER_IDS.filter((p) => providerHasKey(p, keychainKeys)),
+    () =>
+      // #253 follow-up: hide `mock` from the spend table. It has
+      // requiresKey=false so the keychain filter passes it through,
+      // but the provider only exists for adapter testing — never used
+      // by end users. The keychain check still gates every other
+      // provider as before.
+      ALL_PROVIDER_IDS.filter((p) => p !== "mock" && providerHasKey(p, keychainKeys)),
     [keychainKeys],
   );
 
