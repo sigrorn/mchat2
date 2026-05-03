@@ -43,6 +43,73 @@ describe("messagesStore", () => {
     expect(m.role).toBe("user");
     expect(getRepoQueryCache().get<Message[]>(["messages", "c_1"])?.length).toBe(1);
   });
+
+  // #248: ChatView calls load() from a useEffect on every conversation
+  // activation. Pre-fix, load() always overwrote the cache with the
+  // SQLite snapshot — but the streaming pump only persists final
+  // content at completion (streamRunner's success/error branch), so a
+  // refetch mid-stream returned the empty placeholder and wiped the
+  // tokens accumulated so far. The next patchContent then wrote
+  // "" + newTokens, dropping everything streamed before the switch.
+  // load() must be a no-op when the cache is already authoritative.
+  it("load() is a no-op when the cache is already populated (#248)", async () => {
+    // Simulate the streaming pump having patched content into the
+    // cache. The "DB" is set up to return an empty placeholder, which
+    // is what's actually stored mid-stream.
+    const placeholder = makeMessage({
+      conversationId: "c_stream",
+      id: "m_stream",
+      content: "tokens streamed mid-flight",
+    });
+    getRepoQueryCache().set<Message[]>(["messages", "c_stream"], [placeholder]);
+
+    let listMessagesIssued = false;
+    __setImpl({
+      async execute() {
+        return { rowsAffected: 1, lastInsertId: null };
+      },
+      async select<T>(q: string): Promise<T[]> {
+        if (/from\s+"?messages"?/i.test(q)) {
+          listMessagesIssued = true;
+        }
+        if (q.includes("MAX(idx)")) return [{ next: 0 } as unknown as T];
+        return [];
+      },
+      async close() {},
+    });
+
+    await useMessagesStore.getState().load("c_stream");
+
+    expect(listMessagesIssued).toBe(false);
+    const list = getRepoQueryCache().get<Message[]>(["messages", "c_stream"]);
+    expect(list?.[0]?.content).toBe("tokens streamed mid-flight");
+  });
+
+  it("load() fetches and seeds when the cache is empty (#248)", async () => {
+    // Empty cache for a never-visited conversation — first activation
+    // is the legitimate population path.
+    __resetRepoQueryCache();
+
+    let listMessagesIssued = false;
+    __setImpl({
+      async execute() {
+        return { rowsAffected: 1, lastInsertId: null };
+      },
+      async select<T>(q: string): Promise<T[]> {
+        if (/from\s+"?messages"?/i.test(q)) {
+          listMessagesIssued = true;
+        }
+        if (q.includes("MAX(idx)")) return [{ next: 0 } as unknown as T];
+        return [];
+      },
+      async close() {},
+    });
+
+    await useMessagesStore.getState().load("c_fresh");
+
+    expect(listMessagesIssued).toBe(true);
+    expect(getRepoQueryCache().get<Message[]>(["messages", "c_fresh"])).toEqual([]);
+  });
 });
 
 describe("sendStore", () => {
