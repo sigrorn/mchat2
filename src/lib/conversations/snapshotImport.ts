@@ -16,6 +16,7 @@ import * as flowsRepo from "../persistence/flows";
 import { PROVIDER_REGISTRY } from "../providers/registry";
 import { keychain } from "../tauri/keychain";
 import { migrateRunsAfterToFlow } from "./migrateRunsAfterToFlow";
+import { migrateApertusInConversation } from "./migrateApertusToOpenaiCompat";
 
 export interface ImportResult {
   conversation: Conversation;
@@ -195,9 +196,22 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     });
   }
 
-  // 6. Validate API keys.
+  // 5d. #255 Phase 0: legacy snapshots authored against the native
+  // apertus adapter convert in-place to openai_compat (Infomaniak
+  // preset). The migrator rewrites every persona row, the messages'
+  // provider column, mirrors the api key, and appends a notice. No-op
+  // for snapshots that already use openai_compat.
+  await migrateApertusInConversation(conv.id);
+
+  // 6. Validate API keys. Re-list personas after the apertus migration
+  // so the post-conversion provider drives which keychain slot we
+  // check (apertus persona that just became openai_compat is now
+  // gated by the openai_compat infomaniak slot, not apertus_api_key).
+  const personasAfterMigration = await (await import("../persistence/personas")).listPersonas(
+    conv.id,
+  );
   const missingKeys: string[] = [];
-  for (const p of created) {
+  for (const p of personasAfterMigration) {
     const reg = PROVIDER_REGISTRY[p.provider];
     if (reg.requiresKey) {
       const key = await keychain.get(reg.keychainKey);
@@ -205,5 +219,5 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     }
   }
 
-  return { conversation: updatedConv, personas: created, missingKeys };
+  return { conversation: updatedConv, personas: personasAfterMigration, missingKeys };
 }

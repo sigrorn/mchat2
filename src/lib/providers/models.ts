@@ -125,7 +125,17 @@ export async function listModelInfos(
   const cached = infoCache.get(cacheKey);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.infos;
 
-  const fallback: ModelInfo[] = Object.keys(PRICING[provider] ?? {}).map((id) => ({ id }));
+  // #255: openai_compat's PRICING entries (Apertus model ids carried
+  // over from the legacy native adapter) are for cost-snapshot
+  // accuracy after conversion, NOT a "default model list" suggestion.
+  // Without a resolved preset there's no host to dispatch against, so
+  // the fallback for openai_compat is intentionally empty — the user
+  // configures a preset (which has its own /v1/models endpoint) before
+  // a model picker can populate.
+  const fallback: ModelInfo[] =
+    provider === "openai_compat"
+      ? []
+      : Object.keys(PRICING[provider] ?? {}).map((id) => ({ id }));
   // #203: openai_compat resolves its api key through the preset, not
   // through the top-level keychain — so a missing top-level apiKey is
   // fine here. The other providers still need a key to query their

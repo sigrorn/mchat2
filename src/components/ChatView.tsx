@@ -11,10 +11,11 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useUiStore } from "@/stores/uiStore";
-import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import { useRepoQuery, invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
 import * as conversationsRepo from "@/lib/persistence/conversations";
+import { migrateApertusInConversation } from "@/lib/conversations/migrateApertusToOpenaiCompat";
 import { findMatches } from "@/lib/ui/findMatches";
 import {
   computeScrollTarget,
@@ -71,18 +72,32 @@ export function ChatView(): JSX.Element {
   const markSeen = useConversationsStore((s) => s.markSeen);
   useEffect(() => {
     if (!currentId) return;
-    void loadMessages(currentId);
-    void loadPersonas(currentId);
+    const departing = currentId;
     // #250: stamp last_seen_at on activation so the sidebar's unread
     // dot clears for this conversation. lastMessageAt may already be
     // ahead (a stream landed while the user was elsewhere); the stamp
     // brings them level so hasUnread returns false on the next render.
     void markSeen(currentId, Date.now());
-    const departing = currentId;
     // #241 Phase C dropped the runs_after column, so the lazy-on-open
     // auto-migration that lived here through Phase 0 no longer has a
     // data source — legacy edges only enter via import paths now,
     // which run the migration themselves with a transient map.
+    // #255: lazy-on-open apertus → openai_compat conversion. Runs
+    // BEFORE loadMessages/loadPersonas so the freshly-loaded caches
+    // reflect the converted state. Idempotent — a no-op once every
+    // apertus persona in the conversation has been rewritten.
+    void (async () => {
+      const r = await migrateApertusInConversation(currentId);
+      if (r.converted > 0) {
+        invalidateRepoQuery(["personas", currentId]);
+        invalidateRepoQuery(["messages", currentId]);
+        if (r.notice) {
+          await useMessagesStore.getState().appendNotice(currentId, r.notice);
+        }
+      }
+      void loadMessages(currentId);
+      void loadPersonas(currentId);
+    })();
     return () => {
       // #250: re-stamp on departure. Tokens that streamed in while
       // the user was viewing this conversation moved lastMessageAt
