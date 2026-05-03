@@ -115,7 +115,7 @@ describe("pendingWarnings (#118: per-persona ratios)", () => {
       id: "p3",
       name: "Albert",
       nameSlug: "albert",
-      provider: "apertus",
+      provider: "perplexity",
     };
     const usages = [usage(PERSONA_128K, 21000, 128000), usage(apertus, 12000, 16384)];
     expect(pendingWarnings(BASE_CONV, usages)).toEqual([]);
@@ -133,7 +133,7 @@ describe("personasAtThreshold (#118)", () => {
       id: "p3",
       name: "Albert",
       nameSlug: "albert",
-      provider: "apertus",
+      provider: "perplexity",
     };
     const usages = [
       usage(PERSONA_128K, 50000, 128000), // 39%
@@ -183,7 +183,7 @@ describe("autocompactTriggers (#118: per-persona)", () => {
       id: "p3",
       name: "Albert",
       nameSlug: "albert",
-      provider: "apertus",
+      provider: "perplexity",
     };
     const conv = { ...BASE_CONV, autocompactThreshold: { mode: "percent" as const, value: 75 } };
     const usages = [

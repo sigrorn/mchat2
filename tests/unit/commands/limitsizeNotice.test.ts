@@ -22,15 +22,24 @@ function persona(name: string, provider: Persona["provider"]): Persona {
 }
 
 describe("tightestBudgetNotice (#72)", () => {
+  // #257 Phase B: previously used apertus (16k) as the tight-context
+  // benchmark. After removal, perplexity (~127k) and mistral (128k)
+  // are the smallest non-infinite limits among native providers.
+  // Mock has Infinity, so it's excluded from "tightest" results.
   it("shows single tightest persona", () => {
-    const msg = tightestBudgetNotice([persona("claudio", "claude"), persona("albert", "apertus")]);
-    expect(msg).toContain("16k");
-    expect(msg).toContain("[albert]");
+    const msg = tightestBudgetNotice([
+      persona("claudio", "claude"),
+      persona("ricky", "perplexity"),
+    ]);
+    expect(msg).toContain("[ricky]");
   });
 
   it("shows multiple personas at the same limit", () => {
-    const msg = tightestBudgetNotice([persona("albert", "apertus"), persona("albert2", "apertus")]);
-    expect(msg).toContain("[albert, albert2]");
+    const msg = tightestBudgetNotice([
+      persona("ricky", "perplexity"),
+      persona("ricky2", "perplexity"),
+    ]);
+    expect(msg).toContain("[ricky, ricky2]");
   });
 
   it("returns null when no personas", () => {

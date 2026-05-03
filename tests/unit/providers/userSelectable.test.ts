@@ -15,18 +15,18 @@ describe("userSelectableProviderIds", () => {
     expect(ids).toContain("mock");
   });
 
-  it("excludes 'apertus' in both modes (#256 Phase A)", () => {
-    // Apertus auto-converted to openai_compat + Infomaniak preset in
-    // Phase 0; users wanting that endpoint pick the openai_compat
-    // path. Hiding the legacy provider from new-persona dropdowns
-    // closes the door to creating fresh apertus rows.
-    expect(userSelectableProviderIds(false)).not.toContain("apertus");
-    expect(userSelectableProviderIds(true)).not.toContain("apertus");
+  it("does not contain 'apertus' (#257 Phase B removed it from the registry)", () => {
+    // Phase A filtered the runtime list; Phase B removed apertus from
+    // ProviderId entirely. The literal isn't even in ALL_PROVIDER_IDS
+    // any more, so this assertion now reflects a structural absence
+    // rather than a runtime filter.
+    expect(userSelectableProviderIds(false)).not.toContain("apertus" as never);
+    expect(userSelectableProviderIds(true)).not.toContain("apertus" as never);
   });
 
-  it("preserves the registry order (filtered for mock + apertus)", () => {
+  it("preserves the registry order (filtered for mock only after #257)", () => {
     const dev = userSelectableProviderIds(true);
-    expect(dev).toEqual([...ALL_PROVIDER_IDS].filter((id) => id !== "apertus"));
+    expect(dev).toEqual([...ALL_PROVIDER_IDS]);
   });
 
   it("non-filtered providers are present in both modes", () => {

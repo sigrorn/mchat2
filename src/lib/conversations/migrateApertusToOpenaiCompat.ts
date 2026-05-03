@@ -26,8 +26,15 @@ import {
 // Subset of Persona fields the conversion cares about. The pure
 // transform doesn't need the full row (id, conversationId, etc.) —
 // just what changes. Caller merges back into the full record.
+//
+// The provider field includes the legacy "apertus" literal so the
+// converter can still recognise it as input even after #257 Phase B
+// drops "apertus" from ProviderId. The transform never produces
+// "apertus" as output — only routes existing strings through.
+export type LegacyOrCurrentProviderId = ProviderId | "apertus";
+
 export interface ConvertibleApertusInput {
-  provider: ProviderId;
+  provider: LegacyOrCurrentProviderId;
   apertusProductId: string | null;
   openaiCompatPreset: Persona["openaiCompatPreset"];
   modelOverride: string | null;
@@ -99,7 +106,10 @@ export async function migrateApertusInConversation(
   let productId: string | null = null;
   for (const p of personas) {
     const r = convertApertusPersonaShape({
-      provider: p.provider,
+      // Loaded persona rows can still carry the legacy "apertus"
+      // string post-#257; the converter accepts that via the legacy
+      // input type.
+      provider: p.provider as LegacyOrCurrentProviderId,
       apertusProductId: p.apertusProductId,
       openaiCompatPreset: p.openaiCompatPreset,
       modelOverride: p.modelOverride,
@@ -107,9 +117,12 @@ export async function migrateApertusInConversation(
     if (!r.changed) continue;
     converted++;
     if (r.productId !== null) productId = r.productId;
+    // changed=true always lands on openai_compat (the converter has
+    // no other target). Asserting the literal lets TS satisfy the
+    // narrowed Persona.provider type post-#257.
     await personasRepo.updatePersona({
       ...p,
-      provider: r.persona.provider,
+      provider: "openai_compat",
       apertusProductId: r.persona.apertusProductId,
       openaiCompatPreset: r.persona.openaiCompatPreset,
     });

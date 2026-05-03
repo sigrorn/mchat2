@@ -59,7 +59,6 @@ export function isChatModel(provider: ProviderId, id: string): boolean {
     case "claude":
       return true;
     case "openai":
-    case "apertus":
       return !BLOCKLIST_PREFIXES.some((p) => lc.startsWith(p));
     case "gemini":
       return !EMBED_KEYWORDS.some((k) => lc.includes(k));
@@ -78,10 +77,10 @@ export function isChatModel(provider: ProviderId, id: string): boolean {
 }
 
 // #203: extras carry per-provider context for model listing — the
-// Apertus product id (legacy) and the persona's openai_compat preset.
-// Threaded straight into fetchProviderModelInfos.
+// persona's openai_compat preset. Threaded straight into
+// fetchProviderModelInfos. (Pre-#257 this also carried an
+// apertusProductId; the native apertus adapter is gone.)
 export interface ListModelInfosExtra {
-  apertusProductId?: string | null;
   openaiCompatPreset?: Persona["openaiCompatPreset"];
 }
 
@@ -96,7 +95,6 @@ export function __clearModelCache(): void {
 }
 
 function cacheKeyFor(provider: ProviderId, extra: ListModelInfosExtra | undefined): string {
-  if (provider === "apertus") return `apertus:${extra?.apertusProductId ?? ""}`;
   if (provider === "openai_compat") {
     const p = extra?.openaiCompatPreset;
     if (!p) return "openai_compat:none";
@@ -175,14 +173,6 @@ async function fetchProviderModelInfos(
       return [];
     case "mistral":
       return mistralList(apiKey ?? "");
-    case "apertus": {
-      const pid = extra?.apertusProductId?.trim();
-      if (!pid) return [];
-      return openAICompatList(
-        `https://api.infomaniak.com/2/ai/${encodeURIComponent(pid)}/openai/v1/models`,
-        apiKey ?? "",
-      );
-    }
     case "claude":
       return anthropicList(apiKey ?? "");
     case "gemini":

@@ -45,12 +45,6 @@ describe("isChatModel (#68)", () => {
     });
   });
 
-  describe("Apertus", () => {
-    it("accepts swiss-ai/Apertus-70B-Instruct-2509", () => {
-      expect(isChatModel("apertus", "swiss-ai/Apertus-70B-Instruct-2509")).toBe(true);
-    });
-    it("rejects text-embedding-3-small", () => {
-      expect(isChatModel("apertus", "text-embedding-3-small")).toBe(false);
-    });
-  });
+  // #257 Phase B: native apertus provider removed. The same model ids
+  // are now reachable through openai_compat with the Infomaniak preset.
 });

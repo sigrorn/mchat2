@@ -9,14 +9,10 @@
 import type { ProviderId } from "../types";
 import { ALL_PROVIDER_IDS } from "./registry";
 
+// #257 Phase B: the apertus literal was removed from ProviderId so the
+// runtime filter in #256 is now a TypeScript no-op. Keeping the
+// includeMock branch — it's still useful for hiding the mock provider
+// from production builds.
 export function userSelectableProviderIds(includeMock: boolean): ProviderId[] {
-  return ALL_PROVIDER_IDS.filter((id) => {
-    if (id === "mock" && !includeMock) return false;
-    // #256 Phase A: hide the legacy native apertus provider from new-
-    // persona pickers. Existing apertus personas auto-converted to
-    // openai_compat (Infomaniak preset) in Phase 0; users wanting the
-    // Infomaniak endpoint pick openai_compat + the Infomaniak preset.
-    if (id === "apertus") return false;
-    return true;
-  });
+  return ALL_PROVIDER_IDS.filter((id) => includeMock || id !== "mock");
 }

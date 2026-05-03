@@ -33,9 +33,11 @@ describe("PROVIDER_REGISTRY hostingCountry assignments", () => {
     }
   });
 
-  it("Mistral hosts in FR, Apertus/Infomaniak in CH, Anthropic/OpenAI/Gemini/Perplexity in US", () => {
+  it("Mistral hosts in FR, Anthropic/OpenAI/Gemini/Perplexity in US", () => {
+    // #257 Phase B: PROVIDER_REGISTRY.apertus removed; Infomaniak's
+    // CH hosting now lives on the openai_compat infomaniak preset
+    // (`hostingCountry: "CH"` in openaiCompatPresets.ts).
     expect(PROVIDER_REGISTRY.mistral.hostingCountry).toBe("FR");
-    expect(PROVIDER_REGISTRY.apertus.hostingCountry).toBe("CH");
     expect(PROVIDER_REGISTRY.claude.hostingCountry).toBe("US");
     expect(PROVIDER_REGISTRY.openai.hostingCountry).toBe("US");
     expect(PROVIDER_REGISTRY.gemini.hostingCountry).toBe("US");

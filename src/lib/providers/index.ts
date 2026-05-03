@@ -15,7 +15,7 @@ export {
   mistralAdapter,
   createOpenAICompatAdapter,
 } from "./openaiCompat";
-export { apertusAdapter } from "./apertus";
+// #257 Phase B: apertusAdapter export removed.
 export { ADAPTERS, adapterFor } from "./registryOfAdapters";
 export { listModels, listModelInfos, formatTokenLimit } from "./models";
 export type { ModelInfo } from "./models";

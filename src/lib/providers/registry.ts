@@ -99,18 +99,9 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     maxContextTokens: 128000,
     hostingCountry: "FR",
   },
-  apertus: {
-    id: "apertus",
-    displayName: "Apertus",
-    prefix: "apertus",
-    aliases: ["swissai", "infomaniak"],
-    defaultModel: "swiss-ai/Apertus-70B-Instruct-2509",
-    color: "#8b5cf6",
-    keychainKey: "apertus_api_key",
-    requiresKey: true,
-    maxContextTokens: 16384,
-    hostingCountry: "CH",
-  },
+  // #257 Phase B: native 'apertus' entry removed. The Infomaniak
+  // endpoint lives on as the openai_compat 'infomaniak' built-in
+  // preset; legacy data was auto-converted by #255 (Phase 0).
   mock: {
     id: "mock",
     displayName: "Mock",
