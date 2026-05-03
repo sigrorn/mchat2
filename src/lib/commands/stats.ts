@@ -13,7 +13,7 @@
 
 import type { Conversation, Message, Persona } from "../types";
 import { buildContext } from "../context/builder";
-import { PROVIDER_REGISTRY } from "../providers/registry";
+import { maxContextTokensForPersona } from "../providers/contextWindows";
 import { estimateTokens } from "../context/truncate";
 import { isCountableUserMessage } from "../conversations/compactionCutoff";
 import { aggregatePersonaTimings } from "./personaTimings";
@@ -99,7 +99,7 @@ export function formatStats(
 
   for (const p of personas) {
     const target = { provider: p.provider, personaId: p.id, key: p.id, displayName: p.name };
-    const maxContext = PROVIDER_REGISTRY[p.provider].maxContextTokens;
+    const maxContext = maxContextTokensForPersona(p);
     const ctx = buildContext({
       conversation,
       target,

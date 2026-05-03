@@ -7,6 +7,7 @@
 
 import type { Message, Persona } from "../types";
 import { PROVIDER_REGISTRY } from "../providers/registry";
+import { maxContextTokensForPersona } from "../providers/contextWindows";
 import { computePersonaCosts, formatPersonaCost } from "../pricing/personaCosts";
 
 export function formatPersonasInfo(personas: readonly Persona[], messages: readonly Message[]): string {
@@ -14,7 +15,7 @@ export function formatPersonasInfo(personas: readonly Persona[], messages: reado
   const costs = computePersonaCosts(messages, personas);
   const lines = personas.map((p) => {
     const model = p.modelOverride ?? PROVIDER_REGISTRY[p.provider].defaultModel;
-    const maxTokens = PROVIDER_REGISTRY[p.provider].maxContextTokens;
+    const maxTokens = maxContextTokensForPersona(p);
     const limit = Number.isFinite(maxTokens) ? `${Math.round(maxTokens / 1000)}k` : "unlimited";
     const cost = formatPersonaCost(costs[p.id]);
     return `  ${p.name}, ${p.provider}, ${model}, ${limit}, ${cost}`;

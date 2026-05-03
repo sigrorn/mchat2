@@ -6,7 +6,7 @@
 // ------------------------------------------------------------------
 
 import { sql } from "@/lib/tauri/sql";
-import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { maxContextTokensForPersona } from "@/lib/providers/contextWindows";
 import { tightestBudgetNotice } from "@/lib/commands/limitsizeNotice";
 import type { CommandContext, CommandResult } from "./types";
 
@@ -53,9 +53,7 @@ export async function handleLimitsize(
     );
     return;
   }
-  const tightest = Math.min(
-    ...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens),
-  );
+  const tightest = Math.min(...personas.map(maxContextTokensForPersona));
   await ctx.deps.setLimitSize(conversation.id, tightest);
   await ctx.deps.appendNotice(conversation.id, notice);
 }

@@ -9,7 +9,7 @@
 // ------------------------------------------------------------------
 
 import type { Conversation, Persona } from "../types";
-import { PROVIDER_REGISTRY } from "../providers/registry";
+import { maxContextTokensForPersona } from "../providers/contextWindows";
 
 const WARNING_THRESHOLDS = [80, 90, 98];
 
@@ -35,7 +35,7 @@ function usageRatio(u: PersonaUsage): number {
  */
 function tightestMaxTokens(personas: readonly Persona[]): number {
   if (personas.length === 0) return Infinity;
-  return Math.min(...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens));
+  return Math.min(...personas.map(maxContextTokensForPersona));
 }
 
 /**
@@ -48,7 +48,7 @@ export function tightestPersonaNames(personas: readonly Persona[]): string[] {
   const tightest = tightestMaxTokens(personas);
   if (!Number.isFinite(tightest)) return [];
   return personas
-    .filter((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens === tightest)
+    .filter((p) => maxContextTokensForPersona(p) === tightest)
     .map((p) => p.name);
 }
 

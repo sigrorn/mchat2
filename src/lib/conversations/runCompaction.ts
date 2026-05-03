@@ -16,6 +16,7 @@ import { estimateTokens } from "../context/truncate";
 import { generateCompactionSummary } from "./compact";
 import { adapterFor } from "../providers/registryOfAdapters";
 import { PROVIDER_REGISTRY } from "../providers/registry";
+import { maxContextTokensForPersona } from "../providers/contextWindows";
 import { modelForTarget } from "../orchestration/streamRunner";
 import { resolveExtraConfig } from "../providers/extraConfig";
 import { keychain } from "../tauri/keychain";
@@ -76,9 +77,7 @@ export async function runCompaction(
   hooks: RunCompactionHooks = {},
 ): Promise<RunCompactionResult> {
   const tightestMaxTokens =
-    personas.length === 0
-      ? Infinity
-      : Math.min(...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens));
+    personas.length === 0 ? Infinity : Math.min(...personas.map(maxContextTokensForPersona));
 
   // Reload fresh history so we see any messages appended since the
   // caller captured state.

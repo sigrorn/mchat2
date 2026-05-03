@@ -6,14 +6,14 @@
 // ------------------------------------------------------------------
 
 import type { Persona } from "../types";
-import { PROVIDER_REGISTRY } from "../providers/registry";
+import { maxContextTokensForPersona } from "../providers/contextWindows";
 
 export function tightestBudgetNotice(personas: readonly Persona[]): string | null {
   if (personas.length === 0) return null;
-  const tightest = Math.min(...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens));
+  const tightest = Math.min(...personas.map(maxContextTokensForPersona));
   if (!Number.isFinite(tightest)) return null;
   const names = personas
-    .filter((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens === tightest)
+    .filter((p) => maxContextTokensForPersona(p) === tightest)
     .map((p) => p.name);
   return `limitsize: auto-set to ${Math.round(tightest / 1000)}k tokens (tightest provider [${names.join(", ")}]).`;
 }

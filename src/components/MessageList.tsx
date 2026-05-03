@@ -25,7 +25,7 @@ import { groupIntoColumns } from "@/lib/rendering/columnGroups";
 import { formatCopyText } from "@/lib/rendering/copyWithPrefixes";
 import { useSend } from "@/hooks/useSend";
 import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
-import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { maxContextTokensForPersona } from "@/lib/providers/contextWindows";
 import { filterSupersededMessages } from "@/lib/orchestration/filterSupersededMessages";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import { computeMatchScrollOffset } from "@/lib/ui/scrollCenter";
@@ -208,7 +208,7 @@ export function MessageList({
     if (!conversation?.limitSizeTokens) return null;
     const tightest = Math.min(
       conversation.limitSizeTokens,
-      ...personas.map((p) => PROVIDER_REGISTRY[p.provider].maxContextTokens),
+      ...personas.map(maxContextTokensForPersona),
     );
     if (!Number.isFinite(tightest)) return null;
     const chatMsgs = messages

@@ -19,7 +19,8 @@ import type {
 } from "../types";
 import { buildContext } from "../context/builder";
 import type { ProviderAdapter } from "../providers/adapter";
-import { PROVIDER_REGISTRY, type ProviderMeta } from "../providers/registry";
+import { PROVIDER_REGISTRY } from "../providers/registry";
+import { maxContextTokensForProviderModel } from "../providers/contextWindows";
 import * as messagesRepo from "../persistence/messages";
 import { PRICING } from "../pricing/table";
 import { invalidateRepoQuery } from "../data/useRepoQuery";
@@ -103,14 +104,13 @@ export interface StreamRunOutcome {
 
 export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome> {
   const { conversation, target, personas, history, adapter, signal, onEvent } = input;
-  const providerMeta: ProviderMeta = PROVIDER_REGISTRY[target.provider];
   const buildArgs: Parameters<typeof buildContext>[0] = {
     conversation,
     target,
     messages: history,
     personas,
     globalSystemPrompt: input.globalSystemPrompt ?? null,
-    maxContextTokens: providerMeta.maxContextTokens,
+    maxContextTokens: maxContextTokensForProviderModel(target.provider, input.model),
   };
   if (input.supersededIds) buildArgs.supersededIds = input.supersededIds;
   if (input.stepInstruction != null) buildArgs.stepInstruction = input.stepInstruction;

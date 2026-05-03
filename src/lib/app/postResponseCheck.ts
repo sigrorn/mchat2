@@ -22,7 +22,7 @@ import {
 } from "@/lib/commands/autocompactCheck";
 import { runCompaction, formatPersonaLine } from "@/lib/conversations/runCompaction";
 import { formatStats } from "@/lib/commands/stats";
-import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
+import { maxContextTokensForPersona } from "@/lib/providers/contextWindows";
 import type { PostResponseCheckDeps } from "./deps";
 
 /**
@@ -57,7 +57,7 @@ function computePersonaUsages(
     usages.push({
       persona: p,
       tokens: systemCost + messageCost,
-      maxTokens: PROVIDER_REGISTRY[p.provider].maxContextTokens,
+      maxTokens: maxContextTokensForPersona(p),
     });
   }
   return usages;
