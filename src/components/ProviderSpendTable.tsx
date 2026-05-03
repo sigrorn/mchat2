@@ -113,8 +113,13 @@ export function ProviderSpendTable(): JSX.Element | null {
         </thead>
         <tbody>
           {visible.map((s) => (
-            <tr key={s.provider}>
-              <td className="text-neutral-800">
+            // #253 follow-up: hoist text-neutral-800 onto the row so
+            // every cell inherits it. Originally only the provider-
+            // name <td> set the colour, leaving the three value cells
+            // inheriting from PersonaPanel's faint cascade — values
+            // were technically rendered but invisible until selected.
+            <tr key={s.provider} className="text-neutral-800">
+              <td>
                 {PROVIDER_REGISTRY[s.provider].displayName}
                 {s.anyApproximate ? " ~" : ""}
               </td>
