@@ -20,13 +20,22 @@ export function computePersonaCosts(
     if (!m.personaId || !keys.has(m.personaId)) continue;
     if (!m.provider || !m.model) continue;
     if (m.inputTokens === 0 && m.outputTokens === 0) continue;
-    const r = estimateCost({
-      provider: m.provider,
-      model: m.model,
-      inputTokens: m.inputTokens,
-      outputTokens: m.outputTokens,
-      estimated: m.usageEstimated,
-    });
+    // #252: prefer the per-message cost snapshot when present. It was
+    // computed against PRICING at completion time, so historical
+    // figures stay stable across pricing-table edits. Pre-#252 rows
+    // (and rows whose model wasn't in PRICING when the migration ran)
+    // fall back to the live estimator, which has a median fallback to
+    // keep panels populated when a brand-new model lands.
+    const r: CostResult =
+      m.costUsd != null
+        ? { usd: m.costUsd, approximate: m.usageEstimated }
+        : estimateCost({
+            provider: m.provider,
+            model: m.model,
+            inputTokens: m.inputTokens,
+            outputTokens: m.outputTokens,
+            estimated: m.usageEstimated,
+          });
     const prev = out[m.personaId];
     out[m.personaId] = prev
       ? { usd: prev.usd + r.usd, approximate: prev.approximate || r.approximate }

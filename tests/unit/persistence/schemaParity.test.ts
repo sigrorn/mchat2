@@ -79,6 +79,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "superseded_at",
     "confirmed_at",
     "flow_dispatched",
+    "cost_usd",
   ],
   settings: ["key", "value"],
   runs: [

@@ -55,6 +55,13 @@ export interface Message {
   // True when the adapter had to approximate usage (no server-reported
   // counts). Surfaces via the '~' prefix in cost displays.
   usageEstimated: boolean;
+  // #252: snapshotted USD cost, set once at stream completion via the
+  // PRICING table at the time. null = pricing was unknown for this
+  // row's (provider, model) — distinct from 0 (zero tokens or
+  // genuinely free model). The spend table renders nulls as "?".
+  // Optional in this type so non-assistant rows and pre-#252 callers
+  // don't need to set it; the persistence layer maps absent → null.
+  costUsd?: number | null;
   // #122 — streaming timings, populated by streamRunner on successful
   // completion. Undefined/null for non-streamed rows, failed or
   // cancelled streams, and pre-migration rows. Optional so most call

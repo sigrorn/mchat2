@@ -7,6 +7,37 @@
 // ------------------------------------------------------------------
 
 import { sql } from "../tauri/sql";
+import { PRICING } from "../pricing/table";
+
+// #252: Build the migration-29 backfill UPDATE for messages.cost_usd
+// from the current PRICING table. Provider ids and model ids are
+// static, owner-controlled strings (no quotes), so a simple CASE WHEN
+// chain is safe to inline. The backfill snapshots whatever PRICING
+// said at the time the migration ran; later edits to the table don't
+// retroactively change historical rows. Models not in PRICING fall
+// through to the ELSE → NULL branch (rendered as "?" in the spend
+// table). The estimator's median fallback is intentionally NOT used
+// here — snapshots have to be honest, not "we guessed."
+function buildCostUsdBackfillSql(): string {
+  const cases: string[] = [];
+  for (const [provider, models] of Object.entries(PRICING)) {
+    for (const [model, p] of Object.entries(models)) {
+      cases.push(
+        `WHEN provider = '${provider}' AND model = '${model}' ` +
+          `THEN (input_tokens / 1000000.0) * ${p.inputUsdPerMTok} ` +
+          `+ (output_tokens / 1000000.0) * ${p.outputUsdPerMTok}`,
+      );
+    }
+  }
+  // No PRICING entries (degenerate case in tests / minimal builds): the
+  // CASE expression collapses to an unconditional NULL via the ELSE.
+  const caseBody = cases.length === 0 ? "" : cases.join(" ");
+  return (
+    `UPDATE messages SET cost_usd = ` +
+    `CASE ${caseBody} ELSE NULL END ` +
+    `WHERE role = 'assistant' AND provider IS NOT NULL AND model IS NOT NULL`
+  );
+}
 
 // Each migration = array of statements executed in one transaction.
 // Never edit a committed migration; add a new one instead.
@@ -431,6 +462,17 @@ export const MIGRATIONS: string[][] = [
           (SELECT MAX(created_at) FROM messages WHERE conversation_id = conversations.id),
           0
         )`,
+  ],
+  // 29 — Per-message USD cost snapshot (#252, slice A of #251). Stamped
+  // at stream completion so historical spend totals don't drift when
+  // PRICING changes. Backfilled from the current PRICING for known
+  // (provider, model) pairs; rows whose model isn't in the table —
+  // including every openai_compat row today — stay NULL and render
+  // as "?" in the spend table. Future migrations don't retroactively
+  // alter populated cost_usd values; once captured the figure stays.
+  [
+    `ALTER TABLE messages ADD COLUMN cost_usd REAL`,
+    buildCostUsdBackfillSql(),
   ],
 ];
 

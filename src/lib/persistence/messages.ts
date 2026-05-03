@@ -43,6 +43,7 @@ function rowToMessage(r: MessagesTable): Message {
     supersededAt: r.superseded_at,
     confirmedAt: r.confirmed_at,
     flowDispatched: r.flow_dispatched === 1,
+    costUsd: r.cost_usd,
   };
 }
 
@@ -72,6 +73,7 @@ function messageToRow(msg: Message): MessagesTable {
     superseded_at: msg.supersededAt ?? null,
     confirmed_at: msg.confirmedAt ?? null,
     flow_dispatched: msg.flowDispatched ? 1 : 0,
+    cost_usd: msg.costUsd ?? null,
   };
 }
 
@@ -192,6 +194,19 @@ export async function updateMessageUsage(
       output_tokens: outputTokens,
       usage_estimated: usageEstimated ? 1 : 0,
     })
+    .where("id", "=", id)
+    .execute();
+}
+
+// #252: snapshot the per-message USD cost at stream completion.
+// Caller computes via estimateCost; pass null when the (provider,
+// model) wasn't in PRICING so the spend table can render "?". This
+// is a one-shot write — once a row has a non-null cost_usd, no caller
+// should overwrite it (price drift would corrupt history).
+export async function updateMessageCost(id: string, costUsd: number | null): Promise<void> {
+  await db
+    .updateTable("messages")
+    .set({ cost_usd: costUsd })
     .where("id", "=", id)
     .execute();
 }

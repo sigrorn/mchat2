@@ -21,6 +21,7 @@ import { buildContext } from "../context/builder";
 import type { ProviderAdapter } from "../providers/adapter";
 import { PROVIDER_REGISTRY, type ProviderMeta } from "../providers/registry";
 import * as messagesRepo from "../persistence/messages";
+import { PRICING } from "../pricing/table";
 import { withRetry, DEFAULT_RETRY, type RetryPolicy } from "./retryManager";
 import { buildOutboundRows, buildInboundRows } from "../tracing/traceWriter";
 import { logBuffer } from "../observability/logBuffer";
@@ -311,6 +312,22 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
   if (inputTokens > 0 || outputTokens > 0) {
     await messagesRepo.updateMessageUsage(placeholder.id, inputTokens, outputTokens, estimated);
   }
+  // #252: snapshot the per-message USD cost from the PRICING table at
+  // the time of completion. Honest about unknowns: when the
+  // (provider, model) isn't in PRICING (notably every openai_compat
+  // row today), persist NULL — the spend table renders that as "?".
+  // No fallback to provider median; a guessed snapshot would corrupt
+  // the historical-accuracy contract. Failed / cancelled rows still
+  // get a snapshot since the tokens were billed by the provider.
+  const targetModel = modelForTarget(target, personas);
+  const providerPricing = PRICING[target.provider] ?? {};
+  const entry = providerPricing[targetModel];
+  const costUsd =
+    entry !== undefined
+      ? (inputTokens / 1_000_000) * entry.inputUsdPerMTok +
+        (outputTokens / 1_000_000) * entry.outputUsdPerMTok
+      : null;
+  await messagesRepo.updateMessageCost(placeholder.id, costUsd);
   // #122 — record timings only on successful completion. Failed /
   // cancelled / silent streams leave ttft_ms + stream_ms NULL so
   // //stats averages exclude them.

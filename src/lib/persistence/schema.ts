@@ -84,6 +84,11 @@ export interface MessagesTable {
   pin_target: string | null;
   addressed_to: string; // JSON-encoded
   created_at: number;
+  // #252: snapshotted USD cost. NULL = pricing was unknown for this
+  // row's (provider, model); the spend table renders such cells as
+  // "?". 0 = known pricing, zero tokens (e.g. mock provider). Set
+  // once at stream completion and never recomputed.
+  cost_usd: number | null;
   idx: number;
   error_message: string | null;
   error_transient: number; // 0/1
