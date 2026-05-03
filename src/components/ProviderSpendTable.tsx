@@ -24,21 +24,26 @@ import type { ProviderId } from "@/lib/types";
 
 const EMPTY_ROWS: readonly SpendRow[] = Object.freeze([]);
 
-// "$X.XX" rounded to cents when the cell has any known cost. Null
-// renders as "?" — pricing was unknown for at least one row and there
-// were no known rows to sum. Mixed (some known + some unknown) shows
-// the partial sum suffixed with " + ?" so the user can see "we know
-// at least this much, plus some unmeasured."
+// "$X.XX" rounded to cents when the cell has any known cost; "?" when
+// the bucket is non-empty but no row carries a snapshot; "—" when the
+// bucket is empty.
 //
 // #253 follow-up: rounded to two decimals (cents) — sub-cent precision
 // matters for token-level math but reads as noise here, and the user
 // pays in whole cents anyway. Snapshots stay at full precision in the
 // DB; rounding is render-only.
+//
+// #253 follow-up: dropped the trailing " + ?" suffix on mixed cells.
+// The annotation only ever fires for legacy pre-#252 rows that have
+// null cost_usd because the column didn't exist when they streamed.
+// Future installs never hit that case (every new row gets a snapshot
+// at completion), and as the only current user I know which rows
+// those are without a marker. Standalone "?" stays — it still
+// distinguishes "tracked activity, all unpriced" from "no activity".
 function formatCell(cell: { usdKnown: number; anyUnknown: boolean }): string {
   const hasKnown = cell.usdKnown > 0;
   if (!hasKnown && cell.anyUnknown) return "?";
   if (!hasKnown) return "—";
-  if (cell.anyUnknown) return `$${cell.usdKnown.toFixed(2)} + ?`;
   return `$${cell.usdKnown.toFixed(2)}`;
 }
 

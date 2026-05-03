@@ -31,7 +31,9 @@ export interface SpendCell {
   usdKnown: number;
   // True iff at least one row in the bucket had a NULL snapshot.
   // The renderer shows "?" when this is true and there are no known
-  // rows, or "$X.XX (+ ?)" when it's mixed.
+  // rows. Mixed buckets (some known + some unknown) render as the
+  // known sum alone; the unknown count is suppressed (it only ever
+  // fires for legacy pre-#252 rows on this install).
   anyUnknown: boolean;
 }
 
