@@ -14,8 +14,6 @@ import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "./focusTrap";
 import { ALL_PROVIDER_IDS, PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { keychain } from "@/lib/tauri/keychain";
-import { getSetting, setSetting } from "@/lib/persistence/settings";
-import { APERTUS_PRODUCT_ID_KEY } from "@/lib/settings/keys";
 import { shell } from "@/lib/tauri/shell";
 import { SettingsOpenaiCompatTab } from "./SettingsOpenaiCompatTab";
 import { OutlineButton, PrimaryButton } from "@/components/ui/Button";
@@ -109,7 +107,6 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
   const [loading, setLoading] = useState(true);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [apertusProductId, setApertusProductId] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -120,8 +117,10 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
         v[id] = stored ?? "";
       }
       setValues(v);
-      const pid = await getSetting(APERTUS_PRODUCT_ID_KEY);
-      setApertusProductId(pid ?? "");
+      // #256: apertus product-id input retired. Existing values in
+      // the settings table are no-ops for new sends (every apertus
+      // persona has been auto-converted to openai_compat by #255);
+      // the value is left in place for now and Phase D removes it.
       setLoading(false);
     })().catch((e) => setError((e as Error).message));
   }, [providers]);
@@ -140,7 +139,6 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
           if (existing) await keychain.remove(key);
         }
       }
-      await setSetting(APERTUS_PRODUCT_ID_KEY, apertusProductId.trim());
       setSavedAt(Date.now());
     } catch (e) {
       console.error("keychain save failed", e);
@@ -196,21 +194,6 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
                     {shown ? "hide" : "show"}
                   </OutlineButton>
                 </div>
-                {id === "apertus" ? (
-                  <div className="mt-2">
-                    <label className="mb-1 block text-xs text-neutral-600">
-                      Product-Id (Infomaniak account)
-                    </label>
-                    <input
-                      value={apertusProductId}
-                      onChange={(e) => setApertusProductId(e.target.value)}
-                      placeholder="e.g. 12345"
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
-                    />
-                  </div>
-                ) : null}
               </div>
             );
           })}
