@@ -45,6 +45,15 @@ export const CONTEXT_WINDOWS: Partial<Record<ProviderId, Record<string, number>>
     "openai/gpt-oss-120b": 131072,
     "Llama-3.3-70B-Instruct": 131072,
     "Mistral-Small-3.2-24B-Instruct-2506": 131072,
+    // Kimi K2.6: 256K per Moonshot's official quickstart
+    // (https://platform.kimi.ai/docs/guide/kimi-k2-6-quickstart). The
+    // family (k2.5, k2-0905-preview, k2-turbo-preview, k2-thinking,
+    // k2-thinking-turbo) all share the 256K window; only k2.6 is
+    // confirmed selectable on Infomaniak today, so only it is listed.
+    // Infomaniak caps Apertus 70B below its model-card window (16k vs
+    // larger native), so this value is the upstream max — actual cap
+    // may differ; bump down here if requests start failing under it.
+    "moonshotai/Kimi-K2.6": 262144,
   },
 };
 
