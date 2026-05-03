@@ -53,6 +53,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "visibility_defaults",
     "openai_compat_preset",
     "role_lens",
+    "inherited_history",
   ],
   messages: [
     "id",

@@ -31,6 +31,7 @@ function rowToPersona(r: PersonasTable): Persona {
     visibilityDefaults: parseVisibilityDefaults(r.visibility_defaults),
     openaiCompatPreset: parseOpenaiCompatPreset(r.openai_compat_preset),
     roleLens: parseRoleLens(r.role_lens),
+    inheritedHistory: r.inherited_history === 1,
   };
 }
 
@@ -131,6 +132,7 @@ function personaToRow(p: Persona): PersonasTable {
       ? JSON.stringify(p.openaiCompatPreset)
       : null,
     role_lens: JSON.stringify(p.roleLens ?? {}),
+    inherited_history: p.inheritedHistory ? 1 : 0,
   };
 }
 

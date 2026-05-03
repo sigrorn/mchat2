@@ -549,12 +549,17 @@ function CreateForm({
     setError(null);
     try {
       const history = readCachedMessages(conversationId);
-      const currentIdx = scope === "inherit" ? 0 : history.length;
+      // #260: createdAtMessageIndex is now always history.length —
+      // the actual join point. The "inherit" semantics are carried
+      // by inheritedHistory, which exempts this persona from the
+      // addressedTo / audience filters for pre-creation messages.
+      const currentIdx = history.length;
       const p = await createPersona({
         conversationId,
         provider,
         name,
         currentMessageIndex: currentIdx,
+        inheritedHistory: scope === "inherit",
         ...(model ? { modelOverride: model } : {}),
         ...(prompt ? { systemPromptOverride: prompt } : {}),
         ...(colorOverride ? { colorOverride } : {}),

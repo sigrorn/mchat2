@@ -45,6 +45,10 @@ export interface CreatePersonaInput {
   openaiCompatPreset?: Persona["openaiCompatPreset"];
   // #213: per-persona role lens. See Persona.roleLens.
   roleLens?: Persona["roleLens"];
+  // #260: when true (scope="inherit" at the dialog), the persona is
+  // exempted from addressedTo / audience filters for messages that
+  // exist before its createdAtMessageIndex. Default false = scope="new".
+  inheritedHistory?: boolean;
 }
 
 export async function createPersona(input: CreatePersonaInput): Promise<Persona> {
@@ -80,6 +84,7 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
     visibilityDefaults: visDefaults,
     openaiCompatPreset: input.openaiCompatPreset ?? null,
     roleLens: input.roleLens ?? {},
+    inheritedHistory: input.inheritedHistory ?? false,
   });
 }
 

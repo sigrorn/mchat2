@@ -116,6 +116,11 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   const personaKey = target.key;
   const limitMark = conversation.limitMarkIndex;
   const cutoff = persona?.createdAtMessageIndex ?? 0;
+  // #260: scope="inherit" personas get exempted from the cutoff and
+  // from addressedTo / audience filters for messages before they
+  // joined. Visibility-matrix and pin-target gates still apply (those
+  // are deliberate access controls, not routing residue).
+  const inheritsHistory = persona?.inheritedHistory ?? false;
 
   const supersededIds = input.supersededIds ?? null;
   const lens = persona?.roleLens ?? {};
@@ -134,11 +139,27 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     if (floor !== null && m.index < floor) continue;
 
     if (limitMark !== null && m.index < limitMark && !m.pinned) continue;
-    if (m.index < cutoff && !m.pinned) continue;
+    // #260: inheriting personas relax the cutoff for pre-creation rows
+    // — they still see rows older than their createdAtMessageIndex.
+    // Non-inheriting personas use today's behaviour.
+    if (m.index < cutoff && !inheritsHistory && !m.pinned) continue;
 
     if (m.pinned && m.pinTarget !== null && m.pinTarget !== personaKey) continue;
 
-    if (m.role === "user" && m.addressedTo.length > 0 && !m.addressedTo.includes(personaKey)) {
+    // #260: the @-routing filters (addressedTo on user rows, audience
+    // on assistant rows) reflect intent at the time the message was
+    // sent. For pre-creation rows seen by an inheriting persona, that
+    // intent didn't include this persona — couldn't have. Skip those
+    // filters for inherited rows. Post-creation rows still gate
+    // normally so routing semantics survive after the persona joins.
+    const isInheritedRow = inheritsHistory && m.index < cutoff;
+
+    if (
+      m.role === "user" &&
+      !isInheritedRow &&
+      m.addressedTo.length > 0 &&
+      !m.addressedTo.includes(personaKey)
+    ) {
       continue;
     }
 
@@ -151,7 +172,7 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     // specific audience are only visible to members of that audience,
     // regardless of the matrix.
     if (m.role === "assistant") {
-      if (m.audience.length > 0 && !m.audience.includes(personaKey)) continue;
+      if (!isInheritedRow && m.audience.length > 0 && !m.audience.includes(personaKey)) continue;
       const matrixRow = conversation.visibilityMatrix[personaKey];
       if (matrixRow !== undefined) {
         const sourceKey = messageKey(m);

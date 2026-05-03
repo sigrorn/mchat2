@@ -474,6 +474,29 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE messages ADD COLUMN cost_usd REAL`,
     buildCostUsdBackfillSql(),
   ],
+  // 30 — Persona.inherited_history (#260). Per-persona flag so the
+  // "inherit" scope on creation actually grants access to pre-existing
+  // conversation history (addressedTo / audience filters relaxed for
+  // pre-creation messages). Backfill rule: every persona with
+  // created_at_message_index = 0 today is either an inherit-scope
+  // persona or the genuinely-first persona in a brand-new
+  // conversation; both should set the flag (the latter is a no-op
+  // since there's no pre-creation history). Then bump
+  // created_at_message_index for inheriting personas to MAX(idx)+1
+  // of their conversation so existing assistants and user prompts
+  // become "pre-creation" relative to that persona — the moment
+  // these inheriting personas actually start to apply normal
+  // routing semantics is from now (migration time) forward.
+  [
+    `ALTER TABLE personas ADD COLUMN inherited_history INTEGER NOT NULL DEFAULT 0`,
+    `UPDATE personas SET inherited_history = 1 WHERE created_at_message_index = 0`,
+    `UPDATE personas
+        SET created_at_message_index = COALESCE(
+          (SELECT MAX(idx) + 1 FROM messages WHERE conversation_id = personas.conversation_id),
+          0
+        )
+      WHERE inherited_history = 1 AND created_at_message_index = 0`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

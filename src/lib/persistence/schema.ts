@@ -69,6 +69,10 @@ export interface PersonasTable {
   // { speakerKey -> "user" | "assistant" }. speakerKey = persona-id
   // or literal "user". Empty '{}' default preserves today's mapping.
   role_lens: string;
+  // #260: when 1, persona joined with scope="inherit" and is exempt
+  // from addressedTo / audience filters for messages with
+  // index < created_at_message_index. 0 = scope=new, normal filters.
+  inherited_history: number;
 }
 
 export interface MessagesTable {
