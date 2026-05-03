@@ -20,18 +20,27 @@ interface State {
   runIdByConversation: Record<string, number>;
   activeByConversation: Record<string, ActiveStream[]>;
   streamStatusByConversation: Record<string, Record<string, StreamStatus>>;
+  // #249: per-conversation Composer "submit-in-progress" lock. Covers
+  // the prelude window between the user clicking Send and the first
+  // stream registering (target resolution, user-message DB write,
+  // flow lookup). Without this, the local component-state lock in
+  // Composer.tsx bled across conversation switches and disabled the
+  // Send button in conversations that weren't even the one streaming.
+  submittingByConversation: Record<string, boolean>;
   nextRunId: (conversationId: string) => number;
   registerStream: (conversationId: string, s: ActiveStream) => void;
   finishStream: (conversationId: string, streamId: string) => void;
   cancelAll: (conversationId: string) => void;
   setTargetStatus: (conversationId: string, key: string, status: StreamStatus) => void;
   clearTargetStatus: (conversationId: string, key: string) => void;
+  setSubmitting: (conversationId: string, value: boolean) => void;
 }
 
 export const useSendStore = create<State>((set, get) => ({
   runIdByConversation: {},
   activeByConversation: {},
   streamStatusByConversation: {},
+  submittingByConversation: {},
   nextRunId(conversationId) {
     const current = get().runIdByConversation[conversationId] ?? 0;
     const next = current + 1;
@@ -85,6 +94,14 @@ export const useSendStore = create<State>((set, get) => ({
       streamStatusByConversation: {
         ...get().streamStatusByConversation,
         [conversationId]: conv,
+      },
+    });
+  },
+  setSubmitting(conversationId, value) {
+    set({
+      submittingByConversation: {
+        ...get().submittingByConversation,
+        [conversationId]: value,
       },
     });
   },

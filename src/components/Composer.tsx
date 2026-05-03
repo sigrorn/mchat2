@@ -37,10 +37,17 @@ const EMPTY_SEL: readonly string[] = Object.freeze([]);
 
 export function Composer({ conversation }: { conversation: Conversation }): JSX.Element {
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const { send, retry } = useSend(conversation);
   const active = useSendStore((s) => s.activeByConversation[conversation.id]) ?? EMPTY_ACTIVE;
+  // #249: per-conversation submit lock. Combined with the streaming
+  // active-list this gives a Composer that's busy iff its own
+  // conversation is mid-send — switching to another chat unblocks
+  // its Send button regardless of streams running elsewhere.
+  const submitting = useSendStore(
+    (s) => s.submittingByConversation[conversation.id] ?? false,
+  );
+  const busy = submitting || active.length > 0;
   const personasQuery = useRepoQuery<Persona[]>(
     ["personas", conversation.id],
     () => personasRepo.listPersonas(conversation.id),
@@ -107,7 +114,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       }
       return;
     }
-    setBusy(true);
+    useSendStore.getState().setSubmitting(conversation.id, true);
     setHint(null);
     const t = text;
     setText("");
@@ -138,7 +145,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         if (next !== null) setText(next);
       }
     } finally {
-      setBusy(false);
+      useSendStore.getState().setSubmitting(conversation.id, false);
     }
   };
 
