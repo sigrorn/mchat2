@@ -121,3 +121,53 @@ semantics, and privacy expectations around sending local files to
 remote providers. Worth doing only after deciding the product-level
 behaviour for "attach this file to this turn" versus "add this document
 to reusable conversation context."
+
+## Window-aware autocompact warning thresholds
+
+**Discussed:** 2026-05-03, while landing
+[per-model context windows (#261)](docs/decisions/) — Apertus's 16k
+window made the existing 80/90/98% warning ladder visibly inadequate.
+
+The shipped warning thresholds are `[80, 90, 98]` percent, calibrated
+back when the tightest realistic window was Claude/OpenAI in the
+~100k+ range. With per-model windows in place, Apertus 8B/70B at
+16,384 tokens the same percentages translate to:
+
+| Threshold | Apertus 16k headroom | Mistral 128k | Claude 200k |
+|---|---|---|---|
+| 80% | ~3.2k tokens | ~26k | ~40k |
+| 90% | **~1.6k tokens** | ~13k | ~20k |
+| 98% | ~300 tokens | ~2.5k | ~4k |
+
+A typical user/assistant turn is 1–3k tokens combined (10k+ with
+code). On Apertus, by the time the 90% warning fires there's room
+for maybe one more turn before `truncateToFit` starts silently
+dropping oldest messages. The 98% warning is below a single-message
+threshold and effectively useless. Compaction itself sends pre-cutoff
+history through the same model, so triggering compaction at 90%
+on a tight window leaves little headroom for the summary call's
+own input.
+
+Three candidate fixes:
+
+1. **Lower thresholds globally** (e.g. `[50, 75, 90]`). Simplest
+   change, adds notice noise on big windows where the absolute
+   headroom at 80% is already huge.
+2. **Scale thresholds by window size** (e.g. window ≤ 32k →
+   `[50, 70, 90]`, else `[80, 90, 98]`). Right tradeoff per window;
+   small lookup, cheap to implement.
+3. **Absolute-remainder warnings** (warn at "< 4k tokens free",
+   "< 1.5k free", "< 500 free"). Maps directly to "how many turns
+   can I still fit," which is the question the user is actually
+   answering when they look at the warning. Same threshold means
+   the same thing on every model. Would replace `WARNING_THRESHOLDS`
+   in [autocompactCheck.ts](src/lib/commands/autocompactCheck.ts)
+   with a tokens-free comparison and update `formatTriggeringPersonas`
+   in [postResponseCheck.ts](src/lib/app/postResponseCheck.ts) to
+   show "X has 1.2k free" instead of "X at 92%".
+
+**Why deferred:** Worth living with the existing 80/90/98% on
+Apertus first to see whether silent truncation actually bites in
+practice — the user may compact manually well before the warnings
+matter. If it does bite, option 3 (absolute remainder) is the
+cleanest semantic fix; option 2 is the cheapest patch.
