@@ -92,6 +92,15 @@ export const useMessagesStore = create<State>((set, get) => ({
     });
   },
   async load(conversationId) {
+    // #248: the cache is authoritative once populated. Mutators in
+    // this store (append, patchContent, sendUserMessage, retry/replay
+    // paths) keep it in sync, so a refetch only risks clobbering
+    // in-memory state that hasn't yet hit SQLite — most importantly
+    // the streaming pump's accumulated tokens, which only get
+    // persisted at completion. Skip the round-trip when the cache
+    // already covers this conversation.
+    const cache = getRepoQueryCache();
+    if (cache.get<Message[]>(messagesQueryKey(conversationId)) !== undefined) return;
     const [list, superseded] = await Promise.all([
       repo.listMessages(conversationId),
       listSupersededMessageIds(conversationId),
