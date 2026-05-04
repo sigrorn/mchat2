@@ -171,3 +171,69 @@ Apertus first to see whether silent truncation actually bites in
 practice — the user may compact manually well before the warnings
 matter. If it does bite, option 3 (absolute remainder) is the
 cleanest semantic fix; option 2 is the cheapest patch.
+
+## Central prompts editor (`//editprompts`)
+
+**Discussed:** 2026-05-04, while specifying the prompt viewer
+(`//activeprompts`).
+
+System prompts live in three places today: Settings · General
+(global), conversation settings (`conversation.systemPrompt`), and
+each persona's `systemPromptOverride` in the persona panel. Plus
+flow-step-level `stepInstruction` for flow personas-steps (#230).
+The composed system block at send time is built in
+[builder.ts:113](src/lib/context/builder.ts#L113):
+
+```
+[identityLine, globalPrompt, persona.override ?? conversation.prompt,
+ stepNote].filter(notNull).join("\n\n")
+```
+
+A central editor would render every layer in one dialog with a
+textarea per source, letting the user see them in composition
+order and edit them in one place.
+
+**Risks / why this isn't trivial:**
+
+1. **Three different write paths in one save action.** Edits go to
+   `setSetting(GLOBAL_SYSTEM_PROMPT_KEY)`, `conversationsRepo.
+   updateConversation`, and `personasRepo.update`. If one fails
+   partway through, the user sees inconsistent state. Each is
+   idempotent, so retry recovers, but the dialog needs explicit
+   per-row save status.
+
+2. **Global prompt is world-affecting.** Changing it touches every
+   conversation and every persona in every conversation, retroactively
+   for future turns. Needs the loudest warning of the four layers —
+   either a confirm modal, a two-step "unlock" toggle, or hidden
+   behind a setting. The mechanism is a UX call, not auto-derivable.
+
+3. **Persona override semantics are fallback, not stack.** A persona
+   override REPLACES the conversation prompt, doesn't append. When
+   every persona has an override, the conversation prompt is dead
+   code for that conversation — the editor must either grey it out
+   with a "shadowed by all personas" note or the user will edit a
+   field that never reaches the LLM.
+
+4. **`null` vs `""` matters.** `persona.systemPromptOverride = null`
+   means "fall through to conversation.systemPrompt"; `""` means
+   "explicit empty, skip the local layer entirely." A textarea
+   that conflates these will silently re-route content. The dialog
+   needs an explicit "use conversation default" checkbox per persona
+   alongside the textarea.
+
+5. **Edits don't rewrite history.** Past replies were generated
+   against the old prompts; only future turns see the change. The
+   dialog needs a one-line note saying so, otherwise users will
+   wonder why the persona's old answers don't reflect the new
+   prompt.
+
+**Why deferred:** Build the viewer (`//activeprompts`, this commit)
+first and see whether it closes the gap on its own. The viewer
+makes "what is each persona actually getting?" answerable in one
+notice, and the existing scattered fields (Settings · General +
+persona panel + conversation settings) may be enough once you
+know which one to navigate to. If after a week the editor still
+feels like a clear win, the viewer naturally becomes its read-only
+mode and the editor is "viewer + textareas per row + three save
+paths."
