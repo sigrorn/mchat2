@@ -85,6 +85,43 @@ describe("messagesStore", () => {
     expect(list?.[0]?.content).toBe("tokens streamed mid-flight");
   });
 
+  // #263: reload() force-refreshes the cache after a DB-direct
+  // mutation (//pop, //compact, batch retry, replay, autocompact
+  // post-cleanup). Counterpart to load() — load is cache-first
+  // (preserves #248's fix), reload is DB-first.
+  it("reload() forces a refetch even when the cache is populated (#263)", async () => {
+    // Pre-populate with stale content (think: pre-pop conversation
+    // with rows the user is about to delete). DB returns nothing —
+    // the post-mutation state.
+    const stale = makeMessage({
+      conversationId: "c_pop",
+      id: "m_stale",
+      content: "row that was just deleted",
+    });
+    getRepoQueryCache().set<Message[]>(["messages", "c_pop"], [stale]);
+
+    let listMessagesIssued = false;
+    __setImpl({
+      async execute() {
+        return { rowsAffected: 1, lastInsertId: null };
+      },
+      async select<T>(q: string): Promise<T[]> {
+        if (/from\s+"?messages"?/i.test(q)) {
+          listMessagesIssued = true;
+        }
+        if (q.includes("MAX(idx)")) return [{ next: 0 } as unknown as T];
+        return [];
+      },
+      async close() {},
+    });
+
+    await useMessagesStore.getState().reload("c_pop");
+
+    expect(listMessagesIssued).toBe(true);
+    // Cache replaced with the post-mutation (empty) state.
+    expect(getRepoQueryCache().get<Message[]>(["messages", "c_pop"])).toEqual([]);
+  });
+
   it("load() fetches and seeds when the cache is empty (#248)", async () => {
     // Empty cache for a never-visited conversation — first activation
     // is the legitimate population path.
