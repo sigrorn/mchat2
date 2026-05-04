@@ -85,12 +85,10 @@ export async function forkConversation(
   const envelope = JSON.parse(json) as SnapshotEnvelope;
   envelope.title = `Fork of ${input.source.title}`;
 
-  // Drop limit/floor markers that point past the cut — they'd hide
-  // every message in the fork or pin a compaction floor that doesn't
-  // correspond to anything in the truncated history.
-  if (envelope.limitMarkIndex !== null && envelope.limitMarkIndex >= cutAt) {
-    envelope.limitMarkIndex = null;
-  }
+  // Drop the compaction floor when it points past the cut — would
+  // otherwise pin a floor that doesn't correspond to anything in the
+  // truncated history. (#240 removed the parallel limitMarkIndex
+  // adjustment alongside the //limit command.)
   if (envelope.compactionFloorIndex !== null && envelope.compactionFloorIndex >= cutAt) {
     envelope.compactionFloorIndex = null;
   }

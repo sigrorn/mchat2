@@ -27,10 +27,9 @@ export async function handleAutocompact(
     await ctx.deps.appendNotice(conversation.id, "autocompact: off.");
     return;
   }
-  // Disable limitsize when autocompact is turned on (#105).
-  if (conversation.limitSizeTokens !== null) {
-    await ctx.deps.setLimitSize(conversation.id, null);
-  }
+  // #240: prior to limitsize removal, this block also cleared
+  // conversation.limitSizeTokens when autocompact was enabled (#105
+  // interaction rule). limitsize is gone; nothing to clear.
   const threshold: AutocompactThreshold = {
     mode: payload.mode,
     value: payload.value,
@@ -103,12 +102,11 @@ export async function handleCompact(
     return;
   }
   await ctx.deps.reloadMessages(conversation.id);
-  // #164: floor and limit must move together. If only one of the two
-  // updates lands, autocompact and the limit-mark drift apart and the
-  // next compaction picks the wrong cutoff.
+  // #240: limit_mark_index column dropped along with //limit. Compaction
+  // now only moves the floor. (#164's transaction is preserved as a
+  // single-write to keep the rollback semantics stable.)
   await transaction(async () => {
     await ctx.deps.setCompactionFloor(conversation.id, result.cutoff);
-    await ctx.deps.setLimit(conversation.id, result.cutoff);
   });
   const lines = [
     `compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,

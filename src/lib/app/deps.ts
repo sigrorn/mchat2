@@ -92,8 +92,9 @@ export interface ConversationsWriteDeps {
   rename: (conversationId: string, title: string) => Promise<void>;
   setContextWarningsFired: (conversationId: string, fired: number[]) => Promise<void>;
   setCompactionFloor: (conversationId: string, floorIndex: number | null) => Promise<void>;
-  setLimit: (conversationId: string, limitMarkIndex: number | null) => Promise<void>;
-  setLimitSize: (conversationId: string, limitSizeTokens: number | null) => Promise<void>;
+  // #240: setLimit / setLimitSize removed alongside the //limit and
+  // //limitsize commands. Auto-truncation is per-model (#261) and
+  // happens inside buildContext at send time.
   setDisplayMode: (conversationId: string, mode: "lines" | "cols") => Promise<void>;
   setVisibilityMatrix: (
     conversationId: string,
@@ -209,7 +210,7 @@ export type PostResponseCheckDeps = MessagesReadDeps &
   Pick<MessagesWriteDeps, "appendNotice" | "reloadMessages"> &
   PersonasReadDeps &
   ConversationsReadDeps &
-  Pick<ConversationsWriteDeps, "setContextWarningsFired" | "setCompactionFloor" | "setLimit"> &
+  Pick<ConversationsWriteDeps, "setContextWarningsFired" | "setCompactionFloor"> &
   Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus"> &
   Pick<SettingsReadDeps, "getGlobalSystemPrompt">;
 
@@ -265,8 +266,6 @@ export type CommandDeps = MessagesReadDeps &
   PersonasWriteDeps &
   Pick<
     ConversationsWriteDeps,
-    | "setLimit"
-    | "setLimitSize"
     | "setCompactionFloor"
     | "setDisplayMode"
     | "setVisibilityMatrix"

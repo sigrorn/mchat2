@@ -82,8 +82,10 @@ export interface SnapshotEnvelope {
   displayMode: string;
   visibilityMode: string;
   visibilityMatrix: Record<string, string[]>;
-  limitMarkIndex: number | null;
-  limitSizeTokens: number | null;
+  // #240: limitMarkIndex / limitSizeTokens were envelope fields when
+  // //limit and //limitsize existed. Pre-#240 export files still
+  // contain them; the zod schema accepts them as optional+nullable so
+  // those imports don't reject. Newly-written exports omit them.
   compactionFloorIndex: number | null;
   selectedPersonas: string[];
   personas: SnapshotPersona[];
@@ -151,8 +153,6 @@ export function serializeSnapshot(
     displayMode: conversation.displayMode,
     visibilityMode: conversation.visibilityMode,
     visibilityMatrix: resolvedMatrix,
-    limitMarkIndex: conversation.limitMarkIndex,
-    limitSizeTokens: conversation.limitSizeTokens,
     compactionFloorIndex: conversation.compactionFloorIndex,
     selectedPersonas: resolveIds(conversation.selectedPersonas),
     personas: live.map((p) => ({

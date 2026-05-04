@@ -64,23 +64,23 @@ interface ProjectedEntry {
   sourceInfo: SourceInfo;
 }
 
-// The eight rules, applied in this order:
+// The seven rules, applied in this order:
 //
 //  1. systemPrompt = persona.systemPromptOverride ?? conversation.systemPrompt
 //  2. Exclude failed assistant rows (errorMessage !== null). A failed
 //     retry must not poison the next attempt with its own error text.
-//  3. Apply limitMarkIndex — drop messages with index < mark UNLESS
-//     pinned (pinned rows always survive step 3).
-//  4. Apply persona cutoff — drop messages with index <
+//     (Step 3 of older revisions — the limitMarkIndex filter — was
+//     removed in #240 along with the //limit command.)
+//  3. Apply persona cutoff — drop messages with index <
 //     persona.createdAtMessageIndex. Late-joining personas don't see
 //     history they weren't present for.
-//  5. Apply pinTarget — if a pinned row has pinTarget != null and !=
+//  4. Apply pinTarget — if a pinned row has pinTarget != null and !=
 //     the current persona key, drop it.
-//  6. Apply addressedTo — user rows with a non-empty addressedTo list
+//  5. Apply addressedTo — user rows with a non-empty addressedTo list
 //     are only visible to the listed persona keys.
-//  7. Apply visibilityMode ('separated') — drop assistant rows produced
+//  6. Apply visibilityMode ('separated') — drop assistant rows produced
 //     by a different persona key. ('joined' keeps all assistant rows.)
-//  8. Project to ProjectedEntry[]: apply persona.roleLens (#213), then
+//  7. Project to ProjectedEntry[]: apply persona.roleLens (#213), then
 //     prefix other personas' content with "<name>: ", then collapse
 //     adjacent same-role entries (Anthropic 400s on consecutive
 //     same-role messages).
@@ -114,7 +114,6 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
       .filter((s): s is string => !!s)
       .join("\n\n") || null;
   const personaKey = target.key;
-  const limitMark = conversation.limitMarkIndex;
   const cutoff = persona?.createdAtMessageIndex ?? 0;
   // #260: scope="inherit" personas get exempted from the cutoff and
   // from addressedTo / audience filters for messages before they
@@ -138,7 +137,6 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     const floor = conversation.compactionFloorIndex;
     if (floor !== null && m.index < floor) continue;
 
-    if (limitMark !== null && m.index < limitMark && !m.pinned) continue;
     // #260: inheriting personas relax the cutoff for pre-creation rows
     // — they still see rows older than their createdAtMessageIndex.
     // Non-inheriting personas use today's behaviour.
@@ -268,10 +266,9 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
   // the messages from the same ProjectedEntry source so the truncator
   // can never disagree with the role-mapped output about pinned-ness
   // or user-message numbers.
-  // #64: limitSizeTokens narrows the budget further.
-  const providerMax = input.maxContextTokens ?? Infinity;
-  const convLimit = conversation.limitSizeTokens ?? Infinity;
-  const maxTokens = Math.min(providerMax, convLimit);
+  // #240: limitSizeTokens removed; the per-model context window from
+  // #261 is now the only ceiling, and truncateToFit enforces it.
+  const maxTokens = input.maxContextTokens ?? Infinity;
   if (maxTokens && maxTokens !== Infinity) {
     const sourceInfos: SourceInfo[] = normalized.map((e) => e.sourceInfo);
     const r = truncateToFit(systemPrompt, out, maxTokens, sourceInfos);

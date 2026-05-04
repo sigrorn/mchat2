@@ -27,11 +27,9 @@ export interface ConversationsTable {
   system_prompt: string | null;
   created_at: number;
   last_provider: string | null;
-  limit_mark_index: number | null;
   display_mode: string;
   visibility_mode: string;
   visibility_matrix: string; // JSON-encoded
-  limit_size_tokens: number | null;
   selected_personas: string; // JSON-encoded
   compaction_floor_index: number | null;
   autocompact_threshold: string | null; // JSON-encoded

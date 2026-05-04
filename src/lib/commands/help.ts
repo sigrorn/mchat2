@@ -12,7 +12,8 @@
 import { COMMAND_SPECS, type CommandSection, type CommandSpec } from "./specs";
 
 const SECTION_ORDER: Array<{ key: CommandSection; title: string }> = [
-  { key: "context", title: "Context & limits" },
+  // #240: 'context' section dropped — //limit and //limitsize were
+  // its only members.
   { key: "pins", title: "Pins" },
   { key: "editing", title: "Editing" },
   { key: "display", title: "Display" },

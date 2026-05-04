@@ -13,7 +13,10 @@ describe("formatHelp (#80)", () => {
   it("includes key commands", () => {
     const text = formatHelp();
     expect(text).toContain("//help");
-    expect(text).toContain("//limit");
+    // #240: //limit was the canonical fixture for "the help text covers
+    // legacy commands". Replaced with //compact, the modern equivalent
+    // for context-budget management.
+    expect(text).toContain("//compact");
     expect(text).toContain("//pin");
     expect(text).toContain("//edit");
     expect(text).toContain("//visibility");

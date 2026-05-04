@@ -9,7 +9,7 @@
 // ------------------------------------------------------------------
 
 import type { ParsedCommand } from "./parseCommand";
-import { handleLimit, handleRetry, handlePop, handleEdit } from "./handlers/history";
+import { handleRetry, handlePop, handleEdit } from "./handlers/history";
 import { handlePin, handlePins, handleUnpin, handleUnpinAll } from "./handlers/pins";
 import { handleSelect, handleSelectAll } from "./handlers/selection";
 import {
@@ -26,7 +26,7 @@ import {
   handleLog,
 } from "./handlers/info";
 import { handleAutocompact, handleCompact } from "./handlers/compaction";
-import { handleVacuum, handleLimitsize } from "./handlers/system";
+import { handleVacuum } from "./handlers/system";
 import { handleFork } from "./handlers/fork";
 import type { CommandContext, CommandResult } from "./handlers/types";
 
@@ -42,10 +42,6 @@ export async function dispatchCommand(
     case "error":
       await ctx.deps.appendNotice(ctx.conversation.id, cmd.message);
       return { restoreText: ctx.rawInput };
-    case "limit":
-      return handleLimit(ctx, cmd.payload);
-    case "limitsize":
-      return handleLimitsize(ctx, cmd.payload);
     case "pin":
       return handlePin(ctx, cmd.payload);
     case "pins":

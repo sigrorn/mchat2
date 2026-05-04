@@ -61,7 +61,9 @@ describe("createTestDb runs all migrations", () => {
     expect(names).toContain("display_mode");
     expect(names).toContain("visibility_mode");
     expect(names).toContain("visibility_matrix");
-    expect(names).toContain("limit_size_tokens");
+    // #240: limit_size_tokens dropped along with //limitsize; replace
+    // the assertion with selected_personas (added at v7) so this test
+    // still proves migrations past v6 ran.
     expect(names).toContain("selected_personas");
     expect(names).toContain("compaction_floor_index");
     expect(names).toContain("autocompact_threshold");

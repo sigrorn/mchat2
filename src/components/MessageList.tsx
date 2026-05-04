@@ -19,13 +19,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMessagesStore } from "@/stores/messagesStore";
 import type { Conversation, Message, Persona } from "@/lib/types";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
-import { isExcludedByLimit } from "@/lib/context/excluded";
 import * as conversationsRepo from "@/lib/persistence/conversations";
 import { groupIntoColumns } from "@/lib/rendering/columnGroups";
 import { formatCopyText } from "@/lib/rendering/copyWithPrefixes";
 import { useSend } from "@/hooks/useSend";
-import { truncateToFit, estimateTokens } from "@/lib/context/truncate";
-import { maxContextTokensForPersona } from "@/lib/providers/contextWindows";
 import { filterSupersededMessages } from "@/lib/orchestration/filterSupersededMessages";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import { computeMatchScrollOffset } from "@/lib/ui/scrollCenter";
@@ -181,11 +178,9 @@ export function MessageList({
       systemPrompt: null,
       createdAt: 0,
       lastProvider: null,
-      limitMarkIndex: null,
       displayMode: "lines",
       visibilityMode: "separated",
       visibilityMatrix: {},
-      limitSizeTokens: null,
       selectedPersonas: [],
       compactionFloorIndex: null,
       autocompactThreshold: null,
@@ -199,42 +194,11 @@ export function MessageList({
     useMessagesStore.getState().setEditing(conversationId, id);
   };
 
-  // #64: compute the effective sliding-window limit index so shading
-  // reflects limitSizeTokens. Reuse the same truncateToFit that
-  // buildContext uses at send time — run it with the tightest budget
-  // across active personas. The result's firstSurvivingUserNumber
-  // maps back to an index via userNumbers.
-  const effectiveLimitIndex = (() => {
-    if (!conversation?.limitSizeTokens) return null;
-    const tightest = Math.min(
-      conversation.limitSizeTokens,
-      ...personas.map(maxContextTokensForPersona),
-    );
-    if (!Number.isFinite(tightest)) return null;
-    const chatMsgs = messages
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .filter((m) => m.content)
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-    const infos = messages
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .filter((m) => m.content)
-      .map((m) => ({
-        pinned: m.pinned,
-        userNumber: m.role === "user" ? (userNumbers.get(m.index) ?? null) : null,
-      }));
-    const systemEst = conversation.systemPrompt ? estimateTokens(conversation.systemPrompt) * 4 : 0;
-    const r = truncateToFit(
-      conversation.systemPrompt ? "x".repeat(systemEst) : null,
-      chatMsgs,
-      tightest,
-      infos,
-    );
-    if (r.dropped === 0 || r.firstSurvivingUserNumber === null) return null;
-    for (const [idx, num] of userNumbers) {
-      if (num === r.firstSurvivingUserNumber) return idx;
-    }
-    return null;
-  })();
+  // #240: the effectiveLimitIndex / isExcludedByLimit muted-row plumbing
+  // was removed alongside //limitsize. Auto-truncation by per-model
+  // window (#261) still happens inside buildContext at send time; the
+  // dropped messages just no longer have a UI shading state because
+  // there is no user-set sliding budget to display.
 
   // #53/#239: when the find bar sets a new active match, scroll the
   // match into view. Two-step: virtualizer.scrollToIndex first to
@@ -390,8 +354,6 @@ export function MessageList({
                 setEditingId,
                 replay,
                 retry,
-                conversation,
-                effectiveLimitIndex,
                 userNumbers,
                 personas,
                 findStateForMessage,
@@ -409,8 +371,6 @@ interface RenderCtx {
   setEditingId: (id: string | null) => void;
   replay: (id: string, content: string) => Promise<unknown>;
   retry: (m: Message) => Promise<unknown>;
-  conversation: Conversation | undefined;
-  effectiveLimitIndex: number | null;
   userNumbers: Map<number, number>;
   personas: readonly Persona[];
   findStateForMessage: (messageId: string) => FindState | null;
@@ -425,8 +385,6 @@ function renderItem(
     setEditingId,
     replay,
     retry,
-    conversation,
-    effectiveLimitIndex,
     userNumbers,
     personas,
     findStateForMessage,
@@ -451,7 +409,7 @@ function renderItem(
       message: m,
       personas,
       userNumber: userNumbers.get(m.index) ?? null,
-      excluded: conversation ? isExcludedByLimit(m, conversation, effectiveLimitIndex) : false,
+      excluded: false,
       onRetry: () => void retry(m),
       ...(m.role === "user" ? { onEdit: () => setEditingId(m.id) } : {}),
       // #229: only notice rows get a confirm checkbox. The store
@@ -500,7 +458,7 @@ function renderItem(
             message={m}
             personas={personas}
             userNumber={null}
-            excluded={conversation ? isExcludedByLimit(m, conversation) : false}
+            excluded={false}
             onRetry={() => void retry(m)}
             findState={findStateForMessage(m.id)}
           />

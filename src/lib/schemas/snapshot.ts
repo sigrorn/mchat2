@@ -83,8 +83,10 @@ const envelopeSchema = z.object({
   displayMode: z.string(),
   visibilityMode: z.string(),
   visibilityMatrix: z.record(z.array(z.string())),
-  limitMarkIndex: z.number().nullable(),
-  limitSizeTokens: z.number().nullable(),
+  // #240: pre-#240 exports carry these fields; accept (optional+
+  // nullable) and ignore so old snapshots round-trip without rejection.
+  limitMarkIndex: z.number().nullable().optional(),
+  limitSizeTokens: z.number().nullable().optional(),
   compactionFloorIndex: z.number().nullable(),
   selectedPersonas: z.array(z.string()),
   personas: z.array(personaSchema),

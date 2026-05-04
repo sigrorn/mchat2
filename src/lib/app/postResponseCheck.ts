@@ -163,7 +163,9 @@ async function runAutocompact(
 
   await deps.reloadMessages(conversationId);
   await deps.setCompactionFloor(conversationId, result.cutoff);
-  await deps.setLimit(conversationId, result.cutoff);
+  // #240: previously also called deps.setLimit(conversationId, cutoff)
+  // here so the visible-row limit mark followed the compaction floor.
+  // limit_mark_index column dropped — the floor alone now bounds context.
 
   const lines = [
     `auto-compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,

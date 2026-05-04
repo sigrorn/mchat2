@@ -14,7 +14,7 @@
 import type { ParsedCommand } from "./parseCommand";
 
 export type CommandSection =
-  | "context"
+  // #240: 'context' section removed — it only held //limit and //limitsize.
   | "pins"
   | "editing"
   | "display"
@@ -38,45 +38,10 @@ export interface CommandSpec {
   completion?: { appendSpaceOnComplete: boolean };
 }
 
-const LIMIT_HELP =
-  "limit: specify the user message number for the limit. " +
-  "Messages before that one will no longer be transmitted to the selected AI. " +
-  "Use //limit NONE to clear the limit.";
-
-function parseLimit(arg: string): ParsedCommand {
-  if (arg === "") return { kind: "error", message: LIMIT_HELP };
-  const lc = arg.toLowerCase();
-  // 'NONE' is canonical (#10); 'ALL' is kept as a backwards-compat alias.
-  if (lc === "none" || lc === "all") {
-    return { kind: "limit", payload: { userNumber: null } };
-  }
-  if (!/^-?\d+$/.test(arg)) {
-    return {
-      kind: "error",
-      message: `limit: '${arg}' is not a valid message number. Use //limit N or //limit NONE.`,
-    };
-  }
-  const n = Number(arg);
-  if (n < 0) {
-    return {
-      kind: "error",
-      message: `limit: '${arg}' is not a valid message number. Use //limit N, //limit 0 to hide all, or //limit NONE to clear.`,
-    };
-  }
-  // #51: 0 is a special 'hide all current messages' sentinel.
-  return { kind: "limit", payload: { userNumber: n } };
-}
-
-function parseLimitsize(arg: string): ParsedCommand {
-  if (arg === "") return { kind: "limitsize", payload: { kTokens: null } };
-  if (!/^\d+$/.test(arg)) {
-    return {
-      kind: "error",
-      message: `limitsize: '${arg}' is not a valid number. Use //limitsize or //limitsize N (k-tokens).`,
-    };
-  }
-  return { kind: "limitsize", payload: { kTokens: Number(arg) } };
-}
+// #240: parseLimit and parseLimitsize removed alongside the COMMAND_SPECS
+// entries below. //compact and //autocompact superseded the use cases —
+// limit just hid rows from the LLM (the user kept seeing them) while
+// compaction summarises and reclaims budget for real.
 
 function parsePin(arg: string): ParsedCommand {
   if (arg.trim() === "") {
@@ -313,28 +278,8 @@ function parseFork(arg: string): ParsedCommand {
 }
 
 export const COMMAND_SPECS: readonly CommandSpec[] = [
-  // Context & limits
-  {
-    verb: "limit",
-    section: "context",
-    usages: [
-      { form: "//limit N", description: "Hide messages before user message #N" },
-      { form: "//limit 0", description: "Hide all current messages" },
-      { form: "//limit NONE", description: "Clear the limit" },
-    ],
-    parse: parseLimit,
-    completion: { appendSpaceOnComplete: true },
-  },
-  {
-    verb: "limitsize",
-    section: "context",
-    usages: [
-      { form: "//limitsize", description: "Auto-set token budget to tightest provider" },
-      { form: "//limitsize N", description: "Set token budget to N thousand tokens" },
-    ],
-    parse: parseLimitsize,
-    completion: { appendSpaceOnComplete: true },
-  },
+  // #240: 'limit' and 'limitsize' specs removed. Compaction
+  // (//compact / //autocompact) covers the use case.
   // Pins
   {
     verb: "pin",

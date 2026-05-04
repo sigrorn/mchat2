@@ -21,12 +21,6 @@ export interface Conversation {
   createdAt: number;
   // Last provider the user sent to; drives default selection on reopen.
   lastProvider: ProviderId | null;
-  // Conversation-level context controls.
-  // limitMarkIndex: messages with index < mark are excluded unless
-  // pinned (and subject to persona filter for assistant pins).
-  // null = no limit; 0 = keep everything (semantically same but kept
-  // separate for telemetry).
-  limitMarkIndex: number | null;
   // Current display mode for multi-target sends.
   displayMode: "lines" | "cols";
   // Visibility mode: "separated" = personas see only their own history
@@ -41,10 +35,6 @@ export interface Conversation {
   //   Non-empty   → observer sees only listed sources + self.
   // Stored as a JSON string in the DB; deserialized on load.
   visibilityMatrix: Record<string, string[]>;
-  // Sliding token-budget limit (#64). When set, buildContext truncates
-  // to min(limitSizeTokens, provider.maxContextTokens). null = no
-  // override (use provider defaults only).
-  limitSizeTokens: number | null;
   // Persisted persona selection (#65). Stores the selected persona keys
   // so the selection survives restarts. Empty array = nothing selected.
   selectedPersonas: string[];

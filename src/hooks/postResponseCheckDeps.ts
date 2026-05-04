@@ -34,8 +34,6 @@ export function makePostResponseCheckDeps(): PostResponseCheckDeps {
       useConversationsStore.getState().setContextWarningsFired(conversationId, fired),
     setCompactionFloor: (conversationId, index) =>
       useConversationsStore.getState().setCompactionFloor(conversationId, index),
-    setLimit: (conversationId, index) =>
-      useConversationsStore.getState().setLimit(conversationId, index),
     setTargetStatus: (conversationId, key, status) =>
       useSendStore.getState().setTargetStatus(conversationId, key, status),
     clearTargetStatus: (conversationId, key) =>

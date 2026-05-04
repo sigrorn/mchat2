@@ -12,8 +12,6 @@ const minimalSnapshot = {
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
-  limitMarkIndex: null,
-  limitSizeTokens: null,
   compactionFloorIndex: null,
   selectedPersonas: [],
   personas: [],

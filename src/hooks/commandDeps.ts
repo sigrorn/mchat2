@@ -35,10 +35,6 @@ export function makeCommandDeps(): CommandDeps {
       useMessagesStore.getState().setReplayQueue(conversationId, [...queue]),
     setSelection: (conversationId, selection) =>
       usePersonasStore.getState().setSelection(conversationId, [...selection]),
-    setLimit: (conversationId, limitMarkIndex) =>
-      useConversationsStore.getState().setLimit(conversationId, limitMarkIndex),
-    setLimitSize: (conversationId, limitSizeTokens) =>
-      useConversationsStore.getState().setLimitSize(conversationId, limitSizeTokens),
     setCompactionFloor: (conversationId, floorIndex) =>
       useConversationsStore.getState().setCompactionFloor(conversationId, floorIndex),
     setDisplayMode: (conversationId, mode) =>

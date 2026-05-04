@@ -13,7 +13,8 @@ import { findSpec } from "./specs";
 
 export type ParsedCommand =
   | { kind: "noop" }
-  | { kind: "limit"; payload: { userNumber: number | null } }
+  // #240: 'limit' and 'limitsize' kinds removed. //limit and //limitsize
+  // commands fall through findSpec as unknown verbs and resolve to noop.
   | { kind: "pin"; payload: { rest: string } }
   | { kind: "pins"; payload: { persona: string | null } }
   | { kind: "unpin"; payload: { userNumber: number } }
@@ -21,7 +22,6 @@ export type ParsedCommand =
   | { kind: "edit"; payload: { userNumber: number | null } }
   | { kind: "pop"; payload: { userNumber: number | null } }
   | { kind: "retry" }
-  | { kind: "limitsize"; payload: { kTokens: number | null } }
   | { kind: "visibility"; payload: { mode: "separated" | "joined" } }
   | { kind: "visibilityStatus" }
   | { kind: "visibilityDefault" }

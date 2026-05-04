@@ -31,11 +31,9 @@ async function makeSourceConversation(): Promise<Conversation> {
     title: "Source",
     systemPrompt: "global",
     lastProvider: null,
-    limitMarkIndex: null,
     displayMode: "lines",
     visibilityMode: "joined",
     visibilityMatrix: {},
-    limitSizeTokens: null,
     selectedPersonas: [],
     compactionFloorIndex: null,
     autocompactThreshold: null,
@@ -341,16 +339,15 @@ describe("forkConversation (#224)", () => {
     expect(notice!.content).toBe("system note");
   });
 
-  it("copies system prompt, display mode, visibility mode, limits", async () => {
+  it("copies system prompt, display mode, visibility mode", async () => {
+    // #240: limitSizeTokens assertion dropped along with the column.
     const conv = await convRepo.createConversation({
       title: "Settings src",
       systemPrompt: "global rules",
       lastProvider: null,
-      limitMarkIndex: null,
       displayMode: "cols",
       visibilityMode: "separated",
       visibilityMatrix: {},
-      limitSizeTokens: 8000,
       selectedPersonas: [],
       compactionFloorIndex: null,
       autocompactThreshold: null,
@@ -368,6 +365,5 @@ describe("forkConversation (#224)", () => {
     expect(forked.systemPrompt).toBe("global rules");
     expect(forked.displayMode).toBe("cols");
     expect(forked.visibilityMode).toBe("separated");
-    expect(forked.limitSizeTokens).toBe(8000);
   });
 });

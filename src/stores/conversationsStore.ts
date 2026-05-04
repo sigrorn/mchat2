@@ -39,7 +39,8 @@ interface State {
   create: (init: Omit<Conversation, "id" | "createdAt">) => Promise<Conversation>;
   update: (c: Conversation) => Promise<void>;
   rename: (id: string, title: string) => Promise<void>;
-  setLimit: (id: string, limitMarkIndex: number | null) => Promise<void>;
+  // #240: setLimit / setLimitSize removed alongside the //limit and
+  // //limitsize commands.
   setDisplayMode: (id: string, mode: "lines" | "cols") => Promise<void>;
   setVisibilityMatrix: (id: string, matrix: Record<string, string[]>) => Promise<void>;
   setVisibilityPreset: (
@@ -47,7 +48,6 @@ interface State {
     mode: "separated" | "joined",
     personaIds: string[],
   ) => Promise<void>;
-  setLimitSize: (id: string, limitSizeTokens: number | null) => Promise<void>;
   setSelectedPersonas: (id: string, keys: string[]) => Promise<void>;
   setCompactionFloor: (id: string, floorIndex: number | null) => Promise<void>;
   setAutocompact: (id: string, threshold: AutocompactThreshold | null) => Promise<void>;
@@ -115,13 +115,6 @@ export const useConversationsStore = create<State>((set, get) => ({
     await repo.updateConversation(next);
     cacheUpdate(replaceById(next));
   },
-  async setLimitSize(id, limitSizeTokens) {
-    const current = cacheGet().find((c) => c.id === id);
-    if (!current) return;
-    const next: Conversation = { ...current, limitSizeTokens };
-    await repo.updateConversation(next);
-    cacheUpdate(replaceById(next));
-  },
   async setSelectedPersonas(id, keys) {
     const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
@@ -160,13 +153,6 @@ export const useConversationsStore = create<State>((set, get) => ({
     if (!current) return;
     if ((current.flowMode ?? false) === on) return; // no-op
     const next: Conversation = { ...current, flowMode: on };
-    await repo.updateConversation(next);
-    cacheUpdate(replaceById(next));
-  },
-  async setLimit(id, limitMarkIndex) {
-    const current = cacheGet().find((c) => c.id === id);
-    if (!current) return;
-    const next: Conversation = { ...current, limitMarkIndex };
     await repo.updateConversation(next);
     cacheUpdate(replaceById(next));
   },

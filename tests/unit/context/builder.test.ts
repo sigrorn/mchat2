@@ -9,11 +9,9 @@ const CONV: Conversation = {
   systemPrompt: "global",
   createdAt: 0,
   lastProvider: null,
-  limitMarkIndex: null,
   displayMode: "lines",
   visibilityMode: "separated",
   visibilityMatrix: {},
-  limitSizeTokens: null,
   selectedPersonas: [],
     compactionFloorIndex: null,
     autocompactThreshold: null,
@@ -85,27 +83,8 @@ describe("buildContext", () => {
     expect(r.messages.map((m) => m.role)).toEqual(["user"]);
   });
 
-  it("applies limitMarkIndex but keeps pinned (rule 3)", () => {
-    const messages = [
-      makeMessage({ conversationId: "c_1", role: "user", content: "old", index: 0 }),
-      makeMessage({
-        conversationId: "c_1",
-        role: "user",
-        content: "pin-old",
-        index: 1,
-        pinned: true,
-      }),
-      makeMessage({ conversationId: "c_1", role: "user", content: "new", index: 3 }),
-    ];
-    const r = buildContext({
-      conversation: { ...CONV, limitMarkIndex: 2 },
-      target: target(),
-      messages,
-      personas: [persona()],
-    });
-    // #213: two consecutive user-role rows collapse into one entry.
-    expect(r.messages.map((m) => m.content)).toEqual(["pin-old\n\nnew"]);
-  });
+  // #240: 'applies limitMarkIndex but keeps pinned (rule 3)' test
+  // dropped along with the limitMarkIndex column.
 
   it("applies persona cutoff (rule 4)", () => {
     const messages = [

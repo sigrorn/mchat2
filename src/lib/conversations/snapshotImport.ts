@@ -37,8 +37,6 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     visibilityMode:
       (snapshot.visibilityMode === "joined" ? "joined" : "separated") as "separated" | "joined",
     visibilityMatrix: {},
-    limitMarkIndex: snapshot.limitMarkIndex ?? null,
-    limitSizeTokens: snapshot.limitSizeTokens ?? null,
     selectedPersonas: [],
     compactionFloorIndex: snapshot.compactionFloorIndex ?? null,
     autocompactThreshold: null,

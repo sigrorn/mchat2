@@ -506,6 +506,17 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE personas DROP COLUMN apertus_product_id`,
   ],
+  // 32 — Drop limit_mark_index and limit_size_tokens from conversations
+  // (#240). The //limit and //limitsize commands are gone; per-model
+  // context windows (#261) now drive truncateToFit's automatic budget
+  // enforcement, so the user-set sliding window is redundant. Existing
+  // values in either column are dropped without a backfill — both were
+  // user-tunable conveniences and any in-flight conversation just
+  // reverts to the unconstrained behaviour for context calculation.
+  [
+    `ALTER TABLE conversations DROP COLUMN limit_mark_index`,
+    `ALTER TABLE conversations DROP COLUMN limit_size_tokens`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

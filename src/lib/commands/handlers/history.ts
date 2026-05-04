@@ -43,44 +43,7 @@ async function rewindFlowAfterPop(
   }
 }
 
-export async function handleLimit(
-  ctx: CommandContext,
-  payload: { userNumber: number | null },
-): Promise<CommandResult | void> {
-  const { conversation, rawInput } = ctx;
-  const history = ctx.deps.getMessages(conversation.id);
-  const floor = conversation.compactionFloorIndex;
-  const target = payload.userNumber;
-  if (target === null) {
-    // //limit NONE — clear both fixed limit and limitsize.
-    // #102: clamp to compaction floor if one exists.
-    await ctx.deps.setLimit(conversation.id, floor);
-    await ctx.deps.setLimitSize(conversation.id, null);
-    return;
-  }
-  if (target === 0) {
-    // #51: //limit 0 — hide every current message. Set the mark to one
-    // past the last index so rule 3 of buildContext filters them all
-    // (pinned rows still survive).
-    const maxIdx = history.reduce((m, msg) => Math.max(m, msg.index), -1);
-    await ctx.deps.setLimit(conversation.id, maxIdx + 1);
-    return;
-  }
-  const idx = indexByUserNumber([...history], target);
-  if (idx === null) {
-    const total = userMessageCount([...history]);
-    await ctx.deps.appendNotice(
-      conversation.id,
-      `limit: message ${target} does not exist (conversation has ${total} user message${total === 1 ? "" : "s"}).`,
-    );
-    return { restoreText: rawInput };
-  }
-  // #102: clamp to compaction floor.
-  const effective = floor !== null && idx < floor ? floor : idx;
-  // //limit N clears limitsize (#64 interaction rule).
-  await ctx.deps.setLimit(conversation.id, effective);
-  await ctx.deps.setLimitSize(conversation.id, null);
-}
+// #240: handleLimit removed alongside the //limit user command.
 
 export async function handleRetry(ctx: CommandContext): Promise<CommandResult | void> {
   const { conversation, rawInput, retry } = ctx;
