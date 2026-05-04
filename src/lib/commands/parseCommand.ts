@@ -27,6 +27,7 @@ export type ParsedCommand =
   | { kind: "visibilityDefault" }
   | { kind: "help" }
   | { kind: "personas" }
+  | { kind: "activeprompts" }
   | { kind: "stats" }
   | { kind: "select"; payload: { names: string[] } }
   | { kind: "selectAll" }

@@ -8,6 +8,7 @@
 
 import { formatPersonasInfo } from "@/lib/commands/personasInfo";
 import { formatStats } from "@/lib/commands/stats";
+import { formatActivePrompts } from "@/lib/commands/activePrompts";
 import { triggerHelp } from "@/lib/commands/triggerHelp";
 import { logBuffer } from "@/lib/observability/logBuffer";
 import { formatLogSnapshot } from "@/lib/observability/format";
@@ -25,6 +26,25 @@ export async function handlePersonas(ctx: CommandContext): Promise<CommandResult
   const personas = ctx.deps.getPersonas(conversation.id);
   const messages = ctx.deps.getMessages(conversation.id);
   await ctx.deps.appendNotice(conversation.id, formatPersonasInfo([...personas], [...messages]));
+}
+
+export async function handleActivePrompts(ctx: CommandContext): Promise<CommandResult | void> {
+  const { conversation } = ctx;
+  const personas = ctx.deps.getPersonas(conversation.id);
+  const globalPrompt = await ctx.deps.getGlobalSystemPrompt();
+  // #264 follow-up note: flow per-step instructions are not included
+  // in this initial render — would require loading flow_steps to map
+  // (currentStepIndex → step.instruction) per-persona. The formatter
+  // already accepts a stepNotes map; wiring it up is a small follow-on
+  // once the viewer is in active use.
+  await ctx.deps.appendNotice(
+    conversation.id,
+    formatActivePrompts({
+      globalPrompt,
+      conversationPrompt: conversation.systemPrompt,
+      personas: [...personas],
+    }),
+  );
 }
 
 export async function handleStats(ctx: CommandContext): Promise<CommandResult | void> {

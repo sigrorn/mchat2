@@ -21,6 +21,7 @@ import {
 import {
   handleHelp,
   handlePersonas,
+  handleActivePrompts,
   handleStats,
   handleVersion,
   handleLog,
@@ -68,6 +69,8 @@ export async function dispatchCommand(
       return handleHelp(ctx);
     case "personas":
       return handlePersonas(ctx);
+    case "activeprompts":
+      return handleActivePrompts(ctx);
     case "stats":
       return handleStats(ctx);
     case "version":

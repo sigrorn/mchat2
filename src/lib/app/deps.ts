@@ -272,6 +272,10 @@ export type CommandDeps = MessagesReadDeps &
     | "setVisibilityPreset"
     | "setAutocompact"
   > &
+  // #264: //activeprompts reads the global system prompt to render the
+  // top layer of the per-persona composition stack. Reuses the same
+  // SettingsReadDeps slice that postResponseCheck already pulls from.
+  Pick<SettingsReadDeps, "getGlobalSystemPrompt"> &
   Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus"> &
   // #224: //fork needs to read the source flow and switch the UI to
   // the freshly-created fork. FlowReadDeps gives the read; Conversation-

@@ -152,6 +152,12 @@ function parsePersonasInfo(arg: string): ParsedCommand {
   return { kind: "personas" };
 }
 
+function parseActivePrompts(arg: string): ParsedCommand {
+  if (arg !== "")
+    return { kind: "error", message: "activeprompts: this command takes no arguments." };
+  return { kind: "activeprompts" };
+}
+
 function parseStats(arg: string): ParsedCommand {
   if (arg !== "") return { kind: "error", message: "stats: this command takes no arguments." };
   return { kind: "stats" };
@@ -383,6 +389,18 @@ export const COMMAND_SPECS: readonly CommandSpec[] = [
     section: "info",
     usages: [{ form: "//personas", description: "List active personas with details" }],
     parse: parsePersonasInfo,
+    completion: { appendSpaceOnComplete: false },
+  },
+  {
+    verb: "activeprompts",
+    section: "info",
+    usages: [
+      {
+        form: "//activeprompts",
+        description: "Show every system-prompt layer (global, conversation, per-persona, flow step) in composition order",
+      },
+    ],
+    parse: parseActivePrompts,
     completion: { appendSpaceOnComplete: false },
   },
   {

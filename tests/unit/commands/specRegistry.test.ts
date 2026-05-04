@@ -78,6 +78,7 @@ describe("COMMAND_SPECS consistency (#237)", () => {
       "visibility",
       "select",
       "personas",
+      "activeprompts",
       "stats",
       "help",
       "version",

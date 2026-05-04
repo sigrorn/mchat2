@@ -12,6 +12,8 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore } from "@/stores/sendStore";
 import * as flowsRepo from "@/lib/persistence/flows";
 import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
+import { getSetting } from "@/lib/persistence/settings";
+import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { readCachedMessages, readCachedPersonas } from "./cacheReaders";
 
 const EMPTY_SUP: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
@@ -65,6 +67,9 @@ export function makeCommandDeps(): CommandDeps {
     },
     setFlowMode: (conversationId, on) =>
       useConversationsStore.getState().setFlowMode(conversationId, on),
+    // #264: //activeprompts pulls the global system prompt to show
+    // it at the top of every persona's composition stack.
+    getGlobalSystemPrompt: () => getSetting(GLOBAL_SYSTEM_PROMPT_KEY),
     reloadConversations: () => useConversationsStore.getState().load(),
     selectConversation: (conversationId) =>
       useConversationsStore.getState().select(conversationId),
