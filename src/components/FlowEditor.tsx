@@ -2,8 +2,7 @@
 // Component: FlowEditor (#218, slice 6 of #212)
 // Responsibility: Author the per-conversation flow + per-persona role
 //                 lens. Reachable from a small "Edit conversation
-//                 flow" link at the bottom of PersonaPanel. Carries
-//                 an "experimental" badge.
+//                 flow" link at the bottom of PersonaPanel.
 // Collaborators: lib/persistence/flows, lib/personas/service,
 //                lib/flows/derivation.
 // ------------------------------------------------------------------
@@ -179,9 +178,6 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-900">
               Conversation flow
             </h2>
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-800">
-              experimental
-            </span>
           </div>
           <button
             onClick={onClose}

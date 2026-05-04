@@ -293,8 +293,8 @@ function PersonaPanelExpanded({
           <li className="px-3 py-3 text-xs text-neutral-500">No personas yet.</li>
         ) : null}
       </ul>
-      {/* #218: small link to the experimental flow editor. Hidden when
-          there are no personas (nothing meaningful to flow yet). */}
+      {/* #218: small link to the flow editor. Hidden when there are no
+          personas (nothing meaningful to flow yet). */}
       {personas.length > 0 ? (
         <div className="border-t border-neutral-200 px-3 py-2">
           <button
@@ -303,9 +303,6 @@ function PersonaPanelExpanded({
           >
             Edit conversation flow
           </button>
-          <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium uppercase text-amber-800">
-            experimental
-          </span>
         </div>
       ) : null}
       {/* #253: spend table — global view (all conversations, all time)
