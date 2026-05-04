@@ -83,7 +83,9 @@ export function makeRunOneTargetDeps(): RunOneTargetDeps {
 export function makeRunPlannedSendDeps(): RunPlannedSendDeps {
   return {
     ...makeRunOneTargetDeps(),
-    reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
+    // #263: force-refresh after the post-send sequence (which includes
+    // reload calls in branches that mutated DB state).
+    reloadMessages: (conversationId) => useMessagesStore.getState().reload(conversationId),
   };
 }
 
@@ -124,6 +126,8 @@ export function makeRetryMessageDeps(): RetryMessageDeps {
     getPersonas: (conversationId) => readCachedPersonas(conversationId),
     getSelection: (conversationId) =>
       usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
-    reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
+    // #263: retry batch deletes prior failed rows then re-fetches —
+    // needs force-refresh to drop the deleted rows from the cache.
+    reloadMessages: (conversationId) => useMessagesStore.getState().reload(conversationId),
   };
 }

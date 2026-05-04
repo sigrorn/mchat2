@@ -44,6 +44,12 @@ interface State {
   setReplayQueue: (conversationId: string, queue: string[]) => void;
   popReplayQueue: (conversationId: string) => string | null;
   load: (conversationId: string) => Promise<void>;
+  // #263: force-refresh the cache from SQLite. Called after a
+  // DB-direct mutation (//pop, //compact, retry batch, replay,
+  // autocompact post-cleanup) so the UI reflects the new state.
+  // Counterpart to load(): load is cache-first (preserves #248);
+  // reload is DB-first.
+  reload: (conversationId: string) => Promise<void>;
   append: (m: Message) => void;
   patchContent: (conversationId: string, messageId: string, content: string) => void;
   patchError: (
@@ -102,6 +108,25 @@ export const useMessagesStore = create<State>((set, get) => ({
     // already covers this conversation.
     const cache = getRepoQueryCache();
     if (cache.get<Message[]>(messagesQueryKey(conversationId)) !== undefined) return;
+    const [list, superseded] = await Promise.all([
+      repo.listMessages(conversationId),
+      listSupersededMessageIds(conversationId),
+    ]);
+    cacheSet(conversationId, list);
+    set({
+      supersededByConversation: {
+        ...get().supersededByConversation,
+        [conversationId]: superseded,
+      },
+    });
+  },
+  async reload(conversationId) {
+    // #263: counterpart to load(). Always re-fetches, regardless of
+    // cache state. Callers (//pop, //compact, batch retry, replay,
+    // autocompact post-cleanup) just mutated the DB directly and
+    // need the cache replaced with the post-mutation state. Without
+    // this, #248's load() short-circuit silently leaves stale rows
+    // in the UI.
     const [list, superseded] = await Promise.all([
       repo.listMessages(conversationId),
       listSupersededMessageIds(conversationId),

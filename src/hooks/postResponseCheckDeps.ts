@@ -24,7 +24,8 @@ export function makePostResponseCheckDeps(): PostResponseCheckDeps {
       useMessagesStore.getState().supersededByConversation[conversationId] ?? EMPTY_SUP,
     appendNotice: (conversationId, content) =>
       useMessagesStore.getState().appendNotice(conversationId, content),
-    reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
+    // #263: force-refresh after autocompact's DB rewrites land.
+    reloadMessages: (conversationId) => useMessagesStore.getState().reload(conversationId),
     getPersonas: (conversationId) => readCachedPersonas(conversationId),
     getSelection: (conversationId) =>
       usePersonasStore.getState().selectionByConversation[conversationId] ?? [],

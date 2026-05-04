@@ -26,7 +26,11 @@ export function makeCommandDeps(): CommandDeps {
       usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
     appendNotice: (conversationId, content) =>
       useMessagesStore.getState().appendNotice(conversationId, content),
-    reloadMessages: (conversationId) => useMessagesStore.getState().load(conversationId),
+    // #263: force-refresh from DB (commands like //pop, //compact, batch
+    // retry, replay all mutate DB directly via repo and need the cache
+    // re-pulled — load()'s cache-first shortcut from #248 would leave
+    // the just-deleted rows on screen).
+    reloadMessages: (conversationId) => useMessagesStore.getState().reload(conversationId),
     setPinned: (conversationId, messageId, pinned) =>
       useMessagesStore.getState().setPinned(conversationId, messageId, pinned),
     setEditing: (conversationId, messageId) =>
