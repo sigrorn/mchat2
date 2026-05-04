@@ -62,8 +62,11 @@ describe("COMMAND_SPECS consistency (#237)", () => {
     // added to the parser but the registry misses it, this test fails
     // before any user can hit the gap.
     const required = [
-      "limit",
-      "limitsize",
+      // #240: "limit" and "limitsize" removed from the registry.
+      // Compaction (//compact / //autocompact) covers the use case
+      // their visible-row hiding never could (limit only hid rows
+      // from the LLM; the user kept seeing them until they scrolled
+      // away). The verbs now fall through findSpec as unknown → noop.
       "pin",
       "pins",
       "unpin",

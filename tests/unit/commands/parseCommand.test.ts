@@ -9,61 +9,16 @@ describe("parseCommand", () => {
     expect(parseCommand("/single-slash is not a command")).toEqual({ kind: "noop" });
   });
 
-  it("//limit N → limit command with numeric payload", () => {
-    expect(parseCommand("//limit 5")).toEqual({ kind: "limit", payload: { userNumber: 5 } });
-    expect(parseCommand("  //limit 5  ")).toEqual({
-      kind: "limit",
-      payload: { userNumber: 5 },
-    });
-  });
-
-  it("//limit NONE (case-insensitive) → clear", () => {
-    expect(parseCommand("//limit NONE")).toEqual({
-      kind: "limit",
-      payload: { userNumber: null },
-    });
-    expect(parseCommand("//limit none")).toEqual({
-      kind: "limit",
-      payload: { userNumber: null },
-    });
-  });
-
-  it("//limit ALL kept as a backwards-compat alias", () => {
-    expect(parseCommand("//limit ALL")).toEqual({ kind: "limit", payload: { userNumber: null } });
-    expect(parseCommand("//limit all")).toEqual({ kind: "limit", payload: { userNumber: null } });
-  });
-
-  it("help text mentions NONE", () => {
-    const r = parseCommand("//limit");
-    expect(r.kind).toBe("error");
-    if (r.kind === "error") {
-      expect(r.message).toMatch(/NONE/);
-    }
-  });
-
-  it("//limit with no argument → error with help text", () => {
-    const r = parseCommand("//limit");
-    expect(r.kind).toBe("error");
-    if (r.kind === "error") {
-      expect(r.message).toMatch(/specify the user message number/i);
-    }
-  });
-
-  it("//limit garbage → error naming the bad token", () => {
-    const r = parseCommand("//limit foo");
-    expect(r.kind).toBe("error");
-    if (r.kind === "error") {
-      expect(r.message).toContain("foo");
-      expect(r.message).toMatch(/valid message number/i);
-    }
-  });
-
-  it("//limit 0 is a valid sentinel meaning 'hide all' (#51)", () => {
-    expect(parseCommand("//limit 0")).toEqual({ kind: "limit", payload: { userNumber: 0 } });
-  });
-
-  it("//limit -N still rejected (negative numbers have no meaning)", () => {
-    expect(parseCommand("//limit -3").kind).toBe("error");
+  // #240: //limit and //limitsize were removed in favor of //compact /
+  // //autocompact (compaction summarizes; limit just hid). Both verbs
+  // now fall through the registry as unknown → noop, so a stray
+  // "//limit 5" types into the chat as plain text instead of executing.
+  it("//limit and //limitsize → noop after #240 removal", () => {
+    expect(parseCommand("//limit 5")).toEqual({ kind: "noop" });
+    expect(parseCommand("//limit NONE")).toEqual({ kind: "noop" });
+    expect(parseCommand("//limit")).toEqual({ kind: "noop" });
+    expect(parseCommand("//limitsize")).toEqual({ kind: "noop" });
+    expect(parseCommand("//limitsize 12").kind).toBe("noop");
   });
 
   // Pin family — issue #11.

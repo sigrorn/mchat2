@@ -105,9 +105,11 @@ describe("runMigrations", () => {
 
   it("does not issue COMMIT after a failed migration", async () => {
     // Match against the latest migration's signature statement
-    // (#258 Phase C drops apertus_product_id from personas).
+    // (#240 drops the limit_mark_index and limit_size_tokens columns
+    // from conversations alongside the user-facing //limit / //limitsize
+    // commands).
     const mock = makeMockSql(MIGRATIONS.length - 1, {
-      failOn: (q) => /ALTER TABLE personas DROP COLUMN apertus_product_id/i.test(q),
+      failOn: (q) => /ALTER TABLE conversations DROP COLUMN limit_mark_index/i.test(q),
     });
     await expect(runMigrations()).rejects.toThrow();
     // After the failure, no further BEGIN/COMMIT pairs should appear.

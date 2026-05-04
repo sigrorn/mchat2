@@ -19,16 +19,16 @@ afterEach(() => {
 // alongside Database when schema.ts changes.
 const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
   conversations: [
+    // #240: limit_mark_index and limit_size_tokens columns dropped
+    // alongside the //limit and //limitsize commands.
     "id",
     "title",
     "system_prompt",
     "created_at",
     "last_provider",
-    "limit_mark_index",
     "display_mode",
     "visibility_mode",
     "visibility_matrix",
-    "limit_size_tokens",
     "selected_personas",
     "compaction_floor_index",
     "autocompact_threshold",
