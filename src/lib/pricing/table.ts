@@ -17,7 +17,7 @@ export interface ModelPricing {
 
 export type PricingTable = Record<ProviderId, Record<string, ModelPricing>>;
 
-// Updated 2026-04-15. Values are representative, not authoritative — a
+// Updated 2026-05-04. Values are representative, not authoritative — a
 // receipt from the provider is the ground truth. Review quarterly.
 export const PRICING: PricingTable = {
   claude: {
@@ -30,6 +30,14 @@ export const PRICING: PricingTable = {
     "gpt-4o-mini": { inputUsdPerMTok: 0.15, outputUsdPerMTok: 0.6 },
   },
   gemini: {
+    // 2.5 series — current default tier. Pricing per Google's Gemini API
+    // page (≤200k context for 2.5 Pro; the >200k tier costs 2× and isn't
+    // captured here — bump if a receipt shows the higher tier was used).
+    "gemini-2.5-pro": { inputUsdPerMTok: 1.25, outputUsdPerMTok: 10 },
+    "gemini-2.5-flash": { inputUsdPerMTok: 0.3, outputUsdPerMTok: 2.5 },
+    "gemini-2.5-flash-lite": { inputUsdPerMTok: 0.1, outputUsdPerMTok: 0.4 },
+    // 1.5 series — kept for back-compat with conversations whose personas
+    // still target these older model ids. New rows shouldn't see them.
     "gemini-1.5-pro": { inputUsdPerMTok: 1.25, outputUsdPerMTok: 5 },
     "gemini-1.5-flash": { inputUsdPerMTok: 0.075, outputUsdPerMTok: 0.3 },
   },
