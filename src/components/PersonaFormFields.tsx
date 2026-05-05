@@ -284,6 +284,21 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
               >
                 Observer
               </PresetButton>
+              {/* #266: fourth corner of the (sees, seen-by) matrix —
+                  fully isolated 'note to self' persona, neither sees
+                  others nor is seen by them. Reaching this state used
+                  to require manually unchecking every cell in two
+                  columns. */}
+              <PresetButton
+                role="private"
+                siblings={siblings}
+                onApply={(r) => {
+                  onVisDefsChange(r.visDefs);
+                  onSeenByEditsChange(r.seenByEdits);
+                }}
+              >
+                Private
+              </PresetButton>
             </div>
             <div>
               <span className="text-neutral-500">Can see responses from:</span>

@@ -266,7 +266,19 @@ function PersonaPanelExpanded({
                 await useMessagesStore.getState().load(conversation.id);
               }
               // #94 → #202: rebuild persona_visibility after defaults change.
-              if (patch.visibilityDefaults !== undefined || sbe) {
+              // #266: the form unconditionally includes visibilityDefaults
+              // in the patch (see PersonaRow.save), so the prior
+              // 'patch.visibilityDefaults !== undefined' guard fired on
+              // every save — wiping any manual matrix toggles whenever
+              // the user edited an unrelated field. Tighten the check
+              // to a deep-compare against the persona's stored value
+              // and only rebuild when defaults actually changed (or
+              // when the user made explicit cross-persona seenByEdits).
+              const visibilityDefaultsChanged =
+                patch.visibilityDefaults !== undefined &&
+                JSON.stringify(patch.visibilityDefaults) !==
+                  JSON.stringify(p.visibilityDefaults);
+              if (visibilityDefaultsChanged || sbe) {
                 const matrix = await rebuildVisibilityFromPersonaDefaults(
                   conversation.id,
                 );

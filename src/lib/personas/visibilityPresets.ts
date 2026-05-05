@@ -11,7 +11,7 @@
 
 import type { Persona } from "../types";
 
-export type VisibilityRole = "speaker" | "participant" | "observer";
+export type VisibilityRole = "speaker" | "participant" | "observer" | "private";
 
 export interface VisibilityPresetResult {
   // Keyed by sibling persona's nameSlug, matching the shape the
@@ -30,14 +30,20 @@ export interface VisibilityPresetResult {
 //                 everything,
 //                 contributes
 //                 invisibly.
+//   Private     — fully isolated;    sees=n  seen=n
+//                 doesn't listen
+//                 to others, isn't
+//                 heard by them
+//                 either. (#266 — a per-conversation 'note to self'
+//                 persona that operates independently.)
 //
-// Speaker and Observer are mirror opposites, which the test suite
-// double-checks. Full isolation (sees=n seen=n) isn't a preset
-// because it's rare and one hand-toggle away.
+// Speaker and Observer are mirror opposites; Private is the inverse
+// of Participant on both axes. The test suite double-checks both.
 const ROLE_TABLE: Record<VisibilityRole, { sees: "y" | "n"; seen: "y" | "n" }> = {
   speaker: { sees: "n", seen: "y" },
   participant: { sees: "y", seen: "y" },
   observer: { sees: "y", seen: "n" },
+  private: { sees: "n", seen: "n" },
 };
 
 export function applyVisibilityPreset(
