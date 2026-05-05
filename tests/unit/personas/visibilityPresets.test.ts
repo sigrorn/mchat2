@@ -49,6 +49,15 @@ describe("applyVisibilityPreset", () => {
     expect(r.seenByEdits).toEqual({ alice: "n", bob: "n", carol: "n" });
   });
 
+  it("Private: sees no one, seen by no one (#266)", () => {
+    // Diagonal of Speaker × Observer. Use case: a per-conversation
+    // 'note to self' persona that runs fully independently — neither
+    // listens to the room nor contributes back to it.
+    const r = applyVisibilityPreset("private", SIBLINGS);
+    expect(r.visDefs).toEqual({ alice: "n", bob: "n", carol: "n" });
+    expect(r.seenByEdits).toEqual({ alice: "n", bob: "n", carol: "n" });
+  });
+
   it("returns empty maps when there are no siblings", () => {
     const r = applyVisibilityPreset("participant", []);
     expect(r.visDefs).toEqual({});
@@ -64,13 +73,23 @@ describe("applyVisibilityPreset", () => {
     expect(Object.keys(r.seenByEdits)).toEqual(["mixed-case"]);
   });
 
-  it("the three roles cover the corners of the (sees, seen-by) matrix", () => {
-    // Useful sanity check: Participant is full-duplex; Speaker and
-    // Observer are mirror opposites; full-isolation isn't a preset
-    // (rare; user can hand-toggle if needed).
+  it("the four roles cover all corners of the (sees, seen-by) matrix (#266)", () => {
+    // Participant is full-duplex; Speaker and Observer are mirror
+    // opposites; Private is the fourth corner (full-isolation) added
+    // in #266 so a 'note to self' persona doesn't need every cell
+    // hand-toggled.
     const speaker = applyVisibilityPreset("speaker", SIBLINGS);
     const observer = applyVisibilityPreset("observer", SIBLINGS);
     expect(speaker.visDefs).toEqual(observer.seenByEdits);
     expect(speaker.seenByEdits).toEqual(observer.visDefs);
+    const participant = applyVisibilityPreset("participant", SIBLINGS);
+    const priv = applyVisibilityPreset("private", SIBLINGS);
+    // Private is the inverse of Participant on both axes.
+    for (const slug of ["alice", "bob", "carol"] as const) {
+      expect(priv.visDefs[slug]).toBe("n");
+      expect(participant.visDefs[slug]).toBe("y");
+      expect(priv.seenByEdits[slug]).toBe("n");
+      expect(participant.seenByEdits[slug]).toBe("y");
+    }
   });
 });
