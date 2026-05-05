@@ -121,7 +121,25 @@ export async function sendMessage(
   });
 
   // #105: post-response autocompact / context warnings.
-  void postResponseCheck(deps, conversation.id);
+  // #267: was `void postResponseCheck(...)` — fire-and-forget. That
+  // let postResponseCheck's writes (context-warning notices, autocompact
+  // floor moves, runCompaction summary inserts) race against the next
+  // user command's transaction. The race surfaced as SQLITE_BUSY on
+  // `//pop` when the user sent a message and immediately popped: the
+  // composer's `busy` gate cleared as soon as the stream finished, but
+  // postResponseCheck was still emitting writes. Inside `//pop`'s
+  // transaction, the bypass at sql.ts's `inSerializedSection` check let
+  // postResponseCheck's concurrent ops compete for the writer lock,
+  // failing with code 5. Awaiting closes the race: composer's busy
+  // gate stays held until postResponseCheck drains, so the next command
+  // can't fire until it's safe.
+  //
+  // For typical (non-autocompact) users, postResponseCheck does at most
+  // one appendNotice — milliseconds, imperceptible. For autocompact-on
+  // users it can run runCompaction (slow), and the next command waits;
+  // that's the correct UX since you don't want to send while the
+  // conversation is being summarised.
+  await postResponseCheck(deps, conversation.id);
 
   // #54: auto-title — fire-and-forget after the first user/assistant
   // exchange of a fresh conversation.
