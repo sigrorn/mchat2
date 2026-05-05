@@ -201,6 +201,41 @@ async function seedFlowWithStampedRun(
   return { flowId: "f_1", userStepId: "fs_0", personasStepId: "fs_1" };
 }
 
+describe("//pop multi-cycle integration (#267)", () => {
+  it("second //pop after a resend works the same as the first — no state leak between cycles", async () => {
+    handle = await createTestDb();
+    const conv = await seedConversation();
+    await seedTurn(conv.id, "first", "first reply");
+    const turn2 = await seedTurn(conv.id, "second", "second reply");
+
+    // First //pop — drops turn2.
+    const before1 = await messagesRepo.listMessages(conv.id);
+    const ctx1 = makeCtx(conv, before1);
+    const result1 = await handlePop(ctx1, { userNumber: null });
+    expect(result1).toEqual({ restoreText: "second" });
+    const after1 = await messagesRepo.listMessages(conv.id);
+    expect(after1.find((m) => m.id === turn2.user.id)).toBeUndefined();
+    expect(after1.find((m) => m.id === turn2.assistant.id)).toBeUndefined();
+
+    // Resend — seedTurn appends a fresh user/assistant pair after the
+    // pop notice, mirroring what production does after //pop.
+    const turn2v2 = await seedTurn(conv.id, "second", "second reply v2");
+
+    // Second //pop — must drop turn2v2 cleanly.
+    const before2 = await messagesRepo.listMessages(conv.id);
+    const ctx2 = makeCtx(conv, before2);
+    const result2 = await handlePop(ctx2, { userNumber: null });
+    expect(result2).toEqual({ restoreText: "second" });
+    const after2 = await messagesRepo.listMessages(conv.id);
+    expect(after2.find((m) => m.id === turn2v2.user.id)).toBeUndefined();
+    expect(after2.find((m) => m.id === turn2v2.assistant.id)).toBeUndefined();
+    // The first turn still survives; only one user message remains.
+    expect(after2.filter((m) => m.role === "user")).toHaveLength(1);
+    // Two pop notices accumulated, one per cycle.
+    expect(after2.filter((m) => m.role === "notice")).toHaveLength(2);
+  });
+});
+
 describe("//pop integration (#regression report 2026-04-27)", () => {
   it("removes the last user message and its assistant reply from the messages table", async () => {
     handle = await createTestDb();
