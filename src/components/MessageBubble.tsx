@@ -249,14 +249,27 @@ function MessageBubbleImpl({
       className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
-      <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-        <div className="min-w-0 truncate">
+      {/* #265: items-start (was items-center) so the timestamp anchors to
+          the top-right corner when the header wraps to a second line in
+          cols mode. */}
+      <div className="mb-1 flex items-start justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+        {/* #265: render each headerPart as its own whitespace-nowrap flex
+            item so the row can wrap at · boundaries when the column is
+            too narrow for the full PERSONA · PROVIDER · MODEL line.
+            Lines mode columns are wide enough that nothing wraps; cols
+            mode with many personas wraps exactly when needed. */}
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           {message.pinned ? (
             <span className="mr-1" aria-label="pinned">
               📌
             </span>
           ) : null}
-          {headerParts.join(" · ")}
+          {headerParts.map((part, i) => (
+            <span key={i} className="whitespace-nowrap">
+              {i > 0 ? <span className="mr-2 text-neutral-400">·</span> : null}
+              {part}
+            </span>
+          ))}
         </div>
         {/* #243: edit button (when present) sits left of the timestamp,
             timestamp anchors to the right edge of the row. tabular-nums
