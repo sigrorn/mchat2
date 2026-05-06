@@ -35,7 +35,6 @@ describe("runWithRecovery", () => {
 
   it("recovers from a non-Error throw by stringifying it", async () => {
     const r = await runWithRecovery("//pop", async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw "raw string thrown";
     });
     expect(r).toEqual({
