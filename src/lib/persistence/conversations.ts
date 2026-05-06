@@ -7,11 +7,17 @@
 //                lib/persistence/schema.ts.
 // ------------------------------------------------------------------
 
+import type { Kysely } from "kysely";
 import { db } from "./db";
-import type { ConversationsTable } from "./schema";
+import type { ConversationsTable, Database } from "./schema";
 import type { Conversation, ProviderId } from "../types";
 import { newConversationId } from "./ids";
 import { parseAutocompactThreshold } from "../schemas/conversationJsonColumns";
+
+// #267: see lib/persistence/messages.ts header note about the
+// optional Kysely arg threaded through repos called inside
+// transactions. Only updateConversation (used by compaction's
+// setCompactionFloor inline path) needs it today.
 
 // #193: selectedPersonas comes from conversation_personas_selected.
 // #196: contextWarningsFired comes from conversation_context_warnings.
@@ -62,13 +68,14 @@ async function loadSelectedPersonasMap(
 async function writeSelectedPersonas(
   conversationId: string,
   personaIds: readonly string[],
+  dbi: Kysely<Database> = db,
 ): Promise<void> {
-  await db
+  await dbi
     .deleteFrom("conversation_personas_selected")
     .where("conversation_id", "=", conversationId)
     .execute();
   if (personaIds.length === 0) return;
-  await db
+  await dbi
     .insertInto("conversation_personas_selected")
     .values(personaIds.map((pid) => ({ conversation_id: conversationId, persona_id: pid })))
     .execute();
@@ -161,15 +168,16 @@ async function loadVisibilityMatrixMap(
 export async function writeVisibilityMatrix(
   conversationId: string,
   matrix: Record<string, string[]>,
+  dbi: Kysely<Database> = db,
 ): Promise<void> {
-  const personas = await db
+  const personas = await dbi
     .selectFrom("personas")
     .select(["id", "name_slug"])
     .where("conversation_id", "=", conversationId)
     .where("deleted_at", "is", null)
     .execute();
   const idToSlug = new Map(personas.map((p) => [p.id, p.name_slug]));
-  await db
+  await dbi
     .deleteFrom("persona_visibility")
     .where("conversation_id", "=", conversationId)
     .execute();
@@ -194,20 +202,21 @@ export async function writeVisibilityMatrix(
     }
   }
   if (inserts.length === 0) return;
-  await db.insertInto("persona_visibility").values(inserts).execute();
+  await dbi.insertInto("persona_visibility").values(inserts).execute();
 }
 
 async function writeContextWarnings(
   conversationId: string,
   thresholds: readonly number[],
   now: number,
+  dbi: Kysely<Database> = db,
 ): Promise<void> {
-  await db
+  await dbi
     .deleteFrom("conversation_context_warnings")
     .where("conversation_id", "=", conversationId)
     .execute();
   if (thresholds.length === 0) return;
-  await db
+  await dbi
     .insertInto("conversation_context_warnings")
     .values(
       thresholds.map((t) => ({
@@ -330,12 +339,15 @@ export async function createConversation(
   return conv;
 }
 
-export async function updateConversation(conv: Conversation): Promise<void> {
+export async function updateConversation(
+  conv: Conversation,
+  dbi: Kysely<Database> = db,
+): Promise<void> {
   // Kysely's set({...}) keeps the call short; the values builder
   // matches the same JSON-encoding logic as createConversation
   // (sharing conversationToRow ensures both paths agree).
   const row = conversationToRow(conv);
-  await db
+  await dbi
     .updateTable("conversations")
     .set({
       title: row.title,
@@ -354,7 +366,7 @@ export async function updateConversation(conv: Conversation): Promise<void> {
     })
     .where("id", "=", conv.id)
     .execute();
-  await writeSelectedPersonas(conv.id, conv.selectedPersonas);
+  await writeSelectedPersonas(conv.id, conv.selectedPersonas, dbi);
   // #196: rewrite warning rows. fired_at uses the current time; the
   // legacy JSON form had no per-threshold timestamp anyway, and
   // setContextWarningsFired in conversationsStore is the only writer
@@ -364,12 +376,13 @@ export async function updateConversation(conv: Conversation): Promise<void> {
     conv.id,
     conv.contextWarningsFired ?? [],
     Date.now(),
+    dbi,
   );
   // #202: persona_visibility is now the read source for visibilityMatrix;
   // dual-write here so every UpdateConversation rewrite of the matrix
   // is reflected relationally. Reads in the same flow will see this
   // immediately on the next loadVisibilityMatrixMap call.
-  await writeVisibilityMatrix(conv.id, conv.visibilityMatrix);
+  await writeVisibilityMatrix(conv.id, conv.visibilityMatrix, dbi);
 }
 
 export async function deleteConversation(id: string): Promise<void> {

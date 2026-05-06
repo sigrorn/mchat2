@@ -92,18 +92,27 @@ export async function replayMessage(
   const supersededAssistantIds = edited
     ? history.filter((m) => m.role === "assistant" && m.index > edited.index).map((m) => m.id)
     : [];
-  await transaction(async () => {
-    await messagesRepo.applyMessageMutation({
-      id: plan.update.id,
-      content: plan.update.content,
-      addressedTo: plan.update.addressedTo,
-    });
+  // #267: pass txn.db to repo calls so they bypass the global op
+  // queue (which the section is holding).
+  await transaction(async (txn) => {
+    await messagesRepo.applyMessageMutation(
+      {
+        id: plan.update.id,
+        content: plan.update.content,
+        addressedTo: plan.update.addressedTo,
+      },
+      txn.db,
+    );
     // #206: stamp the trailing assistant rows as superseded so the
     // UI hides them and the context builder skips them. Done inside
     // the transaction with the message edit so a partial failure
     // can't leave the chat half-replaced.
     if (supersededAssistantIds.length > 0) {
-      await messagesRepo.markMessagesSuperseded(supersededAssistantIds, Date.now());
+      await messagesRepo.markMessagesSuperseded(
+        supersededAssistantIds,
+        Date.now(),
+        txn.db,
+      );
     }
   });
   await deps.reloadMessages(conversation.id);

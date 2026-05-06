@@ -9,8 +9,15 @@
 //                lib/app/sendMessage (cursor advancement, slice 5).
 // ------------------------------------------------------------------
 
+import type { Kysely } from "kysely";
 import { db } from "./db";
+import type { Database } from "./schema";
 import type { Flow, FlowDraft, FlowStep } from "../types/flow";
+
+// #267: see lib/persistence/messages.ts header note about the
+// optional Kysely arg threaded through repos called inside
+// transactions. upsertFlow + getFlow are reachable from
+// fileOps's persona import transaction.
 
 const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 function randId(len: number): string {
@@ -23,14 +30,17 @@ function randId(len: number): string {
 const newFlowId = (): string => `flow_${randId(10)}`;
 const newStepId = (): string => `fs_${randId(10)}`;
 
-export async function getFlow(conversationId: string): Promise<Flow | null> {
-  const flowRow = await db
+export async function getFlow(
+  conversationId: string,
+  dbi: Kysely<Database> = db,
+): Promise<Flow | null> {
+  const flowRow = await dbi
     .selectFrom("flows")
     .selectAll()
     .where("conversation_id", "=", conversationId)
     .executeTakeFirst();
   if (!flowRow) return null;
-  const stepRows = await db
+  const stepRows = await dbi
     .selectFrom("flow_steps")
     .selectAll()
     .where("flow_id", "=", flowRow.id)
@@ -40,7 +50,7 @@ export async function getFlow(conversationId: string): Promise<Flow | null> {
   const personaRows =
     stepIds.length === 0
       ? []
-      : await db
+      : await dbi
           .selectFrom("flow_step_personas")
           .selectAll()
           .where("flow_step_id", "in", stepIds)
@@ -94,10 +104,11 @@ function validateDraft(draft: FlowDraft): void {
 export async function upsertFlow(
   conversationId: string,
   draft: FlowDraft,
+  dbi: Kysely<Database> = db,
 ): Promise<Flow> {
   validateDraft(draft);
 
-  const existing = await db
+  const existing = await dbi
     .selectFrom("flows")
     .selectAll()
     .where("conversation_id", "=", conversationId)
@@ -107,7 +118,7 @@ export async function upsertFlow(
   const loopStart = draft.loopStartIndex ?? 0;
 
   if (existing) {
-    await db
+    await dbi
       .updateTable("flows")
       .set({
         current_step_index: draft.currentStepIndex,
@@ -116,9 +127,9 @@ export async function upsertFlow(
       .where("id", "=", flowId)
       .execute();
     // CASCADE deletes step rows + step-persona junction rows.
-    await db.deleteFrom("flow_steps").where("flow_id", "=", flowId).execute();
+    await dbi.deleteFrom("flow_steps").where("flow_id", "=", flowId).execute();
   } else {
-    await db
+    await dbi
       .insertInto("flows")
       .values({
         id: flowId,
@@ -137,7 +148,7 @@ export async function upsertFlow(
     // with an empty hidden note).
     const trimmedInstruction = s.instruction?.trim();
     const instructionToStore = trimmedInstruction ? trimmedInstruction : null;
-    await db
+    await dbi
       .insertInto("flow_steps")
       .values({
         id: stepId,
@@ -148,7 +159,7 @@ export async function upsertFlow(
       })
       .execute();
     if (s.personaIds.length > 0) {
-      await db
+      await dbi
         .insertInto("flow_step_personas")
         .values(
           s.personaIds.map((pid) => ({
@@ -160,7 +171,7 @@ export async function upsertFlow(
     }
   }
 
-  const fresh = await getFlow(conversationId);
+  const fresh = await getFlow(conversationId, dbi);
   if (!fresh) throw new Error("upsertFlow: failed to read back persisted flow");
   return fresh;
 }

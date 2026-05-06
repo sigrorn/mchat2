@@ -11,7 +11,6 @@
 import type { AutocompactThreshold } from "@/lib/types";
 import { runCompaction, formatPersonaLine } from "@/lib/conversations/runCompaction";
 import { formatStats } from "@/lib/commands/stats";
-import { transaction } from "@/lib/persistence/transaction";
 import type { CommandContext, CommandResult } from "./types";
 
 export async function handleAutocompact(
@@ -103,11 +102,12 @@ export async function handleCompact(
   }
   await ctx.deps.reloadMessages(conversation.id);
   // #240: limit_mark_index column dropped along with //limit. Compaction
-  // now only moves the floor. (#164's transaction is preserved as a
-  // single-write to keep the rollback semantics stable.)
-  await transaction(async () => {
-    await ctx.deps.setCompactionFloor(conversation.id, result.cutoff);
-  });
+  // now only moves the floor.
+  // #267: vestigial transaction() wrapper dropped — once #240 reduced
+  // this to a single write, the transaction added no atomicity over
+  // SQLite's per-statement guarantee. Keeping it would have required
+  // threading ctx.db through the deps abstraction with no payoff.
+  await ctx.deps.setCompactionFloor(conversation.id, result.cutoff);
   const lines = [
     `compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,
   ];

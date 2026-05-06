@@ -5,8 +5,14 @@
 //                 Lets typed queries run against both the Tauri
 //                 plugin-sql bridge (production) and sql.js (tests)
 //                 without forking the test seam.
+//                 #267: factored the dialect to bind to an arbitrary
+//                 SqlImpl. The exported `db` is bound to the public
+//                 (queued) sql; transactions get their own Kysely via
+//                 `makeKyselyFor(raw)` bound to the raw impl so the
+//                 transaction body's queries bypass the queue.
 // Collaborators: lib/tauri/sql (the underlying impl), repo files
-//                migrating to Kysely (#190, #191), schema.ts.
+//                migrating to Kysely (#190, #191), schema.ts,
+//                lib/persistence/transaction.ts (uses makeKyselyFor).
 // ------------------------------------------------------------------
 
 import {
@@ -22,10 +28,12 @@ import {
   type TransactionSettings,
 } from "kysely";
 
-import { sql as ourSql } from "../tauri/sql";
+import { sql as ourSql, type SqlImpl } from "../tauri/sql";
 import type { Database } from "./schema";
 
 class MchatKyselyConnection implements DatabaseConnection {
+  constructor(private readonly impl: SqlImpl) {}
+
   async executeQuery<R>(query: CompiledQuery): Promise<QueryResult<R>> {
     const isSelect =
       /^\s*(?:WITH\b[\s\S]*?)?SELECT\b/i.test(query.sql) || /\bRETURNING\b/i.test(query.sql);
@@ -34,10 +42,10 @@ class MchatKyselyConnection implements DatabaseConnection {
     // copy is the cleanest cross.
     const params = [...query.parameters];
     if (isSelect) {
-      const rows = await ourSql.select<R>(query.sql, params);
+      const rows = await this.impl.select<R>(query.sql, params);
       return { rows };
     }
-    const result = await ourSql.execute(query.sql, params);
+    const result = await this.impl.execute(query.sql, params);
     const baseResult: QueryResult<R> = {
       rows: [],
       numAffectedRows: BigInt(result.rowsAffected),
@@ -57,11 +65,12 @@ class MchatKyselyConnection implements DatabaseConnection {
 
 class MchatKyselyDriver implements Driver {
   private connection: MchatKyselyConnection | null = null;
+  constructor(private readonly impl: SqlImpl) {}
   async init(): Promise<void> {
-    this.connection = new MchatKyselyConnection();
+    this.connection = new MchatKyselyConnection(this.impl);
   }
   async acquireConnection(): Promise<DatabaseConnection> {
-    if (!this.connection) this.connection = new MchatKyselyConnection();
+    if (!this.connection) this.connection = new MchatKyselyConnection(this.impl);
     return this.connection;
   }
   // Transactions go through the SqlImpl directly today (see
@@ -89,11 +98,12 @@ class MchatKyselyDriver implements Driver {
 }
 
 class MchatKyselyDialect implements Dialect {
+  constructor(private readonly impl: SqlImpl) {}
   createAdapter() {
     return new SqliteAdapter();
   }
   createDriver(): Driver {
-    return new MchatKyselyDriver();
+    return new MchatKyselyDriver(this.impl);
   }
   createIntrospector(db: Kysely<unknown>) {
     return new SqliteIntrospector(db);
@@ -103,8 +113,21 @@ class MchatKyselyDialect implements Dialect {
   }
 }
 
-// Single Kysely instance shared by every repo that migrates onto it.
-// It's safe to reuse across SqlImpl swaps (e.g. test setup calling
-// __setImpl) because the instance dispatches through the global
-// `ourSql` reference at execute time, not at construction.
-export const db: Kysely<Database> = new Kysely<Database>({ dialect: new MchatKyselyDialect() });
+// Production Kysely — bound to the public queued `sql`. Every repo
+// that imports `db` from here gets queued behavior.
+export const db: Kysely<Database> = new Kysely<Database>({
+  dialect: new MchatKyselyDialect(ourSql),
+});
+
+/**
+ * Build a Kysely instance bound to a specific SqlImpl. Used by the
+ * transaction helper to give the transaction body a queue-bypassing
+ * Kysely (`TxnContext.db`) — without this, repo functions called
+ * inside a transaction body would re-enter the queue and deadlock.
+ *
+ * Cheap to construct: Kysely is stateless; a fresh instance per
+ * transaction is fine.
+ */
+export function makeKyselyFor(impl: SqlImpl): Kysely<Database> {
+  return new Kysely<Database>({ dialect: new MchatKyselyDialect(impl) });
+}

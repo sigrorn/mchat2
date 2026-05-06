@@ -9,10 +9,15 @@
 // Collaborators: personas/service.ts, personas/resolver.ts, ids.ts.
 // ------------------------------------------------------------------
 
+import type { Kysely } from "kysely";
 import { db } from "./db";
-import type { PersonasTable } from "./schema";
+import type { Database, PersonasTable } from "./schema";
 import type { Persona, ProviderId } from "../types";
 import { newPersonaId } from "./ids";
+
+// #267: see lib/persistence/messages.ts header note about the
+// optional Kysely arg threaded through repos called inside
+// transactions.
 
 function rowToPersona(r: PersonasTable): Persona {
   return {
@@ -92,8 +97,9 @@ function parseVisibilityDefaults(raw: string): Record<string, "y" | "n"> {
 export async function listPersonas(
   conversationId: string,
   includeDeleted = false,
+  dbi: Kysely<Database> = db,
 ): Promise<Persona[]> {
-  let q = db
+  let q = dbi
     .selectFrom("personas")
     .selectAll()
     .where("conversation_id", "=", conversationId);
@@ -102,8 +108,11 @@ export async function listPersonas(
   return rows.map(rowToPersona);
 }
 
-export async function getPersona(id: string): Promise<Persona | null> {
-  const row = await db
+export async function getPersona(
+  id: string,
+  dbi: Kysely<Database> = db,
+): Promise<Persona | null> {
+  const row = await dbi
     .selectFrom("personas")
     .selectAll()
     .where("id", "=", id)
@@ -136,15 +145,19 @@ function personaToRow(p: Persona): PersonasTable {
 
 export async function createPersona(
   partial: Omit<Persona, "id"> & { id?: string },
+  dbi: Kysely<Database> = db,
 ): Promise<Persona> {
   const p: Persona = { ...partial, id: partial.id ?? newPersonaId() };
-  await db.insertInto("personas").values(personaToRow(p)).execute();
+  await dbi.insertInto("personas").values(personaToRow(p)).execute();
   return p;
 }
 
-export async function updatePersona(p: Persona): Promise<void> {
+export async function updatePersona(
+  p: Persona,
+  dbi: Kysely<Database> = db,
+): Promise<void> {
   const row = personaToRow(p);
-  await db
+  await dbi
     .updateTable("personas")
     .set({
       provider: row.provider,

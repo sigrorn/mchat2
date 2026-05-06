@@ -10,12 +10,19 @@
 //                lib/persistence/schema.ts.
 // ------------------------------------------------------------------
 
+import type { Kysely } from "kysely";
 import { sql as ourSql } from "../tauri/sql";
 import { db } from "./db";
-import type { MessagesTable } from "./schema";
+import type { Database, MessagesTable } from "./schema";
 import type { Message, ProviderId, DisplayMode, Role } from "../types";
 import { newMessageId } from "./ids";
 import { parseAddressedTo, parseAudience } from "../schemas/messageJsonColumns";
+
+// #267: every repo function that may run inside a transaction takes an
+// optional Kysely instance (default: the global queued `db`). When a
+// transaction body calls a repo, it passes its own ctx.db (a Kysely
+// bound to the raw, queue-bypassing impl) so the call doesn't deadlock
+// waiting on the queue head the section already holds.
 
 function rowToMessage(r: MessagesTable): Message {
   return {
@@ -77,8 +84,11 @@ function messageToRow(msg: Message): MessagesTable {
   };
 }
 
-export async function listMessages(conversationId: string): Promise<Message[]> {
-  const rows = await db
+export async function listMessages(
+  conversationId: string,
+  dbi: Kysely<Database> = db,
+): Promise<Message[]> {
+  const rows = await dbi
     .selectFrom("messages")
     .selectAll()
     .where("conversation_id", "=", conversationId)
@@ -92,8 +102,8 @@ export async function getMessage(id: string): Promise<Message | null> {
   return row ? rowToMessage(row) : null;
 }
 
-async function nextIndex(conversationId: string): Promise<number> {
-  const row = await db
+async function nextIndex(conversationId: string, dbi: Kysely<Database>): Promise<number> {
+  const row = await dbi
     .selectFrom("messages")
     .select((eb) => eb.fn.coalesce(eb.fn.max("idx"), eb.lit(-1)).as("last"))
     .where("conversation_id", "=", conversationId)
@@ -107,15 +117,23 @@ async function nextIndex(conversationId: string): Promise<number> {
 const appendChain: Map<string, Promise<unknown>> = new Map();
 
 // index, id, createdAt are assigned here so callers never race on them.
+// #267: when called inside a transaction, the caller passes ctx.db so the
+// inserts go through the section's raw impl (otherwise they'd queue and
+// deadlock waiting for the section that holds the queue head). Skips
+// the appendChain in that case — the section is the only writer in
+// flight, so the chain's per-conversation index serialization isn't
+// needed.
 export async function appendMessage(
   partial: Omit<Message, "id" | "index" | "createdAt"> & {
     id?: string;
     createdAt?: number;
   },
+  dbi?: Kysely<Database>,
 ): Promise<Message> {
+  if (dbi !== undefined) return doAppend(partial, dbi);
   const convId = partial.conversationId;
   const prev = appendChain.get(convId) ?? Promise.resolve();
-  const next = prev.then(() => doAppend(partial));
+  const next = prev.then(() => doAppend(partial, db));
   appendChain.set(
     convId,
     next.catch(() => undefined),
@@ -128,21 +146,22 @@ async function doAppend(
     id?: string;
     createdAt?: number;
   },
+  dbi: Kysely<Database>,
 ): Promise<Message> {
-  const idx = await nextIndex(partial.conversationId);
+  const idx = await nextIndex(partial.conversationId, dbi);
   const msg: Message = {
     ...partial,
     id: partial.id ?? newMessageId(),
     index: idx,
     createdAt: partial.createdAt ?? Date.now(),
   };
-  await db.insertInto("messages").values(messageToRow(msg)).execute();
+  await dbi.insertInto("messages").values(messageToRow(msg)).execute();
   // #250: bump the conversation's last_message_at so the sidebar's
   // unread dot lights up the moment a new row lands. Done inline here
   // (rather than as a separate caller responsibility) so every code
   // path that produces messages — sends, replays, retries, notices,
   // streaming placeholders — stays in sync without extra plumbing.
-  await db
+  await dbi
     .updateTable("conversations")
     .set({ last_message_at: msg.createdAt })
     .where("id", "=", msg.conversationId)
@@ -155,8 +174,9 @@ export async function updateMessageContent(
   content: string,
   errorMessage: string | null,
   errorTransient: boolean,
+  dbi: Kysely<Database> = db,
 ): Promise<void> {
-  await db
+  await dbi
     .updateTable("messages")
     .set({ content, error_message: errorMessage, error_transient: errorTransient ? 1 : 0 })
     .where("id", "=", id)
@@ -167,13 +187,13 @@ export async function updateMessageContent(
   // from. The token-pump's per-batch patches don't bump the column
   // (DB cost), so this is the moment the user's "is the answer
   // ready?" signal lands.
-  const row = await db
+  const row = await dbi
     .selectFrom("messages")
     .select(["conversation_id"])
     .where("id", "=", id)
     .executeTakeFirst();
   if (row) {
-    await db
+    await dbi
       .updateTable("conversations")
       .set({ last_message_at: Date.now() })
       .where("id", "=", row.conversation_id)
@@ -257,13 +277,16 @@ export async function updateMessageTiming(
 // Apply a partial mutation to a message row. Used by the persona-
 // deletion cleanup and the edit/replay flow so callers can issue one
 // UPDATE per affected row touching only the columns that changed.
-export async function applyMessageMutation(mutation: {
-  id: string;
-  pinned?: boolean;
-  pinTarget?: string | null;
-  addressedTo?: string[];
-  content?: string;
-}): Promise<void> {
+export async function applyMessageMutation(
+  mutation: {
+    id: string;
+    pinned?: boolean;
+    pinTarget?: string | null;
+    addressedTo?: string[];
+    content?: string;
+  },
+  dbi: Kysely<Database> = db,
+): Promise<void> {
   const updates: Partial<MessagesTable> = {};
   if (mutation.pinned !== undefined) updates.pinned = mutation.pinned ? 1 : 0;
   if (mutation.pinTarget !== undefined) updates.pin_target = mutation.pinTarget;
@@ -271,7 +294,7 @@ export async function applyMessageMutation(mutation: {
     updates.addressed_to = JSON.stringify(mutation.addressedTo);
   if (mutation.content !== undefined) updates.content = mutation.content;
   if (Object.keys(updates).length === 0) return;
-  await db.updateTable("messages").set(updates).where("id", "=", mutation.id).execute();
+  await dbi.updateTable("messages").set(updates).where("id", "=", mutation.id).execute();
 }
 
 // Insert a message at an explicit `idx`. Caller must ensure the slot
@@ -319,8 +342,12 @@ export async function shiftMessageIndicesFrom(
 // Truncate the tail of a conversation — used by edit/replay (#44) to
 // drop every row after the edited user message so the regenerated
 // replies take their place.
-export async function deleteMessagesAfter(conversationId: string, index: number): Promise<void> {
-  await db
+export async function deleteMessagesAfter(
+  conversationId: string,
+  index: number,
+  dbi: Kysely<Database> = db,
+): Promise<void> {
+  await dbi
     .deleteFrom("messages")
     .where("conversation_id", "=", conversationId)
     .where("idx", ">", index)
@@ -364,9 +391,10 @@ export async function setMessageConfirmed(id: string, at: number): Promise<void>
 export async function markMessagesSuperseded(
   ids: readonly string[],
   at: number,
+  dbi: Kysely<Database> = db,
 ): Promise<void> {
   if (ids.length === 0) return;
-  await db
+  await dbi
     .updateTable("messages")
     .set({ superseded_at: at })
     .where("id", "in", ids)

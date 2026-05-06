@@ -3,10 +3,14 @@
 // Responsibility: Auto-maintain the pinned user-role message that
 //                 tells a persona to refer to itself by its name,
 //                 and emit an "Added persona" notice for the user.
+//                 #267: optional Kysely arg threaded through so the
+//                 fileOps import transaction can pass txn.db.
 // Collaborators: persistence/messages.ts (via injected repo),
 //                personas/service.ts callers after create/rename.
 // ------------------------------------------------------------------
 
+import type { Kysely } from "kysely";
+import type { Database } from "../persistence/schema";
 import type { Message, Persona } from "../types";
 
 export function buildIdentityPinContent(name: string): string {
@@ -41,12 +45,14 @@ export interface IdentityPinRepo {
       id?: string;
       createdAt?: number;
     },
+    dbi?: Kysely<Database>,
   ): Promise<Message>;
   updateMessageContent(
     id: string,
     content: string,
     errorMessage?: string | null,
     errorTransient?: boolean,
+    dbi?: Kysely<Database>,
   ): Promise<void>;
 }
 
@@ -56,6 +62,7 @@ export async function ensureIdentityPin(
   messages: readonly Message[],
   repo: IdentityPinRepo,
   scope: "inherit" | { newAtMsg: number } = "inherit",
+  dbi?: Kysely<Database>,
 ): Promise<void> {
   const expectedInstruction = buildIdentityPinContent(persona.name);
 
@@ -67,10 +74,16 @@ export async function ensureIdentityPin(
 
   if (existingInstruction) {
     if (existingInstruction.content !== expectedInstruction) {
-      await repo.updateMessageContent(existingInstruction.id, expectedInstruction, null, false);
+      await repo.updateMessageContent(
+        existingInstruction.id,
+        expectedInstruction,
+        null,
+        false,
+        dbi,
+      );
     }
   } else {
-    await appendPin(conversationId, persona.id, expectedInstruction, repo);
+    await appendPin(conversationId, persona.id, expectedInstruction, repo, dbi);
   }
 
   // #88: "Added persona" is a notice (user-facing only, not sent to LLMs).
@@ -82,24 +95,27 @@ export async function ensureIdentityPin(
   const legacySetup = ownPins.find((m) => isSetupNote(m.content));
 
   if (!existingSetup && !legacySetup) {
-    await repo.appendMessage({
-      conversationId,
-      role: "notice",
-      content: expectedSetup,
-      provider: null,
-      model: null,
-      personaId: null,
-      displayMode: "lines",
-      pinned: false,
-      pinTarget: null,
-      addressedTo: [],
-      errorMessage: null,
-      errorTransient: false,
-      inputTokens: 0,
-      outputTokens: 0,
-      usageEstimated: false,
-      audience: [],
-    });
+    await repo.appendMessage(
+      {
+        conversationId,
+        role: "notice",
+        content: expectedSetup,
+        provider: null,
+        model: null,
+        personaId: null,
+        displayMode: "lines",
+        pinned: false,
+        pinTarget: null,
+        addressedTo: [],
+        errorMessage: null,
+        errorTransient: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        usageEstimated: false,
+        audience: [],
+      },
+      dbi,
+    );
   }
 }
 
@@ -108,23 +124,27 @@ async function appendPin(
   personaId: string,
   content: string,
   repo: IdentityPinRepo,
+  dbi?: Kysely<Database>,
 ): Promise<void> {
-  await repo.appendMessage({
-    conversationId,
-    role: "user",
-    content,
-    provider: null,
-    model: null,
-    personaId: null,
-    displayMode: "lines",
-    pinned: true,
-    pinTarget: personaId,
-    addressedTo: [],
-    errorMessage: null,
-    errorTransient: false,
-    inputTokens: 0,
-    outputTokens: 0,
-    usageEstimated: false,
-    audience: [],
-  });
+  await repo.appendMessage(
+    {
+      conversationId,
+      role: "user",
+      content,
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: true,
+      pinTarget: personaId,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    },
+    dbi,
+  );
 }

@@ -18,8 +18,10 @@
  * - Report `rowsAffected` as the number of rows changed by the most
  *   recent statement (UPDATE / DELETE / INSERT).
  *
- * The production impl is plugin-sql; tests use the sql.js adapter
- * from lib/testing/sqljsAdapter.
+ * Implementations are raw drivers — they do NOT serialize. The op
+ * queue lives one layer up, in the public `sql` export below; the
+ * driver is whatever's been installed (production plugin-sql, sql.js
+ * test adapter, or a unit-test mock).
  */
 export interface SqlImpl {
   execute(
@@ -53,89 +55,97 @@ interface SqliteDatabase {
   close(): Promise<boolean>;
 }
 
-// #206: Tauri's plugin-sql v2 wraps sqlx::SqlitePool with multiple
+// Production raw driver — talks to plugin-sql directly. No queue here;
+// the queue lives in `sql` below. Tests swap this via __setImpl with
+// the sql.js adapter (lib/testing/sqljsAdapter), which is also raw.
+const productionRawImpl: SqlImpl = {
+  async execute(sql, params) {
+    const db = await openDb();
+    const r = await db.execute(sql, params);
+    return { rowsAffected: r.rowsAffected, lastInsertId: r.lastInsertId ?? null };
+  },
+  async select<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
+    const db = await openDb();
+    return db.select<T>(sql, params);
+  },
+  async close() {
+    if (!cached) return;
+    await (cached as SqliteDatabase).close();
+    cached = null;
+  },
+};
+
+let impl: SqlImpl = productionRawImpl;
+
+// #206 / #267: Tauri's plugin-sql v2 wraps sqlx::SqlitePool with multiple
 // connections (default 10), offers no after_connect hook, no
 // `connect_with(SqliteConnectOptions)`, and rejects busy_timeout /
 // journal_mode as URL params. Two pool connections concurrently
-// running BEGIN IMMEDIATE collide as 'database is locked'; a stuck
-// transaction on one pool connection from a prior failed COMMIT
-// surfaces as 'cannot start a transaction within a transaction'.
+// running BEGIN IMMEDIATE collide as 'database is locked'.
 //
 // Workaround: serialize every db operation through one async queue.
 // With no concurrent demand, sqlx's pool keeps returning its idle
 // most-recently-released connection — effectively a single-connection
 // pool from the JS side.
 //
-// Per-statement serialization ALONE doesn't atomically group multi-
-// statement transactions: parallel transactions could interleave as
-// BEGIN_A, BEGIN_B, DELETE_A, COMMIT_B, ... To handle that,
-// `withSerializedSection` holds the queue for the entire duration of
-// a multi-statement section (i.e. transaction(BEGIN/.../COMMIT)),
-// and individual ops inside that section bypass the queue (they're
-// already protected by the held lock).
+// #267: the queue used to live inside the impl, with a global
+// `inSerializedSection` flag that bypassed the queue while a
+// transaction was open. Unrelated fire-and-forget DB writes hit
+// that bypass and raced for the writer lock against the transaction.
+// The queue now sits at the public `sql` export and admits NO
+// bypass; sections receive a raw SqlImpl threaded into their body
+// for their own writes.
 let opQueue: Promise<unknown> = Promise.resolve();
-let inSerializedSection = false;
 
-function serializeOp<T>(fn: () => Promise<T>): Promise<T> {
-  if (inSerializedSection) return fn();
+function queueOp<T>(fn: () => Promise<T>): Promise<T> {
   const next = opQueue.then(fn, fn);
   opQueue = next.catch(() => undefined);
   return next;
 }
 
 /**
- * Hold the global op queue for the duration of `fn`, so multi-step
- * transactions land sequentially and atomically on a single sqlx
- * pool connection. While inside the section, individual sql.execute
- * / sql.select calls bypass the queue (they would otherwise re-enter
- * and deadlock waiting on the queue they themselves hold).
+ * Public SQL surface. Every call queues — no exceptions. Everywhere
+ * outside the body of a `withSerializedSection` / `transaction()` uses
+ * this; the body itself receives a separate raw SqlImpl for its own
+ * writes (otherwise it would deadlock waiting for the queue head it
+ * already holds).
  */
-export function withSerializedSection<T>(fn: () => Promise<T>): Promise<T> {
-  return serializeOp(async () => {
-    inSerializedSection = true;
-    try {
-      return await fn();
-    } finally {
-      inSerializedSection = false;
-    }
+export const sql: SqlImpl = {
+  execute: (q, p) => queueOp(() => impl.execute(q, p)),
+  select: <T = Record<string, unknown>>(q: string, p?: unknown[]): Promise<T[]> =>
+    queueOp(() => impl.select<T>(q, p)),
+  close: () => queueOp(() => impl.close()),
+};
+
+/**
+ * Hold the global op queue for the duration of `fn`. Inside the body,
+ * the section owns the queue head — external `sql.execute` /
+ * `sql.select` calls land in the queue and wait for the section to
+ * release. The body receives a raw SqlImpl that bypasses the queue;
+ * pass it (or a Kysely instance bound to it via TxnContext.db) to
+ * any repo function the section calls, otherwise the queued repo
+ * call deadlocks waiting on the section that holds the queue.
+ */
+export function withSerializedSection<T>(
+  fn: (raw: SqlImpl) => Promise<T>,
+): Promise<T> {
+  return queueOp(async () => {
+    // Raw surface: routes through the currently-installed driver
+    // (production / sql.js / mock) without re-entering queueOp.
+    const raw: SqlImpl = {
+      execute: (q, p) => impl.execute(q, p),
+      select: <T = Record<string, unknown>>(q: string, p?: unknown[]): Promise<T[]> =>
+        impl.select<T>(q, p),
+      close: () => impl.close(),
+    };
+    return await fn(raw);
   });
 }
-
-const defaultImpl: SqlImpl = {
-  async execute(sql, params) {
-    return serializeOp(async () => {
-      const db = await openDb();
-      const r = await db.execute(sql, params);
-      return { rowsAffected: r.rowsAffected, lastInsertId: r.lastInsertId ?? null };
-    });
-  },
-  async select<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
-    return serializeOp(async () => {
-      const db = await openDb();
-      return db.select<T>(sql, params);
-    });
-  },
-  async close() {
-    return serializeOp(async () => {
-      if (!cached) return;
-      await (cached as SqliteDatabase).close();
-      cached = null;
-    });
-  },
-};
-
-let impl: SqlImpl = defaultImpl;
-
-export const sql = {
-  execute: (q: string, p?: unknown[]) => impl.execute(q, p),
-  select: <T = Record<string, unknown>>(q: string, p?: unknown[]) => impl.select<T>(q, p),
-  close: () => impl.close(),
-};
 
 export function __setImpl(mock: SqlImpl): void {
   impl = mock;
 }
 
 export function __resetImpl(): void {
-  impl = defaultImpl;
+  impl = productionRawImpl;
 }

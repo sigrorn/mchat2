@@ -69,7 +69,9 @@ export async function importPersonasFromFile(
   // A mid-import failure used to leave half-created personas with no
   // pins and dangling runsAfter references; wrapping the whole sequence
   // in a transaction makes the import either fully apply or not at all.
-  const { created, skipped, visibilityWarnings } = await transaction(async () => {
+  // #267: txn.db threaded through every repo / service call inside the
+  // body so they bypass the global op queue (held by the section).
+  const { created, skipped, visibilityWarnings } = await transaction(async (txn) => {
     const created: Persona[] = [];
     // Two-pass for runsAfter: first create everything without parent
     // links, then patch them in once all ids exist.
@@ -81,16 +83,19 @@ export async function importPersonasFromFile(
       if (entry.apertusProductId && legacyApertusProductId === null) {
         legacyApertusProductId = entry.apertusProductId;
       }
-      const p = await createPersona({
-        conversationId,
-        provider: entry.provider,
-        name: entry.name,
-        systemPromptOverride: entry.systemPromptOverride,
-        modelOverride: entry.modelOverride,
-        colorOverride: entry.colorOverride,
-        visibilityDefaults: entry.visibilityDefaults,
-        currentMessageIndex,
-      });
+      const p = await createPersona(
+        {
+          conversationId,
+          provider: entry.provider,
+          name: entry.name,
+          systemPromptOverride: entry.systemPromptOverride,
+          modelOverride: entry.modelOverride,
+          colorOverride: entry.colorOverride,
+          visibilityDefaults: entry.visibilityDefaults,
+          currentMessageIndex,
+        },
+        txn.db,
+      );
       created.push(p);
     }
     void legacyApertusProductId; // surfaced via the on-conversation migrator path
@@ -99,7 +104,7 @@ export async function importPersonasFromFile(
     // imported file flow into a transient map below for the
     // migrateRunsAfterToFlow call rather than being persisted on
     // Persona rows.
-    const post = await repo.listPersonas(conversationId);
+    const post = await repo.listPersonas(conversationId, false, txn.db);
     const live = post.filter((p) => p.deletedAt === null);
     const idBySlug = new Map(live.map((p) => [p.nameSlug, p.id] as const));
     const importedRunsAfter = new Map<string, readonly string[]>();
@@ -132,7 +137,7 @@ export async function importPersonasFromFile(
       if (Object.keys(remapped).length === 0) continue;
       const p = post.find((x) => x.nameSlug === slugify(entry.name));
       if (!p) continue;
-      await updatePersona({ id: p.id, roleLens: remapped });
+      await updatePersona({ id: p.id, roleLens: remapped }, txn.db);
     }
     // #236: recreate the bundled flow against the freshly-assigned
     // ids. Names that don't resolve are dropped; if a personas-step
@@ -153,11 +158,15 @@ export async function importPersonasFromFile(
         const rawLoopStart = resolved.flow.loopStartIndex ?? 0;
         const safeLoopStart =
           rawLoopStart >= 0 && rawLoopStart < cleaned.length ? rawLoopStart : 0;
-        await flowsRepo.upsertFlow(conversationId, {
-          currentStepIndex: resolved.flow.currentStepIndex,
-          loopStartIndex: safeLoopStart,
-          steps: cleaned,
-        });
+        await flowsRepo.upsertFlow(
+          conversationId,
+          {
+            currentStepIndex: resolved.flow.currentStepIndex,
+            loopStartIndex: safeLoopStart,
+            steps: cleaned,
+          },
+          txn.db,
+        );
         // #236 follow-up: bump the flow query cache so PersonaPanel
         // re-reads the freshly-imported flow and renders the
         // "Conversation flow" row immediately instead of waiting for
@@ -175,15 +184,16 @@ export async function importPersonasFromFile(
         conversationId,
         importedRunsAfter,
         { trigger: "import" },
+        txn.db,
       );
       if (migration.converted) invalidateRepoQuery(["flow"]);
     }
     // #36: every imported persona needs the same identity pin that
     // CreateForm sets up — without it the LLM defaults to its provider
     // identity ("My name is Claude") rather than the imported name.
-    const history = await messagesRepo.listMessages(conversationId);
+    const history = await messagesRepo.listMessages(conversationId, txn.db);
     for (const p of created) {
-      await ensureIdentityPin(conversationId, p, history, messagesRepo);
+      await ensureIdentityPin(conversationId, p, history, messagesRepo, "inherit", txn.db);
     }
     return {
       created,

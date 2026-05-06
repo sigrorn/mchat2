@@ -38,8 +38,8 @@ describe("transaction()", () => {
     handle = await createTestDb();
     await seedRow();
 
-    const ret = await transaction(async () => {
-      await sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
+    const ret = await transaction(async (txn) => {
+      await txn.sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
         "Edited",
         "c_1",
       ]);
@@ -55,8 +55,8 @@ describe("transaction()", () => {
     await seedRow();
 
     await expect(
-      transaction(async () => {
-        await sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
+      transaction(async (txn) => {
+        await txn.sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
           "Edited",
           "c_1",
         ]);
@@ -73,14 +73,14 @@ describe("transaction()", () => {
     await seedRow();
 
     await expect(
-      transaction(async () => {
-        await sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
+      transaction(async (txn) => {
+        await txn.sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
           "Edited",
           "c_1",
         ]);
         // Invalid SQL — sql.js raises which transaction must catch and
         // ROLLBACK before re-throwing.
-        await sql.execute("INSERT INTO no_such_table (x) VALUES (1)");
+        await txn.sql.execute("INSERT INTO no_such_table (x) VALUES (1)");
       }),
     ).rejects.toBeDefined();
 
@@ -133,8 +133,8 @@ describe("transaction()", () => {
     // Second attempt would have failed pre-#206 with the misleading
     // "nested call detected" instead of running. Now BEGIN succeeds
     // (second attempt) and the body runs cleanly.
-    const ret = await transaction(async () => {
-      await sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
+    const ret = await transaction(async (txn) => {
+      await txn.sql.execute("UPDATE conversations SET title = ? WHERE id = ?", [
         "Edited",
         "c_1",
       ]);

@@ -16,10 +16,12 @@
 //                messages}.
 // ------------------------------------------------------------------
 
+import type { Kysely } from "kysely";
 import { derivedFlowFromRunsAfter } from "../flows/derivation";
 import * as personasRepo from "../persistence/personas";
 import * as flowsRepo from "../persistence/flows";
 import * as messagesRepo from "../persistence/messages";
+import type { Database } from "../persistence/schema";
 
 const NOTICE_OPEN =
   "Converted this conversation's persona ordering rules (runs_after) to a conversation flow. Open the flow editor from the personas panel to review or edit the steps.";
@@ -55,6 +57,7 @@ export async function migrateRunsAfterToFlow(
   conversationId: string,
   runsAfter: ReadonlyMap<string, readonly string[]>,
   opts: MigrateOptions,
+  dbi?: Kysely<Database>,
 ): Promise<MigrationResult> {
   // Drop empty entries up-front — no edges = nothing to convert.
   const nonEmpty = new Map<string, readonly string[]>();
@@ -63,37 +66,40 @@ export async function migrateRunsAfterToFlow(
   }
   if (nonEmpty.size === 0) return NO_OP;
 
-  const existingFlow = await flowsRepo.getFlow(conversationId);
+  const existingFlow = await flowsRepo.getFlow(conversationId, dbi);
   let converted = false;
   if (!existingFlow) {
-    const personas = await personasRepo.listPersonas(conversationId);
+    const personas = await personasRepo.listPersonas(conversationId, false, dbi);
     const live = personas.filter((p) => p.deletedAt === null);
     const draft = derivedFlowFromRunsAfter(live, nonEmpty);
     if (draft.steps.length > 0) {
-      await flowsRepo.upsertFlow(conversationId, draft);
+      await flowsRepo.upsertFlow(conversationId, draft, dbi);
       converted = true;
     }
   }
 
   const content = opts.trigger === "open" ? NOTICE_OPEN : NOTICE_IMPORT;
-  await messagesRepo.appendMessage({
-    conversationId,
-    role: "notice",
-    content,
-    provider: null,
-    model: null,
-    personaId: null,
-    displayMode: "lines",
-    pinned: false,
-    pinTarget: null,
-    addressedTo: [],
-    errorMessage: null,
-    errorTransient: false,
-    inputTokens: 0,
-    outputTokens: 0,
-    usageEstimated: false,
-    audience: [],
-  });
+  await messagesRepo.appendMessage(
+    {
+      conversationId,
+      role: "notice",
+      content,
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    },
+    dbi,
+  );
 
   return { converted, noticeAppended: true };
 }

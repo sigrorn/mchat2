@@ -49,12 +49,18 @@ describe("applyMessageMutation under transaction (regression repro 2026-04-27)",
     });
 
     // Replay the exact pattern replayMessage uses.
-    await transaction(async () => {
-      await messagesRepo.applyMessageMutation({
-        id: userMsg.id,
-        content: "edited text",
-        addressedTo: ["p_b", "p_c"],
-      });
+    // #267: thread txn.db through so the repo call lands on the
+    // section's raw impl rather than queueing behind the section
+    // itself (which would deadlock).
+    await transaction(async (txn) => {
+      await messagesRepo.applyMessageMutation(
+        {
+          id: userMsg.id,
+          content: "edited text",
+          addressedTo: ["p_b", "p_c"],
+        },
+        txn.db,
+      );
     });
 
     const after = await messagesRepo.listMessages("c1");

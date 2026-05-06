@@ -7,12 +7,19 @@
 //                orchestration/dagExecutor.ts (edges).
 // ------------------------------------------------------------------
 
+import type { Kysely } from "kysely";
 import type { Persona, PersonaId, ProviderId } from "../types";
 import { isReservedName } from "../providers/derived";
 import { slugify } from "./slug";
 import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
+import type { Database } from "../persistence/schema";
 import { pinMutationsForDeletion } from "./cleanupOnDeletion";
+
+// #267: createPersona / updatePersona may run inside fileOps's
+// import transaction. Threading an optional Kysely lets the
+// transaction body's calls bypass the global op queue (which the
+// section is holding).
 
 export class PersonaValidationError extends Error {
   constructor(
@@ -51,14 +58,17 @@ export interface CreatePersonaInput {
   inheritedHistory?: boolean;
 }
 
-export async function createPersona(input: CreatePersonaInput): Promise<Persona> {
+export async function createPersona(
+  input: CreatePersonaInput,
+  dbi?: Kysely<Database>,
+): Promise<Persona> {
   const name = input.name.trim();
   if (!name) throw new PersonaValidationError("name_required", "Name is required");
   const slug = slugify(name);
   if (isReservedName(slug)) {
     throw new PersonaValidationError("name_reserved", `'${name}' is reserved`);
   }
-  const existing = await repo.listPersonas(input.conversationId);
+  const existing = await repo.listPersonas(input.conversationId, false, dbi);
   if (existing.some((p) => p.nameSlug === slug)) {
     throw new PersonaValidationError(
       "name_in_use",
@@ -69,22 +79,25 @@ export async function createPersona(input: CreatePersonaInput): Promise<Persona>
   // setting (#25) since it's an Infomaniak account-level value. The
   // send-time gate lives in useSend / the Apertus adapter.
   const visDefaults = input.visibilityDefaults ?? {};
-  return repo.createPersona({
-    conversationId: input.conversationId,
-    provider: input.provider,
-    name,
-    nameSlug: slug,
-    systemPromptOverride: input.systemPromptOverride ?? null,
-    modelOverride: input.modelOverride ?? null,
-    colorOverride: input.colorOverride ?? null,
-    createdAtMessageIndex: input.currentMessageIndex,
-    sortOrder: input.sortOrder ?? existing.length,
-    deletedAt: null,
-    visibilityDefaults: visDefaults,
-    openaiCompatPreset: input.openaiCompatPreset ?? null,
-    roleLens: input.roleLens ?? {},
-    inheritedHistory: input.inheritedHistory ?? false,
-  });
+  return repo.createPersona(
+    {
+      conversationId: input.conversationId,
+      provider: input.provider,
+      name,
+      nameSlug: slug,
+      systemPromptOverride: input.systemPromptOverride ?? null,
+      modelOverride: input.modelOverride ?? null,
+      colorOverride: input.colorOverride ?? null,
+      createdAtMessageIndex: input.currentMessageIndex,
+      sortOrder: input.sortOrder ?? existing.length,
+      deletedAt: null,
+      visibilityDefaults: visDefaults,
+      openaiCompatPreset: input.openaiCompatPreset ?? null,
+      roleLens: input.roleLens ?? {},
+      inheritedHistory: input.inheritedHistory ?? false,
+    },
+    dbi,
+  );
 }
 
 export interface UpdatePersonaInput {
@@ -104,8 +117,11 @@ export interface UpdatePersonaInput {
   roleLens?: Persona["roleLens"];
 }
 
-export async function updatePersona(input: UpdatePersonaInput): Promise<Persona> {
-  const current = await repo.getPersona(input.id);
+export async function updatePersona(
+  input: UpdatePersonaInput,
+  dbi?: Kysely<Database>,
+): Promise<Persona> {
+  const current = await repo.getPersona(input.id, dbi);
   if (!current || current.deletedAt !== null) {
     throw new PersonaValidationError("not_found", "Persona does not exist");
   }
@@ -119,7 +135,7 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
     if (isReservedName(slug)) {
       throw new PersonaValidationError("name_reserved", `'${name}' is reserved`);
     }
-    const siblings = await repo.listPersonas(current.conversationId);
+    const siblings = await repo.listPersonas(current.conversationId, false, dbi);
     if (siblings.some((p) => p.id !== current.id && p.nameSlug === slug)) {
       throw new PersonaValidationError("name_in_use", `'${name}' is already used`);
     }
@@ -157,13 +173,13 @@ export async function updatePersona(input: UpdatePersonaInput): Promise<Persona>
         : current.openaiCompatPreset,
     roleLens: input.roleLens !== undefined ? input.roleLens : current.roleLens,
   };
-  await repo.updatePersona(next);
+  await repo.updatePersona(next, dbi);
 
   // #94: if renamed, update slug keys in all siblings' defaults.
   if (slug !== current.nameSlug) {
-    const siblings = await repo.listPersonas(current.conversationId);
+    const siblings = await repo.listPersonas(current.conversationId, false, dbi);
     const others = siblings.filter((p) => p.id !== current.id);
-    await renameSlugInSiblings(current.nameSlug, slug, others);
+    await renameSlugInSiblings(current.nameSlug, slug, others, dbi);
   }
 
   return next;
@@ -212,6 +228,7 @@ async function renameSlugInSiblings(
   oldSlug: string,
   newSlug: string,
   siblings: Persona[],
+  dbi?: Kysely<Database>,
 ): Promise<void> {
   for (const sibling of siblings) {
     const value = sibling.visibilityDefaults[oldSlug];
@@ -222,7 +239,7 @@ async function renameSlugInSiblings(
       ...sibling,
       visibilityDefaults: { ...rest, [newSlug]: value },
     };
-    await repo.updatePersona(updated);
+    await repo.updatePersona(updated, dbi);
   }
 }
 

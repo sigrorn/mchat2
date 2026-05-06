@@ -102,11 +102,32 @@ export async function handlePop(
     // #164: delete + confirmation notice commit together. Otherwise a
     // crash between them leaves the user staring at a truncated chat
     // with no record that //pop ran.
-    await transaction(async () => {
-      await messagesRepo.deleteMessagesAfter(conversation.id, startIdx - 1);
-      await ctx.deps.appendNotice(
-        conversation.id,
-        `rewound to message ${payload.userNumber}. ${queue.length} user message${queue.length === 1 ? "" : "s"} to replay. Submit empty to skip.`,
+    // #267: pass txn.db to repo calls so they bypass the global op
+    // queue (which the section is holding); skip the deps/store
+    // appendNotice path and write directly via repo.appendMessage —
+    // the cache reload below picks up the fresh notice row.
+    await transaction(async (txn) => {
+      await messagesRepo.deleteMessagesAfter(conversation.id, startIdx - 1, txn.db);
+      await messagesRepo.appendMessage(
+        {
+          conversationId: conversation.id,
+          role: "notice",
+          content: `rewound to message ${payload.userNumber}. ${queue.length} user message${queue.length === 1 ? "" : "s"} to replay. Submit empty to skip.`,
+          provider: null,
+          model: null,
+          personaId: null,
+          displayMode: "lines",
+          pinned: false,
+          pinTarget: null,
+          addressedTo: [],
+          errorMessage: null,
+          errorTransient: false,
+          inputTokens: 0,
+          outputTokens: 0,
+          usageEstimated: false,
+          audience: [],
+        },
+        txn.db,
       );
     });
     await ctx.deps.reloadMessages(conversation.id);
@@ -127,11 +148,34 @@ export async function handlePop(
     (m) => m.role === "assistant" && m.index >= plan.lastUserIndex,
   );
   // #164: same atomicity rule as the //pop N branch.
-  await transaction(async () => {
-    await messagesRepo.deleteMessagesAfter(conversation.id, plan.lastUserIndex - 1);
-    await ctx.deps.appendNotice(
+  // #267: see the //pop N branch above for the txn.db threading
+  // and direct-repo appendMessage rationale.
+  await transaction(async (txn) => {
+    await messagesRepo.deleteMessagesAfter(
       conversation.id,
-      `popped ${plan.deleteIds.length} message${plan.deleteIds.length === 1 ? "" : "s"}.`,
+      plan.lastUserIndex - 1,
+      txn.db,
+    );
+    await messagesRepo.appendMessage(
+      {
+        conversationId: conversation.id,
+        role: "notice",
+        content: `popped ${plan.deleteIds.length} message${plan.deleteIds.length === 1 ? "" : "s"}.`,
+        provider: null,
+        model: null,
+        personaId: null,
+        displayMode: "lines",
+        pinned: false,
+        pinTarget: null,
+        addressedTo: [],
+        errorMessage: null,
+        errorTransient: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        usageEstimated: false,
+        audience: [],
+      },
+      txn.db,
     );
   });
   await ctx.deps.reloadMessages(conversation.id);
