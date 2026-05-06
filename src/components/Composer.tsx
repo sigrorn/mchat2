@@ -14,6 +14,7 @@ import { parseCommand } from "@/lib/commands/parseCommand";
 import { parseTargetModifiers } from "@/lib/commands/targetModifier";
 import { dispatchCommand } from "@/lib/commands/dispatch";
 import { findSpec } from "@/lib/commands/specs";
+import { runWithRecovery } from "@/lib/commands/runWithRecovery";
 import { triggerHelp } from "@/lib/commands/triggerHelp";
 import { makeCommandDeps } from "@/hooks/commandDeps";
 import { usePersonasStore } from "@/stores/personasStore";
@@ -121,9 +122,17 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
     try {
       const cmd = parseCommand(t);
       if (cmd.kind !== "noop") {
-        const result = await dispatchCommand(
-          { conversation, rawInput: t, send, retry, deps: makeCommandDeps() },
-          cmd,
+        // #267: dispatchCommand can throw (e.g. SQLITE_BUSY surfacing
+        // from a //pop transaction). runWithRecovery normalises any
+        // throw into a CommandResult so the existing applyResult path
+        // restores the typed text and shows "Command failed: <msg>"
+        // — without it, the textarea (cleared on line above) stays
+        // empty and the only signal of failure is the dev console.
+        const result = await runWithRecovery(t, () =>
+          dispatchCommand(
+            { conversation, rawInput: t, send, retry, deps: makeCommandDeps() },
+            cmd,
+          ),
         );
         applyResult(t, result);
         return;
