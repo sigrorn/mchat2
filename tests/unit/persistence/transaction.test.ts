@@ -97,7 +97,13 @@ describe("transaction()", () => {
           /* never reached */
         });
       }),
-    ).rejects.toThrow(/nested|already in/i);
+      // #277: error message must acknowledge both possible causes —
+      // the current sync-entry guard fires for actual nesting AND for
+      // concurrent top-level calls, and the user can't distinguish from
+      // the message alone. We can't move the guard (would deadlock real
+      // nested calls — see #277 codex review), so we make the message
+      // honest about what just happened.
+    ).rejects.toThrow(/overlapping/i);
   });
 
   // #206: a stuck flag was crippling the running app — when BEGIN
