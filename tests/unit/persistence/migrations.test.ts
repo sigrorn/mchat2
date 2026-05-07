@@ -83,6 +83,48 @@ describe("runMigrations", () => {
     expect(commits.length).toBe(MIGRATIONS.length);
   });
 
+  // #281: pre-fix, PRAGMA foreign_keys = OFF wrapped the WHOLE loop
+  // (1 OFF + 1 ON), so any external op that ran during a multi-step
+  // upgrade would observe FK = OFF and could write FK-violating rows.
+  // Codex's review reframed the fix as a per-migration held section
+  // bracketing PRAGMA OFF / BEGIN / statements / COMMIT / PRAGMA ON,
+  // so external ops only ever see the consistent end state (FK = ON).
+  // Pin the structural shape: N OFFs + N ONs paired with each step.
+  it("brackets each migration step with its own PRAGMA foreign_keys OFF/ON pair (#281)", async () => {
+    const mock = makeMockSql(0);
+    await runMigrations();
+    const offs = mock.statements.filter((s) =>
+      /PRAGMA\s+foreign_keys\s*=\s*OFF/i.test(s),
+    );
+    const ons = mock.statements.filter((s) =>
+      /PRAGMA\s+foreign_keys\s*=\s*ON/i.test(s),
+    );
+    expect(offs.length).toBe(MIGRATIONS.length);
+    expect(ons.length).toBe(MIGRATIONS.length);
+    // And the order: OFF immediately precedes BEGIN, ON immediately
+    // follows COMMIT for the same step.
+    let cursor = 0;
+    for (let step = 0; step < MIGRATIONS.length; step++) {
+      const offIdx = mock.statements.findIndex(
+        (s, i) => i >= cursor && /PRAGMA\s+foreign_keys\s*=\s*OFF/i.test(s),
+      );
+      expect(offIdx).toBeGreaterThanOrEqual(cursor);
+      const beginIdx = mock.statements.findIndex(
+        (s, i) => i > offIdx && /^\s*BEGIN/i.test(s),
+      );
+      expect(beginIdx).toBe(offIdx + 1);
+      const commitIdx = mock.statements.findIndex(
+        (s, i) => i > beginIdx && /^\s*COMMIT/i.test(s),
+      );
+      expect(commitIdx).toBeGreaterThan(beginIdx);
+      const onIdx = mock.statements.findIndex(
+        (s, i) => i > commitIdx && /PRAGMA\s+foreign_keys\s*=\s*ON/i.test(s),
+      );
+      expect(onIdx).toBe(commitIdx + 1);
+      cursor = onIdx + 1;
+    }
+  });
+
   it("rolls back a failing migration and leaves user_version at the prior step", async () => {
     // Arrange: fail on the v2 ALTER that adds input_tokens. v1 should
     // commit, v2 should roll back.
