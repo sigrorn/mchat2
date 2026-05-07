@@ -79,6 +79,33 @@ function describeError(err: unknown): { message: string; stack: string | null } 
   }
 }
 
+// #270: structured log entry for non-crash forensics — used by
+// backgroundTask() to record failures from fire-and-forget DB writes
+// that would otherwise be silent. Distinct kind so logs can be
+// filtered separately from real crashes.
+export interface StructuredLogEntry {
+  kind: string;
+  label?: string;
+  error?: string;
+  stack?: string;
+  ts: number;
+  [key: string]: unknown;
+}
+
+function formatStructured(entry: StructuredLogEntry): string {
+  const ts = new Date(entry.ts).toISOString();
+  const version =
+    typeof __BUILD_INFO__ !== "undefined" ? __BUILD_INFO__.version : "unknown";
+  const label = entry.label ? ` ${entry.label}` : "";
+  const error = entry.error ? `: ${entry.error}` : "";
+  const stack = entry.stack ? `\n${truncate(entry.stack, STACK_LIMIT)}` : "";
+  return `[${ts}] v${version} ${entry.kind}${label}${error}${stack}\n---\n`;
+}
+
+export async function appendStructured(entry: StructuredLogEntry): Promise<void> {
+  await append(formatStructured(entry));
+}
+
 export function installCrashLog(): void {
   if (installed) return;
   if (typeof window === "undefined") return;

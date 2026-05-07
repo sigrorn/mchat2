@@ -12,6 +12,7 @@ import type { Conversation, Persona } from "@/lib/types";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import * as personasRepo from "@/lib/persistence/personas";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 
@@ -36,7 +37,9 @@ export function MatrixPanel({ conversation }: { conversation: Conversation }): J
     const row = matrix[observer] ?? personas.filter((p) => p.id !== observer).map((p) => p.id);
     const next = row.includes(source) ? row.filter((id) => id !== source) : [...row, source];
     const updated = { ...matrix, [observer]: next };
-    void useConversationsStore.getState().setVisibilityMatrix(conversation.id, updated);
+    backgroundTask("MatrixPanel.toggle", () =>
+      useConversationsStore.getState().setVisibilityMatrix(conversation.id, updated),
+    );
   };
 
   const short = (name: string): string => name.slice(0, 3).toLowerCase();

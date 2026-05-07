@@ -28,6 +28,7 @@ import {
 } from "@/lib/personas/service";
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { readCachedMessages } from "@/hooks/cacheReaders";
 import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
@@ -162,7 +163,9 @@ function PersonaPanelExpanded({
     // control. The flow itself stays attached; they can re-engage by
     // ticking the "Conversation flow" row.
     if (conversation.flowMode) {
-      void useConversationsStore.getState().setFlowMode(conversation.id, false);
+      backgroundTask("PersonaPanel.dropFlowModeOnEdit", () =>
+        useConversationsStore.getState().setFlowMode(conversation.id, false),
+      );
     }
   };
 

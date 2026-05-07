@@ -16,6 +16,7 @@ import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
 import * as conversationsRepo from "@/lib/persistence/conversations";
 import { migrateApertusInConversation } from "@/lib/conversations/migrateApertusToOpenaiCompat";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { findMatches } from "@/lib/ui/findMatches";
 import {
   computeScrollTarget,
@@ -77,7 +78,7 @@ export function ChatView(): JSX.Element {
     // dot clears for this conversation. lastMessageAt may already be
     // ahead (a stream landed while the user was elsewhere); the stamp
     // brings them level so hasUnread returns false on the next render.
-    void markSeen(currentId, Date.now());
+    backgroundTask("ChatView.markSeen.activate", () => markSeen(currentId, Date.now()));
     // #241 Phase C dropped the runs_after column, so the lazy-on-open
     // auto-migration that lived here through Phase 0 no longer has a
     // data source — legacy edges only enter via import paths now,
@@ -105,7 +106,7 @@ export function ChatView(): JSX.Element {
       // this catch-up, switching away would falsely show a dot for
       // content the user already saw being typed out. Tokens that
       // arrive *after* this re-stamp will correctly trip the dot.
-      void markSeen(departing, Date.now());
+      backgroundTask("ChatView.markSeen.depart", () => markSeen(departing, Date.now()));
     };
   }, [currentId, loadMessages, loadPersonas, markSeen]);
 

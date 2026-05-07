@@ -13,6 +13,7 @@ import { buildSessionTimestamp } from "@/lib/tracing/traceFilename";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
 import { GENERAL_WORKING_DIR_KEY } from "@/lib/settings/keys";
 import { parseBoolSetting } from "@/lib/settings/parseBool";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 
 const FONT_SCALE_KEY = "ui.fontScale";
 const STREAM_RESPONSES_KEY = "ui.streamResponses";
@@ -75,7 +76,9 @@ export const useUiStore = create<State>((set, get) => ({
   },
   setFontScale(scale) {
     set({ chatFontScale: scale });
-    void setSetting(FONT_SCALE_KEY, String(scale));
+    backgroundTask("uiStore.setFontScale", () =>
+      setSetting(FONT_SCALE_KEY, String(scale)),
+    );
   },
   workingDir: null,
   async loadWorkingDir() {
@@ -95,7 +98,9 @@ export const useUiStore = create<State>((set, get) => ({
   toggleStreamResponses() {
     const next = !get().streamResponses;
     set({ streamResponses: next });
-    void setSetting(STREAM_RESPONSES_KEY, next ? "true" : "false");
+    backgroundTask("uiStore.toggleStreamResponses", () =>
+      setSetting(STREAM_RESPONSES_KEY, next ? "true" : "false"),
+    );
   },
   sidebarCollapsed: false,
   personaPanelCollapsed: false,
@@ -112,12 +117,16 @@ export const useUiStore = create<State>((set, get) => ({
   toggleSidebar() {
     const next = !get().sidebarCollapsed;
     set({ sidebarCollapsed: next });
-    void setSetting(SIDEBAR_COLLAPSED_KEY, next ? "true" : "false");
+    backgroundTask("uiStore.toggleSidebar", () =>
+      setSetting(SIDEBAR_COLLAPSED_KEY, next ? "true" : "false"),
+    );
   },
   togglePersonaPanel() {
     const next = !get().personaPanelCollapsed;
     set({ personaPanelCollapsed: next });
-    void setSetting(PERSONA_PANEL_COLLAPSED_KEY, next ? "true" : "false");
+    backgroundTask("uiStore.togglePersonaPanel", () =>
+      setSetting(PERSONA_PANEL_COLLAPSED_KEY, next ? "true" : "false"),
+    );
   },
   debugSession: { enabled: false, sessionTimestamp: null },
   toggleDebug() {

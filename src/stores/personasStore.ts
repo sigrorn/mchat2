@@ -12,6 +12,7 @@ import type { Persona } from "@/lib/types";
 import * as repo from "@/lib/persistence/personas";
 import { useConversationsStore } from "./conversationsStore";
 import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 
 const personasQueryKey = (conversationId: string): readonly unknown[] =>
   ["personas", conversationId];
@@ -60,7 +61,9 @@ export const usePersonasStore = create<State>((set, get) => ({
         [conversationId]: keys,
       },
     });
-    void useConversationsStore.getState().setSelectedPersonas(conversationId, keys);
+    backgroundTask("personasStore.setSelection", () =>
+      useConversationsStore.getState().setSelectedPersonas(conversationId, keys),
+    );
   },
   addToSelection(conversationId, keys) {
     const current = get().selectionByConversation[conversationId] ?? [];
@@ -78,7 +81,9 @@ export const usePersonasStore = create<State>((set, get) => ({
         [conversationId]: next,
       },
     });
-    void useConversationsStore.getState().setSelectedPersonas(conversationId, next);
+    backgroundTask("personasStore.addToSelection", () =>
+      useConversationsStore.getState().setSelectedPersonas(conversationId, next),
+    );
   },
   upsert(p) {
     cacheUpdate(p.conversationId, (list) => {

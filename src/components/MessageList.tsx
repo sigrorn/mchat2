@@ -32,6 +32,7 @@ import {
 } from "@/lib/ui/userMessageNav";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as personasRepo from "@/lib/persistence/personas";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { MessageBubble } from "./MessageBubble";
 import type { FindState } from "./messageBubbleMemo";
 import { EditReplayEditor } from "./EditReplayEditor";
@@ -418,7 +419,9 @@ function renderItem(
       ...(m.role === "notice"
         ? {
             onConfirm: () =>
-              void useMessagesStore.getState().confirmNotice(m.conversationId, m.id),
+              backgroundTask("MessageList.confirmNotice", () =>
+                useMessagesStore.getState().confirmNotice(m.conversationId, m.id),
+              ),
           }
         : {}),
       // #239: inline find highlights when the find bar is open.

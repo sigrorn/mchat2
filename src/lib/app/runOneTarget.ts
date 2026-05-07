@@ -19,6 +19,7 @@ import type { Conversation, Persona, PersonaTarget, StreamEvent } from "@/lib/ty
 import { runStream, modelForTarget, type StreamRunOutcome } from "@/lib/orchestration/streamRunner";
 import { maxContextTokensForProviderModel } from "@/lib/providers/contextWindows";
 import { DEFAULT_RETRY } from "@/lib/orchestration/retryManager";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import type { RunOneTargetDeps } from "./deps";
 
 export interface RunOneTargetInput {
@@ -176,9 +177,11 @@ export async function runOneTarget(
       const before = outcome.contextFirstSurviving
         ? `dropped messages before #${outcome.contextFirstSurviving}`
         : `dropped ${outcome.contextDropped} oldest message${outcome.contextDropped === 1 ? "" : "s"}`;
-      void deps.appendNotice(
-        conversation.id,
-        `context trimmed for ${name} (${model}): ${before} to fit the ${maxContextTokensForProviderModel(target.provider, model)}-token limit.`,
+      backgroundTask("runOneTarget.contextTrimNotice", () =>
+        deps.appendNotice(
+          conversation.id,
+          `context trimmed for ${name} (${model}): ${before} to fit the ${maxContextTokensForProviderModel(target.provider, model)}-token limit.`,
+        ),
       );
     }
 
