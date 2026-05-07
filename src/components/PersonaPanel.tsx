@@ -9,7 +9,6 @@ import { useState } from "react";
 import type { Conversation, Flow, Message, Persona, ProviderId } from "@/lib/types";
 import * as flowsRepo from "@/lib/persistence/flows";
 import { nextPersonasStepPersonaIds, upcomingStepIndexForPersona } from "@/lib/app/flowSelectionSync";
-import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
@@ -30,11 +29,12 @@ import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fil
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
+import { reorderPersonas } from "@/lib/app/reorderPersonas";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { readCachedMessages } from "@/hooks/cacheReaders";
 import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
 import { usePersonasStore } from "@/stores/personasStore";
-import { useRepoQuery } from "@/lib/data/useRepoQuery";
+import { useRepoQuery, getRepoQueryCache, invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import * as personasRepo from "@/lib/persistence/personas";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
@@ -43,6 +43,22 @@ import { useUiStore } from "@/stores/uiStore";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 import { FlowEditor } from "./FlowEditor";
 import { ProviderSpendTable } from "./ProviderSpendTable";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const EMPTY_STATUS: Readonly<Record<string, StreamStatus>> = Object.freeze({});
 
@@ -214,6 +230,44 @@ function PersonaPanelExpanded({
     invalidateRepoQuery(["flow"]);
   };
 
+  // #273: drag-and-drop reorder via @dnd-kit. PointerSensor handles
+  // mouse/touch; KeyboardSensor gives space-to-pick-up + arrows-to-move
+  // for free. activationConstraint.distance keeps a click-on-handle
+  // from triggering an accidental drag — only after 4px of movement.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (event: DragEndEvent): void => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = personas.map((p) => p.id);
+    const oldIdx = ids.indexOf(String(active.id));
+    const newIdx = ids.indexOf(String(over.id));
+    if (oldIdx === -1 || newIdx === -1) return;
+    const nextOrder = [...ids];
+    nextOrder.splice(oldIdx, 1);
+    nextOrder.splice(newIdx, 0, String(active.id));
+    // Optimistic cache update so the row visually settles in its new
+    // slot before the persistent rewrite resolves. On rejection,
+    // invalidateRepoQuery refetches the canonical order from DB.
+    const idToPersona = new Map(personas.map((p) => [p.id, p]));
+    const reorderedPersonas = nextOrder
+      .map((id) => idToPersona.get(id))
+      .filter((p): p is Persona => p !== undefined);
+    getRepoQueryCache().set<Persona[]>(["personas", conversation.id], reorderedPersonas);
+    backgroundTask("PersonaPanel.reorder", async () => {
+      try {
+        await reorderPersonas(conversation.id, nextOrder);
+      } catch (err) {
+        // Snap back to the canonical order. backgroundTask already logs
+        // the failure; this re-read keeps the UI honest.
+        invalidateRepoQuery(["personas", conversation.id]);
+        throw err;
+      }
+    });
+  };
+
   // #218: flow editor opens on click of the "Edit conversation flow"
   // link at the bottom. Closes on save/cancel and when the persona
   // list changes underneath us so the editor never points at stale
@@ -267,8 +321,17 @@ function PersonaPanelExpanded({
           onToggle={() => void onToggleFlowMode()}
         />
       ) : null}
-      <ul className="flex-1 overflow-auto">
-        {personas.map((p) => (
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={personas.map((p) => p.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <ul className="flex-1 overflow-auto">
+            {personas.map((p) => (
           <PersonaRow
             key={p.id}
             persona={p}
@@ -333,10 +396,12 @@ function PersonaPanelExpanded({
             allPersonas={personas}
           />
         ))}
-        {personas.length === 0 ? (
-          <li className="px-3 py-3 text-xs text-neutral-500">No personas yet.</li>
-        ) : null}
-      </ul>
+            {personas.length === 0 ? (
+              <li className="px-3 py-3 text-xs text-neutral-500">No personas yet.</li>
+            ) : null}
+          </ul>
+        </SortableContext>
+      </DndContext>
       {/* #218: small link to the flow editor. Hidden when there are no
           personas (nothing meaningful to flow yet). */}
       {personas.length > 0 ? (
@@ -457,10 +522,43 @@ function PersonaRow({
   );
   const bg = statusBgClass(status);
 
+  // #273: useSortable wires the row into the parent DndContext. We
+  // disable drag while editing so a click on a form field doesn't get
+  // hijacked once the 4px activation threshold is crossed. transform
+  // moves the row visually during drag; transition keeps the post-drop
+  // settle smooth.
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: persona.id, disabled: editing });
+  const dragStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  };
+
   const navRing = navSelected ? "ring-2 ring-inset ring-blue-400" : "";
   return (
-    <li className={`border-b border-neutral-200 px-3 py-2 transition-colors ${bg} ${navRing}`}>
+    <li
+      ref={setNodeRef}
+      style={dragStyle}
+      className={`border-b border-neutral-200 px-3 py-2 transition-colors ${bg} ${navRing}`}
+    >
       <div className="flex items-start gap-2">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Reorder ${persona.name}`}
+          title="Drag to reorder"
+          className="mt-1 cursor-grab touch-none px-0.5 text-neutral-400 hover:text-neutral-700 active:cursor-grabbing"
+        >
+          ⋮⋮
+        </button>
         <input
           type="checkbox"
           checked={selected}
