@@ -237,3 +237,32 @@ know which one to navigate to. If after a week the editor still
 feels like a clear win, the viewer naturally becomes its read-only
 mode and the editor is "viewer + textareas per row + three save
 paths."
+
+## Transactionize Run / RunTarget / Attempt projection writes
+
+**Discussed:** 2026-05-07, after Codex's post-#267 review.
+
+`recordSend` ([recordSend.ts](src/lib/orchestration/recordSend.ts#L46)),
+`recordReplay` ([recordReplay.ts](src/lib/orchestration/recordReplay.ts#L58)),
+and `recordRetry` ([recordRetry.ts](src/lib/orchestration/recordRetry.ts#L47))
+write `runs` + `run_targets` + `attempts` rows in unwrapped sequences.
+A failure mid-write leaves a partial Run lineage: a Run with no
+RunTargets, or a RunTarget with no Attempt. Today the user only
+sees this if they open attempt-history (#181) on an affected
+message — the row appears empty.
+
+The retrospective's framing was "messages remain UI truth, runs are
+projection." Today that's still true; partial-failure of the
+projection is silently absent rather than corrupting state. So
+the priority is genuinely lower than #268 / #269.
+
+**Why deferred:** Codex's framing — defer until the project leans
+harder on the Run model than today. If a future feature reads the
+runs table as authoritative (e.g. attempt-history becomes a
+default UI panel rather than a debugging affordance, or
+flow-rewind uses run_targets for ordering), partial-write
+inconsistency starts surfacing as visible bugs. At that point
+wrap each `recordX` body in a transaction (same shape as
+#268/#269/#164) and thread `txn.db` to its sub-calls.
+
+Cheap fix when prioritised. Single-PR scope. Mechanical.
