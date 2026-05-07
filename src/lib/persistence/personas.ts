@@ -176,8 +176,16 @@ export async function updatePersona(
     .execute();
 }
 
-export async function tombstonePersona(id: string, at: number = Date.now()): Promise<void> {
-  await db
+// #280: optional dbi so this is safe to call from inside a
+// transaction body (the global db is queued; without dbi, an inside-
+// transaction call would deadlock on the queue head the section
+// holds).
+export async function tombstonePersona(
+  id: string,
+  at: number = Date.now(),
+  dbi: Kysely<Database> = db,
+): Promise<void> {
+  await dbi
     .updateTable("personas")
     .set({ deleted_at: at })
     .where("id", "=", id)

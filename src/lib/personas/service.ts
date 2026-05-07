@@ -185,21 +185,27 @@ export async function updatePersona(
   return next;
 }
 
-export async function deletePersona(id: PersonaId): Promise<void> {
-  const p = await repo.getPersona(id);
+// #280: optional dbi so this is safe to call inside a transaction.
+// All internal repo / messagesRepo calls already accept the optional
+// dbi pattern (ADR 011); we just thread it through.
+export async function deletePersona(
+  id: PersonaId,
+  dbi?: Kysely<Database>,
+): Promise<void> {
+  const p = await repo.getPersona(id, dbi);
   if (!p) throw new PersonaValidationError("not_found", "Persona does not exist");
   // #21: clean up dangling pins before tombstoning so //pins doesn't
   // surface unresolvable @id strings for personas that no longer exist.
-  const messages = await messagesRepo.listMessages(p.conversationId);
+  const messages = await messagesRepo.listMessages(p.conversationId, dbi);
   const mutations = pinMutationsForDeletion(messages, id);
   for (const mut of mutations) {
-    await messagesRepo.applyMessageMutation(mut);
+    await messagesRepo.applyMessageMutation(mut, dbi);
   }
   // #94: remove this persona's slug from all siblings' visibility defaults.
-  const siblings = await repo.listPersonas(p.conversationId);
+  const siblings = await repo.listPersonas(p.conversationId, false, dbi);
   const others = siblings.filter((s) => s.id !== id);
-  await removeSlugFromSiblings(p.nameSlug, others);
-  await repo.tombstonePersona(id);
+  await removeSlugFromSiblings(p.nameSlug, others, dbi);
+  await repo.tombstonePersona(id, undefined, dbi);
 }
 
 // --- #94: cross-editing helpers -------------------------------------------
@@ -246,13 +252,14 @@ async function renameSlugInSiblings(
 async function removeSlugFromSiblings(
   slug: string,
   siblings: Persona[],
+  dbi?: Kysely<Database>,
 ): Promise<void> {
   for (const sibling of siblings) {
     if (sibling.visibilityDefaults[slug] === undefined) continue;
     const rest = { ...sibling.visibilityDefaults };
     delete rest[slug];
     const updated: Persona = { ...sibling, visibilityDefaults: rest };
-    await repo.updatePersona(updated);
+    await repo.updatePersona(updated, dbi);
   }
 }
 
