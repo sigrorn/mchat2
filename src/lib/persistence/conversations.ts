@@ -8,11 +8,12 @@
 // ------------------------------------------------------------------
 
 import type { Kysely } from "kysely";
-import { db } from "./db";
+import { db, makeKyselyFor } from "./db";
 import type { ConversationsTable, Database } from "./schema";
-import type { Conversation, ProviderId } from "../types";
+import type { AutocompactThreshold, Conversation, ProviderId } from "../types";
 import { newConversationId } from "./ids";
 import { parseAutocompactThreshold } from "../schemas/conversationJsonColumns";
+import { withSerializedSection } from "../tauri/sql";
 
 // #267: see lib/persistence/messages.ts header note about the
 // optional Kysely arg threaded through repos called inside
@@ -248,6 +249,92 @@ function conversationToRow(conv: Conversation): ConversationsTable {
     last_seen_at: conv.lastSeenAt ?? 0,
     last_message_at: conv.lastMessageAt ?? 0,
   };
+}
+
+// #283: narrow per-field setters. Pre-#283 every UI toggle routed
+// through updateConversation, which DELETE+INSERTs three junction
+// tables and rewrites every column to flip ONE field. These narrow
+// setters issue exactly one UPDATE conversations; they're called from
+// the matching conversationsStore actions and from anywhere else that
+// wants to mutate a single column.
+
+export async function setConversationTitle(
+  conversationId: string,
+  title: string,
+  dbi: Kysely<Database> = db,
+): Promise<void> {
+  await dbi
+    .updateTable("conversations")
+    .set({ title })
+    .where("id", "=", conversationId)
+    .execute();
+}
+
+export async function setConversationDisplayMode(
+  conversationId: string,
+  mode: "lines" | "cols",
+  dbi: Kysely<Database> = db,
+): Promise<void> {
+  await dbi
+    .updateTable("conversations")
+    .set({ display_mode: mode })
+    .where("id", "=", conversationId)
+    .execute();
+}
+
+export async function setConversationFlowMode(
+  conversationId: string,
+  on: boolean,
+  dbi: Kysely<Database> = db,
+): Promise<void> {
+  await dbi
+    .updateTable("conversations")
+    .set({ flow_mode: on ? 1 : 0 })
+    .where("id", "=", conversationId)
+    .execute();
+}
+
+// #283: setAutocompact has a side effect — turning autocompact ON
+// resets context_warnings_fired (matches the prior conversationsStore
+// behavior). Turning it OFF preserves them. We wrap the threshold
+// UPDATE + the optional warnings clear in a held section so the two
+// observable changes land as one atomic group.
+export async function setConversationAutocompact(
+  conversationId: string,
+  threshold: AutocompactThreshold | null,
+  dbi?: Kysely<Database>,
+): Promise<void> {
+  if (dbi !== undefined) return doSetAutocompact(conversationId, threshold, dbi);
+  return withSerializedSection((raw) =>
+    doSetAutocompact(conversationId, threshold, makeKyselyFor(raw)),
+  );
+}
+
+async function doSetAutocompact(
+  conversationId: string,
+  threshold: AutocompactThreshold | null,
+  dbi: Kysely<Database>,
+): Promise<void> {
+  // Build the SET partial. context_warnings_fired (the legacy JSON
+  // column) only resets when turning autocompact ON.
+  const set: Partial<ConversationsTable> = {
+    autocompact_threshold: threshold ? JSON.stringify(threshold) : null,
+  };
+  if (threshold !== null) {
+    set.context_warnings_fired = JSON.stringify([]);
+  }
+  await dbi
+    .updateTable("conversations")
+    .set(set)
+    .where("id", "=", conversationId)
+    .execute();
+  if (threshold !== null) {
+    // Mirror the JSON column reset onto the relational junction.
+    await dbi
+      .deleteFrom("conversation_context_warnings")
+      .where("conversation_id", "=", conversationId)
+      .execute();
+  }
 }
 
 // #275: narrow setter for the compaction floor. Inside compaction's

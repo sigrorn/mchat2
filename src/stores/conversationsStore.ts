@@ -97,9 +97,9 @@ export const useConversationsStore = create<State>((set, get) => ({
   async setDisplayMode(id, mode) {
     const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
-    const next: Conversation = { ...current, displayMode: mode };
-    await repo.updateConversation(next);
-    cacheUpdate(replaceById(next));
+    // #283: narrow setter — one UPDATE conversations.display_mode.
+    await repo.setConversationDisplayMode(id, mode);
+    cacheUpdate(replaceById({ ...current, displayMode: mode }));
   },
   async setVisibilityMatrix(id, matrix) {
     const current = cacheGet().find((c) => c.id === id);
@@ -143,13 +143,17 @@ export const useConversationsStore = create<State>((set, get) => ({
   async setAutocompact(id, threshold) {
     const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
+    // #283: narrow setter — UPDATE conversations.autocompact_threshold
+    // (+ DELETE conversation_context_warnings when turning ON). The
+    // previous full updateConversation re-DELETE+INSERTed every
+    // junction. Cache mirrors the same threshold-on-clears-warnings
+    // semantic.
+    await repo.setConversationAutocompact(id, threshold);
     const next: Conversation = {
       ...current,
       autocompactThreshold: threshold,
-      // Reset warning flags when turning autocompact on.
       contextWarningsFired: threshold ? [] : (current.contextWarningsFired ?? []),
     };
-    await repo.updateConversation(next);
     cacheUpdate(replaceById(next));
   },
   async setContextWarningsFired(id, fired) {
@@ -163,18 +167,18 @@ export const useConversationsStore = create<State>((set, get) => ({
     const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
     if ((current.flowMode ?? false) === on) return; // no-op
-    const next: Conversation = { ...current, flowMode: on };
-    await repo.updateConversation(next);
-    cacheUpdate(replaceById(next));
+    // #283: narrow setter — one UPDATE conversations.flow_mode.
+    await repo.setConversationFlowMode(id, on);
+    cacheUpdate(replaceById({ ...current, flowMode: on }));
   },
   async rename(id, title) {
     const trimmed = title.trim();
     if (!trimmed) throw new Error("Title cannot be empty");
     const current = cacheGet().find((c) => c.id === id);
     if (!current) return;
-    const next: Conversation = { ...current, title: trimmed };
-    await repo.updateConversation(next);
-    cacheUpdate(replaceById(next));
+    // #283: narrow setter — one UPDATE conversations.title.
+    await repo.setConversationTitle(id, trimmed);
+    cacheUpdate(replaceById({ ...current, title: trimmed }));
   },
   async markSeen(id, ts) {
     const current = cacheGet().find((c) => c.id === id);
