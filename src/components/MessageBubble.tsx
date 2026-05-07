@@ -251,8 +251,14 @@ function MessageBubbleImpl({
     >
       {/* #265: items-start (was items-center) so the timestamp anchors to
           the top-right corner when the header wraps to a second line in
-          cols mode. */}
-      <div className="mb-1 flex items-start justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+          cols mode.
+          #285: flex-wrap on the parent + ml-auto on the right group so
+          when even (long persona name + timestamp) overflows the column,
+          the timestamp drops to its own second row instead of overlapping
+          the persona name. ml-auto keeps the right group right-aligned
+          whether it sits next to the left group on row 1 or alone on a
+          new row. */}
+      <div className="mb-1 flex flex-wrap items-start gap-x-2 gap-y-0.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
         {/* #265: render each headerPart as its own whitespace-nowrap flex
             item so the row can wrap at · boundaries when the column is
             too narrow for the full PERSONA · PROVIDER · MODEL line.
@@ -273,8 +279,10 @@ function MessageBubbleImpl({
         </div>
         {/* #243: edit button (when present) sits left of the timestamp,
             timestamp anchors to the right edge of the row. tabular-nums
-            keeps digit columns stable across rows. */}
-        <div className="flex shrink-0 items-center gap-2">
+            keeps digit columns stable across rows.
+            #285: ml-auto pushes this group to the right edge of whichever
+            row it ends up on (was: parent justify-between). */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {onEdit ? (
             <button
               onClick={onEdit}
