@@ -43,17 +43,21 @@ export async function reorderPersonas(
     // index. We use 0..N-1 (no stride) — the rewrite is full for
     // moved rows, so a stride would only matter if we were doing
     // partial-list patches, which we aren't.
-    const writes: Promise<unknown>[] = [];
+    //
+    // ADR 011's contract: ONE await at a time inside the section.
+    // The push-then-await pattern (push N promises, then await each)
+    // starts all N writes in parallel — they land on different sqlx
+    // pool connections, race against the BEGIN IMMEDIATE writer lock,
+    // and trip SQLITE_BUSY. Inline the await so each write completes
+    // (and releases its connection back to "most-recently-used") before
+    // the next one starts; sqlx then keeps returning the same pinned
+    // connection, the section stays single-connection, and the lock
+    // stays clean for the //pop / //compact / etc. that follows.
     for (let i = 0; i < validNext.length; i++) {
       const id = validNext[i]!;
       const persona = byId.get(id)!;
       if (persona.sortOrder === i) continue;
-      writes.push(repos.personas.updatePersona({ ...persona, sortOrder: i }));
+      await repos.personas.updatePersona({ ...persona, sortOrder: i });
     }
-    // Sequential await so a mid-rewrite throw rolls back atomically;
-    // Promise.all would still see ROLLBACK on throw but the
-    // transaction body's contract is one-await-at-a-time inside #267's
-    // section-token model.
-    for (const w of writes) await w;
   });
 }
