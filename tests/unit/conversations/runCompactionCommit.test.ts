@@ -55,6 +55,34 @@ function persona(id: string): Persona {
   };
 }
 
+// #275 helper: snapshot the junction-table rowids for a conversation
+// so the test can detect any DELETE+INSERT (rowids would change /
+// disappear).
+async function fetchJunctionRowids(conversationId: string): Promise<{
+  selected: number[];
+  warnings: number[];
+  visibility: number[];
+}> {
+  const { sql } = await import("@/lib/tauri/sql");
+  const selected = await sql.select<{ rowid: number }>(
+    `SELECT rowid FROM conversation_personas_selected WHERE conversation_id = ? ORDER BY rowid`,
+    [conversationId],
+  );
+  const warnings = await sql.select<{ rowid: number }>(
+    `SELECT rowid FROM conversation_context_warnings WHERE conversation_id = ? ORDER BY rowid`,
+    [conversationId],
+  );
+  const visibility = await sql.select<{ rowid: number }>(
+    `SELECT rowid FROM persona_visibility WHERE conversation_id = ? ORDER BY rowid`,
+    [conversationId],
+  );
+  return {
+    selected: selected.map((r) => r.rowid),
+    warnings: warnings.map((r) => r.rowid),
+    visibility: visibility.map((r) => r.rowid),
+  };
+}
+
 async function seedConv(): Promise<Conversation> {
   await conversationsRepo.createConversation(baseConv);
   // Personas referenced by inserted summary rows must exist (FK
@@ -124,6 +152,60 @@ describe("commitCompactionWrites (regression #268)", () => {
     // Floor moved
     const reloaded = await conversationsRepo.getConversation("c1");
     expect(reloaded?.compactionFloorIndex).toBe(1);
+  });
+
+  // #275: the commit phase used to move the floor via the full
+  // updateConversation, which rewrites every conversation column AND
+  // re-DELETE/INSERTs the conversation_personas_selected, conversation_
+  // context_warnings, and persona_visibility junction tables. To move
+  // ONE integer column. Pin that we use a narrow setter instead.
+  it("moves the compaction floor without rewriting unrelated junction tables (#275)", async () => {
+    handle = await createTestDb();
+    const conv = await seedConv();
+
+    // Seed the junction tables with sentinel rows so we can detect a
+    // rewrite via row identity (rowid). The narrow setter must leave
+    // them alone; the old full updateConversation path would DELETE +
+    // INSERT them on every call.
+    await conversationsRepo.updateConversation({
+      ...conv,
+      selectedPersonas: ["p1"],
+      contextWarningsFired: [80],
+      visibilityMatrix: { p1: ["p2"] },
+    });
+    const before = await fetchJunctionRowids("c1");
+
+    // Spy on updateConversation — the heavy rewrite. The narrow setter
+    // (setCompactionFloor on the repo) is what we want called instead.
+    const heavySpy = vi.spyOn(conversationsRepo, "updateConversation");
+
+    await commitCompactionWrites(conv, /* cutoff */ 1, [
+      {
+        personaId: "p1",
+        provider: "mock",
+        model: "mock-1",
+        summary: "summary A",
+        ttftMs: 10,
+        streamMs: 100,
+        reportedOutputTokens: 5,
+      },
+    ]);
+
+    // The full rewrite must not be called from inside the compaction
+    // commit — that would trigger the junction-table churn.
+    expect(heavySpy).not.toHaveBeenCalled();
+
+    // Junction-table rowids must be unchanged: no DELETE+INSERT happened.
+    const after = await fetchJunctionRowids("c1");
+    expect(after).toEqual(before);
+
+    // Floor still moved (the narrow setter did its job).
+    const reloaded = await conversationsRepo.getConversation("c1");
+    expect(reloaded?.compactionFloorIndex).toBe(1);
+    // Plus all the other state the existing atomicity test pins.
+    expect(reloaded?.selectedPersonas).toEqual(["p1"]);
+    expect(reloaded?.contextWarningsFired).toEqual([80]);
+    expect(reloaded?.visibilityMatrix).toEqual({ p1: ["p2"] });
   });
 
   it("rolls back shifts and inserts when an insertMessageAtIndex throws mid-loop", async () => {
