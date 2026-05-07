@@ -104,6 +104,36 @@ describe("reorderPersonas (#273)", () => {
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
+  it("serializes the updatePersona writes (one in flight at a time)", async () => {
+    // Regression for the v2.73.2 SQLITE_BUSY-after-//pop bug. The
+    // earlier impl push'd N updatePersona promises into an array and
+    // then awaited them, which started all writes in parallel. Inside
+    // a transaction's section-token (ADR 011), parallel writes land on
+    // different sqlx pool connections, race against BEGIN IMMEDIATE's
+    // writer lock, and trip SQLITE_BUSY. Pin that successive writes
+    // do NOT overlap.
+    handle = await createTestDb();
+    await seed();
+
+    let inflight = 0;
+    let maxInflight = 0;
+    const real = personasRepo.updatePersona;
+    vi.spyOn(personasRepo, "updatePersona").mockImplementation(async (p, dbi) => {
+      inflight += 1;
+      maxInflight = Math.max(maxInflight, inflight);
+      // Yield once so a competing concurrent call would have time to
+      // race in if we were running parallel.
+      await Promise.resolve();
+      const r = await real(p, dbi);
+      inflight -= 1;
+      return r;
+    });
+
+    await reorderPersonas("c1", ["p3", "p1", "p2"]);
+
+    expect(maxInflight).toBe(1);
+  });
+
   it("ignores ids that don't exist in the conversation", async () => {
     handle = await createTestDb();
     await seed();
