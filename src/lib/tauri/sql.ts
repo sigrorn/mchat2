@@ -121,22 +121,40 @@ export const sql: SqlImpl = {
  * Hold the global op queue for the duration of `fn`. Inside the body,
  * the section owns the queue head — external `sql.execute` /
  * `sql.select` calls land in the queue and wait for the section to
- * release. The body receives a raw SqlImpl that bypasses the queue;
- * pass it (or a Kysely instance bound to it via TxnContext.db) to
- * any repo function the section calls, otherwise the queued repo
+ * release. The body receives a raw SqlImpl that bypasses the global
+ * queue; pass it (or a Kysely instance bound to it via TxnContext.db)
+ * to any repo function the section calls, otherwise the queued repo
  * call deadlocks waiting on the section that holds the queue.
+ *
+ * #274: the raw impl ALSO has its own per-section chain so a body that
+ * accidentally fires Promise.all (or push-then-await) over multiple
+ * writes serializes them at the impl level. plugin-sql's sqlx pool
+ * routes concurrent calls to different connections; with BEGIN
+ * IMMEDIATE held on connection A, parallel writes on B and C race the
+ * writer lock and surface as SQLITE_BUSY (the v2.73.2 reorderPersonas
+ * bug). The chain turns ADR 011's 'one await at a time' rule from a
+ * discipline pin into a structural guarantee.
  */
 export function withSerializedSection<T>(
   fn: (raw: SqlImpl) => Promise<T>,
 ): Promise<T> {
   return queueOp(async () => {
-    // Raw surface: routes through the currently-installed driver
-    // (production / sql.js / mock) without re-entering queueOp.
+    // Per-section chain. Each raw call enqueues onto sectionQueue so
+    // its impl call only starts after the previous one has settled.
+    // .catch(() => undefined) on the queue tail keeps it moving when a
+    // chained call rejects — otherwise one failed write inside a
+    // transaction would strand every subsequent write in the section.
+    let sectionQueue: Promise<unknown> = Promise.resolve();
+    const chain = <R>(op: () => Promise<R>): Promise<R> => {
+      const next = sectionQueue.then(op, op);
+      sectionQueue = next.catch(() => undefined);
+      return next;
+    };
     const raw: SqlImpl = {
-      execute: (q, p) => impl.execute(q, p),
+      execute: (q, p) => chain(() => impl.execute(q, p)),
       select: <T = Record<string, unknown>>(q: string, p?: unknown[]): Promise<T[]> =>
-        impl.select<T>(q, p),
-      close: () => impl.close(),
+        chain(() => impl.select<T>(q, p)),
+      close: () => chain(() => impl.close()),
     };
     return await fn(raw);
   });
