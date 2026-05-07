@@ -37,12 +37,20 @@ export interface TxnContext {
 // certainly a bug — usually a use case calling another use case that
 // already wrapped its own writes — so we surface it loudly rather than
 // silently flattening into the outer transaction.
+//
+// #277: this sync-entry guard also fires when two top-level transactions
+// overlap in time (e.g. user drags-to-reorder while a //pop is mid-body).
+// We can't move the check inside withSerializedSection — that would
+// deadlock real nested calls (the inner section queues behind the outer
+// while the outer awaits the inner's promise). JS has no built-in
+// async-context to distinguish the two cases, so the message must
+// acknowledge both possibilities.
 let inTransaction = false;
 
 export async function transaction<T>(fn: (ctx: TxnContext) => Promise<T>): Promise<T> {
   if (inTransaction) {
     throw new Error(
-      "transaction(): nested call detected. SQLite has no nested transactions; refactor the inner caller to run outside its own transaction.",
+      "transaction(): another transaction is already running. This is either an actual nested call (refactor the inner caller to run outside its own transaction) or two top-level transactions overlapping in time (retry).",
     );
   }
   // #267: hold the SQL op queue for the entire BEGIN/.../COMMIT
