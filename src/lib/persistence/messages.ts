@@ -11,7 +11,8 @@
 // ------------------------------------------------------------------
 
 import { sql, type Kysely } from "kysely";
-import { db } from "./db";
+import { db, makeKyselyFor } from "./db";
+import { withSerializedSection } from "../tauri/sql";
 import type { Database, MessagesTable } from "./schema";
 import type { Message, ProviderId, DisplayMode, Role } from "../types";
 import { newMessageId } from "./ids";
@@ -119,9 +120,19 @@ const appendChain: Map<string, Promise<unknown>> = new Map();
 // #267: when called inside a transaction, the caller passes ctx.db so the
 // inserts go through the section's raw impl (otherwise they'd queue and
 // deadlock waiting for the section that holds the queue head). Skips
-// the appendChain in that case — the section is the only writer in
-// flight, so the chain's per-conversation index serialization isn't
-// needed.
+// the appendChain AND the held-section wrap in that case — the caller's
+// transaction already owns the queue; doAppend's three statements run
+// through the section's chain (#274), preserving atomicity.
+//
+// #276: the non-transaction path now wraps the three statements
+// (SELECT MAX(idx), INSERT, UPDATE conversations.last_message_at) in a
+// withSerializedSection so no other top-level op can interleave between
+// them. Pre-#276 a transaction() queued mid-call could BEGIN between
+// MAX-read and INSERT, mutate the messages table, and leave appendMessage
+// inserting at a stale idx (UNIQUE collision or wrong-position row).
+// appendChain stays as a per-conversation FIFO so multiple async appends
+// on the same conversation hit MAX-read in causal order; the section
+// wrap then forces atomicity per call.
 export async function appendMessage(
   partial: Omit<Message, "id" | "index" | "createdAt"> & {
     id?: string;
@@ -132,7 +143,9 @@ export async function appendMessage(
   if (dbi !== undefined) return doAppend(partial, dbi);
   const convId = partial.conversationId;
   const prev = appendChain.get(convId) ?? Promise.resolve();
-  const next = prev.then(() => doAppend(partial, db));
+  const next = prev.then(() =>
+    withSerializedSection((raw) => doAppend(partial, makeKyselyFor(raw))),
+  );
   appendChain.set(
     convId,
     next.catch(() => undefined),
@@ -173,7 +186,27 @@ export async function updateMessageContent(
   content: string,
   errorMessage: string | null,
   errorTransient: boolean,
-  dbi: Kysely<Database> = db,
+  dbi?: Kysely<Database>,
+): Promise<void> {
+  if (dbi !== undefined) return doUpdateMessageContent(id, content, errorMessage, errorTransient, dbi);
+  // #276: same shape as appendMessage's non-transaction path — three
+  // statements (UPDATE messages, SELECT messages.conversation_id, UPDATE
+  // conversations.last_message_at) wrapped in a held section so a
+  // concurrent transaction can't interleave between them. Pre-#276 the
+  // SELECT could see a different conversation_id than what was current
+  // when the UPDATE landed if the row was deleted/moved between the
+  // two queue positions.
+  return withSerializedSection((raw) =>
+    doUpdateMessageContent(id, content, errorMessage, errorTransient, makeKyselyFor(raw)),
+  );
+}
+
+async function doUpdateMessageContent(
+  id: string,
+  content: string,
+  errorMessage: string | null,
+  errorTransient: boolean,
+  dbi: Kysely<Database>,
 ): Promise<void> {
   await dbi
     .updateTable("messages")
