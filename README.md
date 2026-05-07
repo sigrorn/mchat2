@@ -1,77 +1,99 @@
 # mchat2
 
-Multi-provider LLM chat workbench — a desktop application for power users who run
-structured conversations across multiple providers (Claude, GPT, Gemini,
-Perplexity, Mistral, Apertus) simultaneously.
+Multi-provider LLM chat workbench. A desktop application for users who run
+structured conversations across several providers (Anthropic, OpenAI, Gemini,
+OpenAI-compatible) at once.
 
-It is not a chat wrapper. It is an orchestration workbench with named personas,
-per-persona prompts/models/colors, DAG-style execution dependencies, visibility
-controls, pinned context, retries, cost tracking, rich markdown/diagram
-rendering, and HTML export.
+Not a chat wrapper. An orchestration workbench with named personas, per-persona
+prompts and models, conversation flows, visibility controls, pinned context,
+retry/replay, cost tracking, rich Markdown rendering, and snapshot
+import/export.
+
+Built on Tauri 2 (minimal Rust shell) + React 19 + TypeScript + SQLite via
+`tauri-plugin-sql`. Single-user, local-first, no backend service.
 
 ## Status
 
-From-scratch rewrite of a proven PySide6 Python app. Technology stack changed to
-eliminate Qt threading instability and leverage web rendering for rich chat UI.
+Single-developer project. From-scratch rewrite of an earlier PySide6 Python
+app — the rewrite eliminated Qt threading instability and leveraged web
+rendering for the chat UI. Issues are filed before non-trivial work and the
+issue number drives the version bump (see
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)).
+
+Current version is in [`package.json`](package.json).
 
 ## Tech stack
 
-- TypeScript (strict)
-- Tauri v2 (minimal Rust; plugins for SQLite, secure storage, HTTP, FS)
-- React 19 + TailwindCSS
-- Zustand (state) — orchestration logic lives outside stores in pure services
-- SQLite via `@tauri-apps/plugin-sql`
-- Vitest (unit) + Playwright (E2E)
-- Vite + Tauri CLI
+- **TypeScript** (strict mode, `noUncheckedIndexedAccess`,
+  `exactOptionalPropertyTypes`)
+- **Tauri 2** — minimal Rust; plugins for SQLite, secure storage, HTTP, FS,
+  single-instance, dialogs, shell, window-state
+- **React 19** + TailwindCSS
+- **Zustand** for UI state — orchestration logic lives outside stores in pure
+  use cases under `src/lib/app/`
+- **SQLite** via `@tauri-apps/plugin-sql`, queried through a thin Kysely layer
+- **Vitest** (unit) + **Playwright** (end-to-end through the mock provider)
 
-## Setup
+## Quick start
 
-Prereqs: Node 20+, Rust stable, platform toolchain for Tauri
-(see https://v2.tauri.app/start/prerequisites/).
+Prerequisites:
+
+- Node 20+
+- Rust stable (with `cargo` on PATH)
+- OS-specific Tauri prerequisites — see [Tauri's setup
+  guide](https://v2.tauri.app/start/prerequisites/) for your platform.
 
 ```bash
+git clone <this-repo>
+cd mchat2
 npm install
-npm run tauri dev   # dev build
-npm run test        # vitest
-npm run test:e2e    # playwright
+npm run tauri dev      # dev build, hot-reloads the webview
+npm test               # vitest unit suite
+npm run test:e2e       # playwright (requires browsers installed)
 npm run lint
+npm run tauri build    # release binary
 ```
 
-## Project layout
+First launch will prompt for API keys per provider; keys are stored in your
+OS keychain (Credential Manager on Windows, Keychain on macOS, Secret Service
+on Linux). Provider keys never enter reactive state — they're read from the
+keychain at call time and discarded after the request.
+
+The SQLite database is created lazily on first launch under the OS app-data
+directory.
+
+## Project layout (1-level)
 
 ```
 src/
-  lib/           Pure business logic (zero React/Tauri imports beyond lib/tauri/)
-    types/       Domain types
-    tauri/       All Tauri plugin + HTTP transport
-    providers/   Registry + adapters (mock + real)
-    orchestration/  sendPlanner, dagExecutor, streamRunner, retryManager
-    context/     8-rule context builder
-    personas/    CRUD, validation, @-prefix resolver
-    persistence/ SQLite repositories + migrations
-    rendering/   Shared markdown/code/graph pipeline + HTML export
-    security/    Key redaction
-    pricing/     Static cost table
-    config.ts
-  stores/        Zustand — thin reactive layer over services
-  components/    React (presentation only)
-  hooks/
-src-tauri/       Rust entrypoint + plugin wiring (minimal)
-tests/
-  unit/          Vitest
-  e2e/           Playwright
+  components/     React UI (presentation only)
+  hooks/          React hook layer that wires Zustand stores into use-case deps
+  stores/         Zustand — thin reactive caches and UI state
+  lib/            Pure logic; no React, no Zustand, no Tauri imports
+src-tauri/        Rust shell — plugin wiring, single-instance, keychain bridge
+tests/            Vitest unit suite + Playwright e2e
+docs/             Architecture, contributing, troubleshooting, recipes, ADRs
 ```
 
-## Architecture notes
+A deeper map of `src/lib/` and the why-it's-shaped-this-way explanation lives
+in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-- **Orchestration outside stores.** Pure services in `lib/orchestration/` own
-  business logic. Stores are thin reactive wrappers.
-- **All Tauri + HTTP interop in `lib/tauri/`.** Nothing else imports Tauri APIs
-  or calls `fetch()` directly. Provider adapters depend on
-  `lib/tauri/http.ts#streamSSE`.
-- **Provider registry is the single source of truth.** Derived maps
-  (prefix→provider, color, display name, reserved names) are computed from it.
-- **Keys never enter reactive state.** Read from keychain at call time, passed
-  to `http.ts`, discarded.
+## Documentation
 
-See inline module docs for the full design rules.
+Read in this order on first contact:
+
+1. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — codebase tour. Process
+   model, source map, data model, send/command lifecycles, persistence and
+   locking rules, state/cache invariants. Read once on join.
+2. **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** — workflow rules. Issue-
+   first, test-first, commit cadence, version-bump script. Reference daily.
+3. **[docs/decisions/](docs/decisions/)** — Architecture Decision Records.
+   Start with [docs/decisions/README.md](docs/decisions/README.md) for the
+   recommended reading order.
+
+When something breaks, look at:
+
+- **[docs/troubleshooting.md](docs/troubleshooting.md)** — symptoms →
+  diagnostic steps → fix patterns.
+- **[docs/recipes.md](docs/recipes.md)** — how to add a slash command, a
+  repo method, a migration, a provider, etc.
