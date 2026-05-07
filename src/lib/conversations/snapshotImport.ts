@@ -10,9 +10,6 @@ import type { Conversation, Persona, ProviderId } from "../types";
 import type { SnapshotEnvelope } from "./snapshot";
 import { createPersona, updatePersona } from "../personas/service";
 import { slugify } from "../personas/slug";
-import * as convRepo from "../persistence/conversations";
-import * as messagesRepo from "../persistence/messages";
-import * as flowsRepo from "../persistence/flows";
 import { PROVIDER_REGISTRY } from "../providers/registry";
 import { keychain } from "../tauri/keychain";
 import { migrateRunsAfterToFlow } from "./migrateRunsAfterToFlow";
@@ -22,6 +19,7 @@ import {
   setBuiltinPresetConfig,
 } from "../providers/openaiCompatStorage";
 import { transaction } from "../persistence/transaction";
+import { reposFor } from "../persistence/repoContext";
 
 export interface ImportResult {
   conversation: Conversation;
@@ -42,23 +40,21 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     conv: updatedConv,
     legacyApertusProductIdFromSnapshot,
   } = await transaction(async (txn) => {
+    const repos = reposFor(txn.db);
     // 1. Create conversation.
-    const conv = await convRepo.createConversation(
-      {
-        title: snapshot.title,
-        systemPrompt: snapshot.systemPrompt ?? null,
-        displayMode: (snapshot.displayMode === "cols" ? "cols" : "lines") as "lines" | "cols",
-        visibilityMode:
-          (snapshot.visibilityMode === "joined" ? "joined" : "separated") as "separated" | "joined",
-        visibilityMatrix: {},
-        selectedPersonas: [],
-        compactionFloorIndex: snapshot.compactionFloorIndex ?? null,
-        autocompactThreshold: null,
-        contextWarningsFired: [],
-        lastProvider: null,
-      },
-      txn.db,
-    );
+    const conv = await repos.conversations.createConversation({
+      title: snapshot.title,
+      systemPrompt: snapshot.systemPrompt ?? null,
+      displayMode: (snapshot.displayMode === "cols" ? "cols" : "lines") as "lines" | "cols",
+      visibilityMode:
+        (snapshot.visibilityMode === "joined" ? "joined" : "separated") as "separated" | "joined",
+      visibilityMatrix: {},
+      selectedPersonas: [],
+      compactionFloorIndex: snapshot.compactionFloorIndex ?? null,
+      autocompactThreshold: null,
+      contextWarningsFired: [],
+      lastProvider: null,
+    });
 
     // 2. Create personas (two-pass for runsAfter).
     const nameToId = new Map<string, string>();
@@ -151,7 +147,7 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
       visibilityMatrix: resolvedMatrix,
       selectedPersonas: selectedIds,
     };
-    await convRepo.updateConversation(updatedConv, txn.db);
+    await repos.conversations.updateConversation(updatedConv);
 
     // 5. Import messages with name → ID remapping.
     const resolveId = (name: string | null): string | null => {
@@ -162,29 +158,26 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
       names.map((n) => nameToId.get(n.toLowerCase())).filter((id): id is string => id !== undefined);
 
     for (const sm of snapshot.messages) {
-      await messagesRepo.appendMessage(
-        {
-          conversationId: conv.id,
-          role: sm.role as "user" | "assistant" | "system" | "notice",
-          content: sm.content,
-          provider: (sm.provider as ProviderId) ?? null,
-          model: sm.model ?? null,
-          personaId: resolveId(sm.persona),
-          displayMode: sm.displayMode === "cols" ? "cols" : "lines",
-          pinned: sm.pinned,
-          pinTarget: resolveId(sm.pinTarget),
-          addressedTo: resolveIds(sm.addressedTo),
-          errorMessage: sm.errorMessage ?? null,
-          errorTransient: sm.errorTransient,
-          inputTokens: sm.inputTokens,
-          outputTokens: sm.outputTokens,
-          usageEstimated: sm.usageEstimated,
-          audience: resolveIds(sm.audience),
-          // #231: defaults to false when absent (legacy snapshots).
-          flowDispatched: sm.flowDispatched ?? false,
-        },
-        txn.db,
-      );
+      await repos.messages.appendMessage({
+        conversationId: conv.id,
+        role: sm.role as "user" | "assistant" | "system" | "notice",
+        content: sm.content,
+        provider: (sm.provider as ProviderId) ?? null,
+        model: sm.model ?? null,
+        personaId: resolveId(sm.persona),
+        displayMode: sm.displayMode === "cols" ? "cols" : "lines",
+        pinned: sm.pinned,
+        pinTarget: resolveId(sm.pinTarget),
+        addressedTo: resolveIds(sm.addressedTo),
+        errorMessage: sm.errorMessage ?? null,
+        errorTransient: sm.errorTransient,
+        inputTokens: sm.inputTokens,
+        outputTokens: sm.outputTokens,
+        usageEstimated: sm.usageEstimated,
+        audience: resolveIds(sm.audience),
+        // #231: defaults to false when absent (legacy snapshots).
+        flowDispatched: sm.flowDispatched ?? false,
+      });
     }
 
     // 5b. Recreate the flow if bundled. Persona names are remapped to
@@ -212,15 +205,11 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
         const rawLoopStart = snapshot.flow.loopStartIndex ?? 0;
         const safeLoopStart =
           rawLoopStart >= 0 && rawLoopStart < cleaned.length ? rawLoopStart : 0;
-        await flowsRepo.upsertFlow(
-          conv.id,
-          {
-            currentStepIndex: snapshot.flow.currentStepIndex,
-            loopStartIndex: safeLoopStart,
-            steps: cleaned,
-          },
-          txn.db,
-        );
+        await repos.flows.upsertFlow(conv.id, {
+          currentStepIndex: snapshot.flow.currentStepIndex,
+          loopStartIndex: safeLoopStart,
+          steps: cleaned,
+        });
       }
     }
 

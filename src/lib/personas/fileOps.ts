@@ -11,9 +11,9 @@ import { serializePersonas, parsePersonasImport, resolveImport } from "./importE
 import { createPersona, updatePersona } from "./service";
 import * as repo from "../persistence/personas";
 import * as messagesRepo from "../persistence/messages";
-import * as flowsRepo from "../persistence/flows";
 import { invalidateRepoQuery } from "../data/useRepoQuery";
 import { transaction } from "../persistence/transaction";
+import { reposFor } from "../persistence/repoContext";
 import { ensureIdentityPin } from "./identityPin";
 import { slugify } from "./slug";
 import { migrateRunsAfterToFlow } from "../conversations/migrateRunsAfterToFlow";
@@ -72,6 +72,7 @@ export async function importPersonasFromFile(
   // #267: txn.db threaded through every repo / service call inside the
   // body so they bypass the global op queue (held by the section).
   const { created, skipped, visibilityWarnings } = await transaction(async (txn) => {
+    const repos = reposFor(txn.db);
     const created: Persona[] = [];
     // Two-pass for runsAfter: first create everything without parent
     // links, then patch them in once all ids exist.
@@ -104,7 +105,7 @@ export async function importPersonasFromFile(
     // imported file flow into a transient map below for the
     // migrateRunsAfterToFlow call rather than being persisted on
     // Persona rows.
-    const post = await repo.listPersonas(conversationId, false, txn.db);
+    const post = await repos.personas.listPersonas(conversationId, false);
     const live = post.filter((p) => p.deletedAt === null);
     const idBySlug = new Map(live.map((p) => [p.nameSlug, p.id] as const));
     const importedRunsAfter = new Map<string, readonly string[]>();
@@ -158,15 +159,11 @@ export async function importPersonasFromFile(
         const rawLoopStart = resolved.flow.loopStartIndex ?? 0;
         const safeLoopStart =
           rawLoopStart >= 0 && rawLoopStart < cleaned.length ? rawLoopStart : 0;
-        await flowsRepo.upsertFlow(
-          conversationId,
-          {
-            currentStepIndex: resolved.flow.currentStepIndex,
-            loopStartIndex: safeLoopStart,
-            steps: cleaned,
-          },
-          txn.db,
-        );
+        await repos.flows.upsertFlow(conversationId, {
+          currentStepIndex: resolved.flow.currentStepIndex,
+          loopStartIndex: safeLoopStart,
+          steps: cleaned,
+        });
         // #236 follow-up: bump the flow query cache so PersonaPanel
         // re-reads the freshly-imported flow and renders the
         // "Conversation flow" row immediately instead of waiting for
@@ -191,7 +188,7 @@ export async function importPersonasFromFile(
     // #36: every imported persona needs the same identity pin that
     // CreateForm sets up — without it the LLM defaults to its provider
     // identity ("My name is Claude") rather than the imported name.
-    const history = await messagesRepo.listMessages(conversationId, txn.db);
+    const history = await repos.messages.listMessages(conversationId);
     for (const p of created) {
       await ensureIdentityPin(conversationId, p, history, messagesRepo, "inherit", txn.db);
     }

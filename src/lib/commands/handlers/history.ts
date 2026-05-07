@@ -10,11 +10,11 @@ import { indexByUserNumber, userMessageCount } from "@/lib/conversations/userMes
 import { resolveEditTarget } from "@/lib/conversations/resolveEditTarget";
 import { planPop } from "@/lib/conversations/popPlan";
 import { findFailedRowsInLastGroup } from "@/lib/orchestration/findFailedRowsInLastGroup";
-import * as messagesRepo from "@/lib/persistence/messages";
 import * as runsRepo from "@/lib/persistence/runs";
 import { computeFlowRewindIndex } from "@/lib/app/flowRewind";
 import { pauseFlowAt } from "@/lib/app/flowPause";
 import { transaction } from "@/lib/persistence/transaction";
+import { reposFor } from "@/lib/persistence/repoContext";
 import type { Message } from "@/lib/types";
 import type { CommandContext, CommandResult } from "./types";
 
@@ -107,28 +107,26 @@ export async function handlePop(
     // appendNotice path and write directly via repo.appendMessage —
     // the cache reload below picks up the fresh notice row.
     await transaction(async (txn) => {
-      await messagesRepo.deleteMessagesAfter(conversation.id, startIdx - 1, txn.db);
-      await messagesRepo.appendMessage(
-        {
-          conversationId: conversation.id,
-          role: "notice",
-          content: `rewound to message ${payload.userNumber}. ${queue.length} user message${queue.length === 1 ? "" : "s"} to replay. Submit empty to skip.`,
-          provider: null,
-          model: null,
-          personaId: null,
-          displayMode: "lines",
-          pinned: false,
-          pinTarget: null,
-          addressedTo: [],
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: 0,
-          usageEstimated: false,
-          audience: [],
-        },
-        txn.db,
-      );
+      const repos = reposFor(txn.db);
+      await repos.messages.deleteMessagesAfter(conversation.id, startIdx - 1);
+      await repos.messages.appendMessage({
+        conversationId: conversation.id,
+        role: "notice",
+        content: `rewound to message ${payload.userNumber}. ${queue.length} user message${queue.length === 1 ? "" : "s"} to replay. Submit empty to skip.`,
+        provider: null,
+        model: null,
+        personaId: null,
+        displayMode: "lines",
+        pinned: false,
+        pinTarget: null,
+        addressedTo: [],
+        errorMessage: null,
+        errorTransient: false,
+        inputTokens: 0,
+        outputTokens: 0,
+        usageEstimated: false,
+        audience: [],
+      });
     });
     await ctx.deps.reloadMessages(conversation.id);
     await rewindFlowAfterPop(ctx, conversation.id, poppedAssistants);
@@ -151,32 +149,26 @@ export async function handlePop(
   // #267: see the //pop N branch above for the txn.db threading
   // and direct-repo appendMessage rationale.
   await transaction(async (txn) => {
-    await messagesRepo.deleteMessagesAfter(
-      conversation.id,
-      plan.lastUserIndex - 1,
-      txn.db,
-    );
-    await messagesRepo.appendMessage(
-      {
-        conversationId: conversation.id,
-        role: "notice",
-        content: `popped ${plan.deleteIds.length} message${plan.deleteIds.length === 1 ? "" : "s"}.`,
-        provider: null,
-        model: null,
-        personaId: null,
-        displayMode: "lines",
-        pinned: false,
-        pinTarget: null,
-        addressedTo: [],
-        errorMessage: null,
-        errorTransient: false,
-        inputTokens: 0,
-        outputTokens: 0,
-        usageEstimated: false,
-        audience: [],
-      },
-      txn.db,
-    );
+    const repos = reposFor(txn.db);
+    await repos.messages.deleteMessagesAfter(conversation.id, plan.lastUserIndex - 1);
+    await repos.messages.appendMessage({
+      conversationId: conversation.id,
+      role: "notice",
+      content: `popped ${plan.deleteIds.length} message${plan.deleteIds.length === 1 ? "" : "s"}.`,
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+    });
   });
   await ctx.deps.reloadMessages(conversation.id);
   await rewindFlowAfterPop(ctx, conversation.id, poppedAssistants);

@@ -16,9 +16,8 @@
 
 import type { Conversation, Persona } from "../types";
 import { PROVIDER_REGISTRY } from "../providers/registry";
-import * as messagesRepo from "../persistence/messages";
-import * as conversationsRepo from "../persistence/conversations";
 import { transaction } from "../persistence/transaction";
+import { reposFor } from "../persistence/repoContext";
 
 export interface CompactionSummaryEntry {
   /** Source persona — used for personaId, provider, model on the
@@ -76,63 +75,58 @@ export async function commitCompactionWrites(
 ): Promise<void> {
   const shiftBy = 1 + entries.length;
   await transaction(async (txn) => {
-    await messagesRepo.shiftMessageIndicesFrom(conversation.id, cutoff, shiftBy, txn.db);
+    const repos = reposFor(txn.db);
+    await repos.messages.shiftMessageIndicesFrom(conversation.id, cutoff, shiftBy);
 
-    await messagesRepo.insertMessageAtIndex(
-      {
-        conversationId: conversation.id,
-        role: "notice",
-        content: "COMPACTION",
-        provider: null,
-        model: null,
-        personaId: null,
-        displayMode: "lines",
-        pinned: false,
-        pinTarget: null,
-        addressedTo: [],
-        errorMessage: null,
-        errorTransient: false,
-        inputTokens: 0,
-        outputTokens: 0,
-        usageEstimated: false,
-        audience: [],
-        index: cutoff,
-      },
-      txn.db,
-    );
+    await repos.messages.insertMessageAtIndex({
+      conversationId: conversation.id,
+      role: "notice",
+      content: "COMPACTION",
+      provider: null,
+      model: null,
+      personaId: null,
+      displayMode: "lines",
+      pinned: false,
+      pinTarget: null,
+      addressedTo: [],
+      errorMessage: null,
+      errorTransient: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      usageEstimated: false,
+      audience: [],
+      index: cutoff,
+    });
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]!;
       const personaId = resolvePersonaId(entry);
-      await messagesRepo.insertMessageAtIndex(
-        {
-          conversationId: conversation.id,
-          role: "assistant",
-          content: `[compacted summary]\n\n${entry.summary}`,
-          provider: resolveProvider(entry),
-          model: resolveModel(entry),
-          personaId,
-          displayMode: "lines",
-          pinned: true,
-          pinTarget: personaId,
-          addressedTo: [],
-          errorMessage: null,
-          errorTransient: false,
-          inputTokens: 0,
-          outputTokens: entry.reportedOutputTokens,
-          usageEstimated: false,
-          audience: [],
-          ttftMs: entry.ttftMs,
-          streamMs: entry.streamMs,
-          index: cutoff + 1 + i,
-        },
-        txn.db,
-      );
+      await repos.messages.insertMessageAtIndex({
+        conversationId: conversation.id,
+        role: "assistant",
+        content: `[compacted summary]\n\n${entry.summary}`,
+        provider: resolveProvider(entry),
+        model: resolveModel(entry),
+        personaId,
+        displayMode: "lines",
+        pinned: true,
+        pinTarget: personaId,
+        addressedTo: [],
+        errorMessage: null,
+        errorTransient: false,
+        inputTokens: 0,
+        outputTokens: entry.reportedOutputTokens,
+        usageEstimated: false,
+        audience: [],
+        ttftMs: entry.ttftMs,
+        streamMs: entry.streamMs,
+        index: cutoff + 1 + i,
+      });
     }
 
-    await conversationsRepo.updateConversation(
-      { ...conversation, compactionFloorIndex: cutoff },
-      txn.db,
-    );
+    await repos.conversations.updateConversation({
+      ...conversation,
+      compactionFloorIndex: cutoff,
+    });
   });
 }
