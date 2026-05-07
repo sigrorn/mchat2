@@ -14,12 +14,14 @@ import { setSelection } from "@/lib/app/setSelection";
 describe("lib/app/setSelection (#271)", () => {
   it("updates local cache then writes persistent state, in that order", async () => {
     const order: string[] = [];
-    const setLocalSelection = vi.fn((_id: string, _keys: string[]) => {
+    const setLocalSelection = vi.fn((_id: string, _keys: readonly string[]) => {
       order.push("local");
     });
-    const setSelectedPersonasPersistent = vi.fn(async (_id: string, _keys: string[]) => {
-      order.push("persistent");
-    });
+    const setSelectedPersonasPersistent = vi.fn(
+      async (_id: string, _keys: readonly string[]) => {
+        order.push("persistent");
+      },
+    );
     await setSelection(
       { setLocalSelection, setSelectedPersonasPersistent },
       "c1",
