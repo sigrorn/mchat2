@@ -10,8 +10,7 @@
 //                lib/persistence/schema.ts.
 // ------------------------------------------------------------------
 
-import type { Kysely } from "kysely";
-import { sql as ourSql } from "../tauri/sql";
+import { sql, type Kysely } from "kysely";
 import { db } from "./db";
 import type { Database, MessagesTable } from "./schema";
 import type { Message, ProviderId, DisplayMode, Role } from "../types";
@@ -306,13 +305,14 @@ export async function insertMessageAtIndex(
     id?: string;
     createdAt?: number;
   },
+  dbi: Kysely<Database> = db,
 ): Promise<Message> {
   const msg: Message = {
     ...partial,
     id: partial.id ?? newMessageId(),
     createdAt: partial.createdAt ?? Date.now(),
   };
-  await db.insertInto("messages").values(messageToRow(msg)).execute();
+  await dbi.insertInto("messages").values(messageToRow(msg)).execute();
   return msg;
 }
 
@@ -324,19 +324,23 @@ export async function insertMessageAtIndex(
 // after the whole UPDATE completes, not per-row, so `idx = idx + delta`
 // is safe even though intermediate rows would collide mid-update.
 //
-// Implementation note: SET idx = idx + delta needs a column self-
-// reference. Falls back to ourSql.execute for this one case to avoid
-// a tag-template dance for a single-line UPDATE.
+// #268: rewritten as Kysely (sql template) so the optional dbi arg
+// threads cleanly into transactions. Previously fell back to
+// ourSql.execute, which couldn't bypass the queue from inside a
+// transaction body.
 export async function shiftMessageIndicesFrom(
   conversationId: string,
   fromIdx: number,
   delta: number,
+  dbi: Kysely<Database> = db,
 ): Promise<void> {
   if (delta === 0) return;
-  await ourSql.execute(
-    "UPDATE messages SET idx = idx + ? WHERE conversation_id = ? AND idx >= ?",
-    [delta, conversationId, fromIdx],
-  );
+  await dbi
+    .updateTable("messages")
+    .set({ idx: sql<number>`idx + ${delta}` })
+    .where("conversation_id", "=", conversationId)
+    .where("idx", ">=", fromIdx)
+    .execute();
 }
 
 // Truncate the tail of a conversation — used by edit/replay (#44) to

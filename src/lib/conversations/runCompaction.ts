@@ -25,6 +25,7 @@ import { GLOBAL_SYSTEM_PROMPT_KEY } from "../settings/keys";
 import { idleTimeoutMs as idleTimeoutSetting } from "../settings/registry";
 import * as messagesRepo from "../persistence/messages";
 import { computeCompactionCutoff } from "./compactionCutoff";
+import { commitCompactionWrites } from "./runCompactionCommit";
 
 export interface PersonaCompactionStat {
   persona: Persona;
@@ -259,59 +260,11 @@ export async function runCompaction(
     };
   }
 
-  // Shift all messages >= cutoff up by (1 + numSummaries) to open a
-  // gap, then insert the COMPACTION notice + summaries at cutoff.
-  const shiftBy = 1 + summaryContents.length;
-  await messagesRepo.shiftMessageIndicesFrom(conversation.id, cutoff, shiftBy);
-
-  // Insert COMPACTION notice at `cutoff`.
-  await messagesRepo.insertMessageAtIndex({
-    conversationId: conversation.id,
-    role: "notice",
-    content: "COMPACTION",
-    provider: null,
-    model: null,
-    personaId: null,
-    displayMode: "lines",
-    pinned: false,
-    pinTarget: null,
-    addressedTo: [],
-    errorMessage: null,
-    errorTransient: false,
-    inputTokens: 0,
-    outputTokens: 0,
-    usageEstimated: false,
-    audience: [],
-    index: cutoff,
-  });
-
-  // Insert per-persona summaries at cutoff+1 .. cutoff+numSummaries.
-  // #122 — timings from the summary stream are persisted so the next
-  // //stats run will include the compaction itself in the averages.
-  for (let i = 0; i < summaryContents.length; i++) {
-    const s = summaryContents[i]!;
-    await messagesRepo.insertMessageAtIndex({
-      conversationId: conversation.id,
-      role: "assistant",
-      content: `[compacted summary]\n\n${s.summary}`,
-      provider: s.persona.provider,
-      model: s.persona.modelOverride ?? PROVIDER_REGISTRY[s.persona.provider].defaultModel,
-      personaId: s.persona.id,
-      displayMode: "lines",
-      pinned: true,
-      pinTarget: s.persona.id,
-      addressedTo: [],
-      errorMessage: null,
-      errorTransient: false,
-      inputTokens: 0,
-      outputTokens: s.reportedOutputTokens,
-      usageEstimated: false,
-      audience: [],
-      ttftMs: s.ttftMs,
-      streamMs: s.streamMs,
-      index: cutoff + 1 + i,
-    });
-  }
+  // #268: shifts + notice + summaries + floor move all commit in one
+  // transaction. A failure mid-loop rolls back to pre-call state
+  // instead of leaving a numbered gap with partial inserts and a stale
+  // floor.
+  await commitCompactionWrites(conversation, cutoff, summaryContents);
 
   return {
     ok: true,
