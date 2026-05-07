@@ -166,12 +166,15 @@ describe("commitCompactionWrites (regression #268)", () => {
     // Seed the junction tables with sentinel rows so we can detect a
     // rewrite via row identity (rowid). The narrow setter must leave
     // them alone; the old full updateConversation path would DELETE +
-    // INSERT them on every call.
+    // INSERT them on every call. We need a 3rd persona for the
+    // visibility matrix to survive the loader's sparse-matrix filter
+    // (an observer with no visible=0 rows is dropped).
+    await personasRepo.createPersona({ ...persona("p3"), sortOrder: 2 });
     await conversationsRepo.updateConversation({
       ...conv,
       selectedPersonas: ["p1"],
       contextWarningsFired: [80],
-      visibilityMatrix: { p1: ["p2"] },
+      visibilityMatrix: { p1: ["p2"] }, // p1 sees p2, hides p3
     });
     const before = await fetchJunctionRowids("c1");
 
