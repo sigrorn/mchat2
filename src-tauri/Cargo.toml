@@ -24,6 +24,14 @@ tauri-plugin-http = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-window-state = "2"
+# #284: Tauri's JS-side op queue protects against concurrent SQL
+# writes within ONE webview process — it can't help when a second
+# mchat2.exe instance opens the same DB file. Two BEGIN IMMEDIATEs
+# from different processes race the writer lock with no JS-level
+# coordination. The single-instance plugin ensures only one process
+# ever runs against the DB; a second invocation hands its args to
+# the running one and exits.
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # OS-native keychain: Credential Manager on Windows (DPAPI), Keychain on
