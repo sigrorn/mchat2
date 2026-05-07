@@ -251,9 +251,19 @@ function PersonaPanelExpanded({
     // Optimistic cache update so the row visually settles in its new
     // slot before the persistent rewrite resolves. On rejection,
     // invalidateRepoQuery refetches the canonical order from DB.
+    //
+    // Crucially: the optimistic personas need their sortOrder field
+    // bumped to match the new array index, not just the array order.
+    // MessageList's cols-mode column ordering reads sortOrder directly
+    // (MessageList:435-439), so a "just-shuffled-array" optimistic
+    // update would leave the columns showing the OLD order until a
+    // refresh — the bug surfaced in #273's first ship.
     const idToPersona = new Map(personas.map((p) => [p.id, p]));
     const reorderedPersonas = nextOrder
-      .map((id) => idToPersona.get(id))
+      .map((id, i) => {
+        const p = idToPersona.get(id);
+        return p ? { ...p, sortOrder: i } : undefined;
+      })
       .filter((p): p is Persona => p !== undefined);
     getRepoQueryCache().set<Persona[]>(["personas", conversation.id], reorderedPersonas);
     backgroundTask("PersonaPanel.reorder", async () => {
