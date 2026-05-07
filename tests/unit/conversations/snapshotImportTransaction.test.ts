@@ -76,14 +76,15 @@ describe("importSnapshot atomicity (regression #269)", () => {
       )
     ).flat();
 
-    // Force the THIRD appendMessage call to throw mid-import.
-    let calls = 0;
-    const real = messagesRepo.appendMessage;
-    vi.spyOn(messagesRepo, "appendMessage").mockImplementation(async (args, dbi) => {
-      calls += 1;
-      if (calls === 3) throw new Error("synthetic mid-import failure");
-      return real(args, dbi);
-    });
+    // #278: snapshotImport now batches messages through
+    // bulkAppendMessages instead of per-row appendMessage. Force the
+    // bulk write to throw to simulate a mid-import failure; the
+    // atomicity contract (whole transaction rolls back) is identical.
+    vi.spyOn(messagesRepo, "bulkAppendMessages").mockImplementation(
+      async () => {
+        throw new Error("synthetic mid-import failure");
+      },
+    );
 
     await expect(importSnapshot(parsed.snapshot)).rejects.toThrow(
       "synthetic mid-import failure",
