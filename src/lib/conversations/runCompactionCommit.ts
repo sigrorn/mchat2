@@ -124,9 +124,11 @@ export async function commitCompactionWrites(
       });
     }
 
-    await repos.conversations.updateConversation({
-      ...conversation,
-      compactionFloorIndex: cutoff,
-    });
+    // #275: narrow setter — single UPDATE on compaction_floor_index.
+    // The full updateConversation rewrites every column AND DELETE+
+    // INSERTs the conversation_personas_selected, conversation_context_
+    // warnings, and persona_visibility junction tables. We only want to
+    // move one integer column.
+    await repos.conversations.setCompactionFloor(conversation.id, cutoff);
   });
 }

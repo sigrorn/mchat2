@@ -101,13 +101,14 @@ export async function handleCompact(
     return;
   }
   await ctx.deps.reloadMessages(conversation.id);
+  // #275: commitCompactionWrites already wrote the floor via the
+  // narrow setCompactionFloor repo inside its transaction. The
+  // duplicate setCompactionFloor call that used to live here was a
+  // full updateConversation rewrite (heavy junction-table churn) —
+  // gone. Refresh the conversations cache so floor-aware UI re-renders.
   // #240: limit_mark_index column dropped along with //limit. Compaction
   // now only moves the floor.
-  // #267: vestigial transaction() wrapper dropped — once #240 reduced
-  // this to a single write, the transaction added no atomicity over
-  // SQLite's per-statement guarantee. Keeping it would have required
-  // threading ctx.db through the deps abstraction with no payoff.
-  await ctx.deps.setCompactionFloor(conversation.id, result.cutoff);
+  await ctx.deps.reloadConversations();
   const lines = [
     `compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,
   ];

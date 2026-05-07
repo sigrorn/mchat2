@@ -162,10 +162,15 @@ async function runAutocompact(
   }
 
   await deps.reloadMessages(conversationId);
-  await deps.setCompactionFloor(conversationId, result.cutoff);
+  // #275: commitCompactionWrites already wrote the floor inside its
+  // transaction (via the narrow setCompactionFloor repo). The duplicate
+  // setCompactionFloor call that used to live here was a heavy
+  // updateConversation rewrite — gone. Reload the conversations cache
+  // so the sidebar / floor-aware UI re-reads the freshly-moved floor.
   // #240: previously also called deps.setLimit(conversationId, cutoff)
   // here so the visible-row limit mark followed the compaction floor.
   // limit_mark_index column dropped — the floor alone now bounds context.
+  await deps.reloadConversations();
 
   const lines = [
     `auto-compacted ${result.summaries.length} persona${result.summaries.length === 1 ? "" : "s"}.`,

@@ -250,6 +250,23 @@ function conversationToRow(conv: Conversation): ConversationsTable {
   };
 }
 
+// #275: narrow setter for the compaction floor. Inside compaction's
+// commit transaction this avoids the full updateConversation rewrite
+// (which DELETE+INSERTs three junction tables to move ONE integer
+// column). The dbi parameter follows the same optional-Kysely pattern
+// (ADR 011) the other writes here use.
+export async function setCompactionFloor(
+  conversationId: string,
+  floorIndex: number | null,
+  dbi: Kysely<Database> = db,
+): Promise<void> {
+  await dbi
+    .updateTable("conversations")
+    .set({ compaction_floor_index: floorIndex })
+    .where("id", "=", conversationId)
+    .execute();
+}
+
 // #250: stamp last_seen_at to record that the user activated this
 // conversation. ChatView calls this from its currentId effect.
 export async function setLastSeen(conversationId: string, ts: number): Promise<void> {

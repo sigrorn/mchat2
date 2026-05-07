@@ -33,8 +33,9 @@ export function makePostResponseCheckDeps(): PostResponseCheckDeps {
       readCachedConversations().find((c) => c.id === conversationId),
     setContextWarningsFired: (conversationId, fired) =>
       useConversationsStore.getState().setContextWarningsFired(conversationId, fired),
-    setCompactionFloor: (conversationId, index) =>
-      useConversationsStore.getState().setCompactionFloor(conversationId, index),
+    // #275: setCompactionFloor dropped — autocompact's path uses
+    // reloadConversations after the in-transaction floor write.
+    reloadConversations: () => useConversationsStore.getState().load(),
     setTargetStatus: (conversationId, key, status) =>
       useSendStore.getState().setTargetStatus(conversationId, key, status),
     clearTargetStatus: (conversationId, key) =>

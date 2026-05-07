@@ -66,8 +66,8 @@ export function makeCommandDeps(): CommandDeps {
       useMessagesStore.getState().setReplayQueue(conversationId, [...queue]),
     setSelection: (conversationId, selection) =>
       setSelectionViaUseCase(conversationId, selection),
-    setCompactionFloor: (conversationId, floorIndex) =>
-      useConversationsStore.getState().setCompactionFloor(conversationId, floorIndex),
+    // #275: setCompactionFloor wiring dropped — //compact no longer
+    // calls it. CommandDeps no longer Picks it.
     setDisplayMode: (conversationId, mode) =>
       useConversationsStore.getState().setDisplayMode(conversationId, mode),
     setVisibilityMatrix: (conversationId, matrix) =>

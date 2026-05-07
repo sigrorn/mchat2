@@ -206,11 +206,18 @@ export type RunOneTargetDeps = MessagesReadDeps &
   TracingDeps &
   FrameDeps;
 
+// #275: reloadConversations folded in so autocompact's path can
+// refresh the conversations cache after commitCompactionWrites
+// moved the floor inside its transaction. Pre-#275 the path called
+// deps.setCompactionFloor again as a redundant DB write whose only
+// useful side-effect was the cache update; that duplicate write is
+// gone, so the cache refresh is now explicit.
 export type PostResponseCheckDeps = MessagesReadDeps &
   Pick<MessagesWriteDeps, "appendNotice" | "reloadMessages"> &
   PersonasReadDeps &
   ConversationsReadDeps &
-  Pick<ConversationsWriteDeps, "setContextWarningsFired" | "setCompactionFloor"> &
+  Pick<ConversationsWriteDeps, "setContextWarningsFired"> &
+  Pick<ConversationSwitchDeps, "reloadConversations"> &
   Pick<SendStateDeps, "setTargetStatus" | "clearTargetStatus"> &
   Pick<SettingsReadDeps, "getGlobalSystemPrompt">;
 
@@ -264,13 +271,13 @@ export type CommandDeps = MessagesReadDeps &
     "appendNotice" | "reloadMessages" | "setPinned" | "setEditing" | "setReplayQueue"
   > &
   PersonasWriteDeps &
+  // #275: setCompactionFloor dropped from this slice — //compact no
+  // longer calls it (commitCompactionWrites writes the floor inline
+  // via the narrow repo setter). The store action / write-deps entry
+  // stay until #283 widens the cleanup to other narrow setters.
   Pick<
     ConversationsWriteDeps,
-    | "setCompactionFloor"
-    | "setDisplayMode"
-    | "setVisibilityMatrix"
-    | "setVisibilityPreset"
-    | "setAutocompact"
+    "setDisplayMode" | "setVisibilityMatrix" | "setVisibilityPreset" | "setAutocompact"
   > &
   // #264: //activeprompts reads the global system prompt to render the
   // top layer of the per-persona composition stack. Reuses the same

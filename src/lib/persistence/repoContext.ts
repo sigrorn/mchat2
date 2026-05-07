@@ -91,6 +91,10 @@ export interface ConversationsRepoCtx {
   updateConversation: (
     conv: Parameters<typeof conversationsRepo.updateConversation>[0],
   ) => ReturnType<typeof conversationsRepo.updateConversation>;
+  setCompactionFloor: (
+    conversationId: string,
+    floorIndex: number | null,
+  ) => ReturnType<typeof conversationsRepo.setCompactionFloor>;
   writeVisibilityMatrix: (
     conversationId: string,
     matrix: Record<string, string[]>,
@@ -154,6 +158,8 @@ export function reposFor(dbi: Kysely<Database>): RepoContext {
         conversationsRepo.createConversation(partial, dbi),
       updateConversation: (conv) =>
         conversationsRepo.updateConversation(conv, dbi),
+      setCompactionFloor: (conversationId, floorIndex) =>
+        conversationsRepo.setCompactionFloor(conversationId, floorIndex, dbi),
       writeVisibilityMatrix: (conversationId, matrix) =>
         conversationsRepo.writeVisibilityMatrix(conversationId, matrix, dbi),
     },
