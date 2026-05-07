@@ -12,7 +12,15 @@ import type { Persona } from "@/lib/types";
 import * as repo from "@/lib/persistence/personas";
 import { useConversationsStore } from "./conversationsStore";
 import { getRepoQueryCache } from "@/lib/data/useRepoQuery";
-import { backgroundTask } from "@/lib/observability/backgroundTask";
+
+// #271 first slice: setSelection / addToSelection used to do a
+// fire-and-forget cross-store call into useConversationsStore here
+// for the persistent write. That responsibility moved to the
+// lib/app/setSelection use case (called via commandDeps /
+// sendMessageDeps / runOneTargetDeps); the store now updates its
+// local UI cache only. The conversationsStore import remains for
+// the load() validity check (read-only); persistence flows through
+// the use-case boundary, not through the store.
 
 const personasQueryKey = (conversationId: string): readonly unknown[] =>
   ["personas", conversationId];
@@ -58,12 +66,9 @@ export const usePersonasStore = create<State>((set, get) => ({
     set({
       selectionByConversation: {
         ...get().selectionByConversation,
-        [conversationId]: keys,
+        [conversationId]: [...keys],
       },
     });
-    backgroundTask("personasStore.setSelection", () =>
-      useConversationsStore.getState().setSelectedPersonas(conversationId, keys),
-    );
   },
   addToSelection(conversationId, keys) {
     const current = get().selectionByConversation[conversationId] ?? [];
@@ -81,9 +86,6 @@ export const usePersonasStore = create<State>((set, get) => ({
         [conversationId]: next,
       },
     });
-    backgroundTask("personasStore.addToSelection", () =>
-      useConversationsStore.getState().setSelectedPersonas(conversationId, next),
-    );
   },
   upsert(p) {
     cacheUpdate(p.conversationId, (list) => {

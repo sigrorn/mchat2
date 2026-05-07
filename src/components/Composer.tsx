@@ -18,6 +18,9 @@ import { runWithRecovery } from "@/lib/commands/runWithRecovery";
 import { triggerHelp } from "@/lib/commands/triggerHelp";
 import { makeCommandDeps } from "@/hooks/commandDeps";
 import { usePersonasStore } from "@/stores/personasStore";
+import { useConversationsStore } from "@/stores/conversationsStore";
+import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { readCachedPersonas } from "@/hooks/cacheReaders";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
 import * as personasRepo from "@/lib/persistence/personas";
@@ -191,7 +194,18 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
       setText(input);
       return true;
     }
-    usePersonasStore.getState().setSelection(conversationId, selection);
+    backgroundTask("Composer.setSelection", () =>
+      setSelectionUseCase(
+        {
+          setLocalSelection: (id, keys) =>
+            usePersonasStore.getState().setSelection(id, [...keys]),
+          setSelectedPersonasPersistent: (id, keys) =>
+            useConversationsStore.getState().setSelectedPersonas(id, [...keys]),
+        },
+        conversationId,
+        selection,
+      ),
+    );
     const names = selection
       .map((id) => personas.find((p) => p.id === id)?.name ?? id)
       .join(", ");

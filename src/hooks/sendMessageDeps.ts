@@ -14,6 +14,8 @@ import { usePersonasStore } from "@/stores/personasStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import * as flowsRepo from "@/lib/persistence/flows";
 import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
+import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { makeRunPlannedSendDeps } from "./runOneTargetDeps";
 import { makePostResponseCheckDeps } from "./postResponseCheckDeps";
 // #168: KeychainDeps + AdapterRegistryDeps already wired by
@@ -26,7 +28,18 @@ export function makeSendMessageDeps(): SendMessageDeps {
     ...makeRunPlannedSendDeps(),
     ...makePostResponseCheckDeps(),
     setSelection: (conversationId, selection) =>
-      usePersonasStore.getState().setSelection(conversationId, [...selection]),
+      backgroundTask("sendMessageDeps.setSelection", () =>
+        setSelectionUseCase(
+          {
+            setLocalSelection: (id, keys) =>
+              usePersonasStore.getState().setSelection(id, [...keys]),
+            setSelectedPersonasPersistent: (id, keys) =>
+              useConversationsStore.getState().setSelectedPersonas(id, [...keys]),
+          },
+          conversationId,
+          selection,
+        ),
+      ),
     appendUserMessage: async (args) => {
       // The store action returns the persisted Message, but the use
       // case doesn't need it — discard the result so the dep type

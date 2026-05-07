@@ -29,6 +29,7 @@ import {
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
 import { ensureIdentityPin } from "@/lib/personas/identityPin";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
+import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
 import * as messagesRepo from "@/lib/persistence/messages";
 import { readCachedMessages } from "@/hooks/cacheReaders";
 import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
@@ -140,8 +141,36 @@ function PersonaPanelExpanded({
   const messages = messagesQuery.data ?? EMPTY_MESSAGES;
   const upsert = usePersonasStore((s) => s.upsert);
   const remove = usePersonasStore((s) => s.remove);
-  const setSelection = usePersonasStore((s) => s.setSelection);
-  const addToSelection = usePersonasStore((s) => s.addToSelection);
+  // #271: setSelection / addToSelection both route through the
+  // lib/app use case (UI cache update + persistent write); the
+  // persona store no longer owns the persistent half.
+  const setSelection = (conversationId: string, keys: readonly string[]): void => {
+    backgroundTask("PersonaPanel.setSelection", () =>
+      setSelectionUseCase(
+        {
+          setLocalSelection: (id, k) =>
+            usePersonasStore.getState().setSelection(id, [...k]),
+          setSelectedPersonasPersistent: (id, k) =>
+            useConversationsStore.getState().setSelectedPersonas(id, [...k]),
+        },
+        conversationId,
+        keys,
+      ),
+    );
+  };
+  const addToSelection = (conversationId: string, ids: readonly string[]): void => {
+    const current =
+      usePersonasStore.getState().selectionByConversation[conversationId] ?? [];
+    const seen = new Set(current);
+    const next = [...current];
+    for (const k of ids) {
+      if (!seen.has(k)) {
+        next.push(k);
+        seen.add(k);
+      }
+    }
+    setSelection(conversationId, next);
+  };
   const costs = computePersonaCosts(messages, personas);
 
   // #223: load the conversation's flow (if any) so the dedicated

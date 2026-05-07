@@ -14,7 +14,32 @@ import * as flowsRepo from "@/lib/persistence/flows";
 import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 import { getSetting } from "@/lib/persistence/settings";
 import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
+import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { readCachedMessages, readCachedPersonas } from "./cacheReaders";
+
+// #271 first slice: setSelection routes through the lib/app use case
+// so the persistent write is owned by lib/app, not by personasStore's
+// cross-store call. The deps still return void (commands are sync at
+// this layer); backgroundTask makes the persistent failure mode
+// observable without changing the deps signature.
+function setSelectionViaUseCase(
+  conversationId: string,
+  selection: readonly string[],
+): void {
+  backgroundTask("commandDeps.setSelection", () =>
+    setSelectionUseCase(
+      {
+        setLocalSelection: (id, keys) =>
+          usePersonasStore.getState().setSelection(id, [...keys]),
+        setSelectedPersonasPersistent: (id, keys) =>
+          useConversationsStore.getState().setSelectedPersonas(id, [...keys]),
+      },
+      conversationId,
+      selection,
+    ),
+  );
+}
 
 const EMPTY_SUP: ReadonlySet<string> = Object.freeze(new Set<string>()) as ReadonlySet<string>;
 
@@ -40,7 +65,7 @@ export function makeCommandDeps(): CommandDeps {
     setReplayQueue: (conversationId, queue) =>
       useMessagesStore.getState().setReplayQueue(conversationId, [...queue]),
     setSelection: (conversationId, selection) =>
-      usePersonasStore.getState().setSelection(conversationId, [...selection]),
+      setSelectionViaUseCase(conversationId, selection),
     setCompactionFloor: (conversationId, floorIndex) =>
       useConversationsStore.getState().setCompactionFloor(conversationId, floorIndex),
     setDisplayMode: (conversationId, mode) =>

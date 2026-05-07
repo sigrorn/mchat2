@@ -28,6 +28,8 @@ import { getSetting } from "@/lib/persistence/settings";
 import { GLOBAL_SYSTEM_PROMPT_KEY } from "@/lib/settings/keys";
 import { idleTimeoutMs as idleTimeoutSetting, maxRetryAttempts } from "@/lib/settings/registry";
 import { makeTraceFileSink } from "@/lib/tracing/traceFileSink";
+import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
+import { backgroundTask } from "@/lib/observability/backgroundTask";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as flowsRepo from "@/lib/persistence/flows";
 import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
@@ -100,7 +102,18 @@ export function makeReplayMessageDeps(): ReplayMessageDeps {
     getSelection: (conversationId) =>
       usePersonasStore.getState().selectionByConversation[conversationId] ?? [],
     setSelection: (conversationId, selection) =>
-      usePersonasStore.getState().setSelection(conversationId, [...selection]),
+      backgroundTask("replayMessageDeps.setSelection", () =>
+        setSelectionUseCase(
+          {
+            setLocalSelection: (id, keys) =>
+              usePersonasStore.getState().setSelection(id, [...keys]),
+            setSelectedPersonasPersistent: (id, keys) =>
+              useConversationsStore.getState().setSelectedPersonas(id, [...keys]),
+          },
+          conversationId,
+          selection,
+        ),
+      ),
     getFlow: (conversationId) => flowsRepo.getFlow(conversationId),
     setFlowStepIndex: async (flowId, index) => {
       await flowsRepo.setStepIndex(flowId, index);
