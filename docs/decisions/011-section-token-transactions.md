@@ -1,6 +1,6 @@
 # 011 — Section-token transactions
 
-Date: 2026-05-06 (work landed for [#267](https://github.com/sigrorn/anvisay/issues/267))
+Date: 2026-05-06 (work landed for [#267](https://github.com/sigrorn/mchat2/issues/267))
 Status: Accepted
 
 ## Decision
@@ -9,9 +9,9 @@ Replace the global `inSerializedSection` flag in `lib/tauri/sql.ts` with a secti
 
 ## Why
 
-[ADR 002](002-transactions-by-default.md) introduced `transaction()`. [#206](https://github.com/sigrorn/anvisay/issues/206) added the SQL op queue + held-section model after Tauri's plugin-sql v2 (sqlx pool, no busy_timeout, no `connect_with`) surfaced "database is locked" under concurrent demand. The held-section model used a module-scope flag — *every* `sql.execute` call bypassed the queue while a section was open. That worked when only the section's own writes ran during the section. It broke whenever a fire-and-forget DB write started before or during the section: the bypass let the concurrent op land on a different sqlx pool connection, and the writer-lock contention surfaced as `code: 5 database is locked`.
+[ADR 002](002-transactions-by-default.md) introduced `transaction()`. [#206](https://github.com/sigrorn/mchat2/issues/206) added the SQL op queue + held-section model after Tauri's plugin-sql v2 (sqlx pool, no busy_timeout, no `connect_with`) surfaced "database is locked" under concurrent demand. The held-section model used a module-scope flag — *every* `sql.execute` call bypassed the queue while a section was open. That worked when only the section's own writes ran during the section. It broke whenever a fire-and-forget DB write started before or during the section: the bypass let the concurrent op land on a different sqlx pool connection, and the writer-lock contention surfaced as `code: 5 database is locked`.
 
-[#267](https://github.com/sigrorn/anvisay/issues/267) was the first manifestation (`void postResponseCheck(...)` racing `//pop`'s `BEGIN IMMEDIATE`). v2.67.1 was the second (auto-title and `setSelection`'s fire-and-forget UPDATE racing `//pop`). Both got patched piecewise by awaiting the offending caller. The pattern was clearly whack-a-mole — six fire-and-forget DB-touching call sites enumerated at v2.67.1, no enforcement against new ones — so the architectural fix was overdue.
+[#267](https://github.com/sigrorn/mchat2/issues/267) was the first manifestation (`void postResponseCheck(...)` racing `//pop`'s `BEGIN IMMEDIATE`). v2.67.1 was the second (auto-title and `setSelection`'s fire-and-forget UPDATE racing `//pop`). Both got patched piecewise by awaiting the offending caller. The pattern was clearly whack-a-mole — six fire-and-forget DB-touching call sites enumerated at v2.67.1, no enforcement against new ones — so the architectural fix was overdue.
 
 ## Alternatives considered
 
@@ -31,4 +31,4 @@ Discipline cost: a developer adding a multi-step mutation must thread `txn.db` (
 
 ## Compaction's vestigial transaction wrapper
 
-`compaction.ts` previously wrapped `setCompactionFloor` in `transaction()`. After [#240](https://github.com/sigrorn/anvisay/issues/240) dropped `setLimit`, that became a single-write transaction — atomicity was already guaranteed by SQLite's per-statement contract, and the wrapper added cost without benefit. Dropped during the section-token refactor; threading `txn.db` through deps for a single write would have been pure plumbing.
+`compaction.ts` previously wrapped `setCompactionFloor` in `transaction()`. After [#240](https://github.com/sigrorn/mchat2/issues/240) dropped `setLimit`, that became a single-write transaction — atomicity was already guaranteed by SQLite's per-statement contract, and the wrapper added cost without benefit. Dropped during the section-token refactor; threading `txn.db` through deps for a single write would have been pure plumbing.

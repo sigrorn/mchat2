@@ -23,3 +23,7 @@ The helper relies on the singleton `sql` impl from `lib/tauri/sql.ts`; nesting i
 ## Tradeoff
 
 This is correctness, not architecture polish — the prior pattern would silently leave the DB inconsistent after a partial failure. The helper is ~15 lines and the discipline is enforced by code review, not tooling. The risk: a developer adds a multi-step mutation and forgets to wrap it. Caught only by reading the diff.
+
+## 2026-05-07 — handleCompact note (issue [#268](https://github.com/sigrorn/mchat2/issues/268))
+
+The original `handleCompact` wrap (per-persona summary insertion + setCompactionFloor + setLimit) was correct for its time. After [#240](https://github.com/sigrorn/mchat2/issues/240) dropped `setLimit`, the outer wrap reduced to a single write — that vestigial wrapper was removed in [ADR 011](011-section-token-transactions.md). The atomicity-needing block was always one frame deeper: `runCompaction`'s body (`shiftMessageIndicesFrom` + per-persona `insertMessageAtIndex` × N+1 + floor move). [#268](https://github.com/sigrorn/mchat2/issues/268) extracted that block into `commitCompactionWrites` and wrapped it in `transaction()`. The shape of this ADR is unchanged; the *site* of the wrap moved from the outer command handler to the inner commit phase, and the floor write joined the same transaction (closing the "floor moves AFTER insertions" failure mode).
