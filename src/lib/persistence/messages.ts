@@ -181,6 +181,54 @@ async function doAppend(
   return msg;
 }
 
+// #278: bulk-append API for high-volume import paths (snapshotImport).
+// Replaces N appendMessage calls with one MAX-read + ceil(N/BULK_BATCH)
+// multi-row INSERTs + one last_message_at bump. Caller MUST be inside a
+// transaction (dbi required) so the batch is atomic and there's no
+// MAX-read-then-other-writer race.
+//
+// Chunked because SQLite has a default 999-parameter prepared-statement
+// cap; multiplied by ~25 message columns, that lets ~40 rows fit per
+// statement. We use BULK_BATCH = 100 — Tauri's plugin-sql ships modern
+// SQLite (3.40+, 32k param cap) so the chunk size is set for clarity,
+// not for the parameter ceiling.
+const BULK_BATCH = 100;
+
+export async function bulkAppendMessages(
+  conversationId: string,
+  partials: ReadonlyArray<
+    Omit<Message, "id" | "index" | "createdAt"> & {
+      id?: string;
+      createdAt?: number;
+    }
+  >,
+  dbi: Kysely<Database>,
+): Promise<Message[]> {
+  if (partials.length === 0) return [];
+  const startIdx = await nextIndex(conversationId, dbi);
+  const now = Date.now();
+  const messages: Message[] = partials.map((partial, i) => ({
+    ...partial,
+    id: partial.id ?? newMessageId(),
+    index: startIdx + i,
+    createdAt: partial.createdAt ?? now,
+  }));
+  // Chunk into batches that respect the parameter cap.
+  for (let i = 0; i < messages.length; i += BULK_BATCH) {
+    const chunk = messages.slice(i, i + BULK_BATCH);
+    await dbi.insertInto("messages").values(chunk.map(messageToRow)).execute();
+  }
+  // Single last_message_at bump using the latest createdAt — saves
+  // N updates compared to the per-row appendMessage path.
+  const lastCreatedAt = messages[messages.length - 1]!.createdAt;
+  await dbi
+    .updateTable("conversations")
+    .set({ last_message_at: lastCreatedAt })
+    .where("id", "=", conversationId)
+    .execute();
+  return messages;
+}
+
 export async function updateMessageContent(
   id: string,
   content: string,

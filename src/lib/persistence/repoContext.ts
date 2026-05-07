@@ -38,6 +38,10 @@ export interface MessagesRepoCtx {
   appendMessage: (
     partial: Parameters<typeof messagesRepo.appendMessage>[0],
   ) => ReturnType<typeof messagesRepo.appendMessage>;
+  bulkAppendMessages: (
+    conversationId: Parameters<typeof messagesRepo.bulkAppendMessages>[0],
+    partials: Parameters<typeof messagesRepo.bulkAppendMessages>[1],
+  ) => ReturnType<typeof messagesRepo.bulkAppendMessages>;
   applyMessageMutation: (
     mutation: Parameters<typeof messagesRepo.applyMessageMutation>[0],
   ) => ReturnType<typeof messagesRepo.applyMessageMutation>;
@@ -131,6 +135,8 @@ export function reposFor(dbi: Kysely<Database>): RepoContext {
   return {
     messages: {
       appendMessage: (partial) => messagesRepo.appendMessage(partial, dbi),
+      bulkAppendMessages: (conversationId, partials) =>
+        messagesRepo.bulkAppendMessages(conversationId, partials, dbi),
       applyMessageMutation: (mutation) =>
         messagesRepo.applyMessageMutation(mutation, dbi),
       insertMessageAtIndex: (partial) =>

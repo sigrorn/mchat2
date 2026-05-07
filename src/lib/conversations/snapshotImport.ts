@@ -157,27 +157,35 @@ export async function importSnapshot(snapshot: SnapshotEnvelope): Promise<Import
     const resolveIds = (names: string[]): string[] =>
       names.map((n) => nameToId.get(n.toLowerCase())).filter((id): id is string => id !== undefined);
 
-    for (const sm of snapshot.messages) {
-      await repos.messages.appendMessage({
-        conversationId: conv.id,
-        role: sm.role as "user" | "assistant" | "system" | "notice",
-        content: sm.content,
-        provider: (sm.provider as ProviderId) ?? null,
-        model: sm.model ?? null,
-        personaId: resolveId(sm.persona),
-        displayMode: sm.displayMode === "cols" ? "cols" : "lines",
-        pinned: sm.pinned,
-        pinTarget: resolveId(sm.pinTarget),
-        addressedTo: resolveIds(sm.addressedTo),
-        errorMessage: sm.errorMessage ?? null,
-        errorTransient: sm.errorTransient,
-        inputTokens: sm.inputTokens,
-        outputTokens: sm.outputTokens,
-        usageEstimated: sm.usageEstimated,
-        audience: resolveIds(sm.audience),
-        // #231: defaults to false when absent (legacy snapshots).
-        flowDispatched: sm.flowDispatched ?? false,
-      });
+    // #278: bulk-insert the message stream instead of one INSERT per
+    // row. For a 1000-message snapshot this drops the message-import
+    // phase from ~10s of held writer lock (1000 round-trips) to a
+    // small handful of chunked INSERTs. Caller is inside the
+    // transaction body, so atomicity is preserved end-to-end.
+    const messagePartials = snapshot.messages.map((sm) => ({
+      conversationId: conv.id,
+      role: sm.role as "user" | "assistant" | "system" | "notice",
+      content: sm.content,
+      provider: (sm.provider as ProviderId) ?? null,
+      model: sm.model ?? null,
+      personaId: resolveId(sm.persona),
+      displayMode: (sm.displayMode === "cols" ? "cols" : "lines") as
+        | "cols"
+        | "lines",
+      pinned: sm.pinned,
+      pinTarget: resolveId(sm.pinTarget),
+      addressedTo: resolveIds(sm.addressedTo),
+      errorMessage: sm.errorMessage ?? null,
+      errorTransient: sm.errorTransient,
+      inputTokens: sm.inputTokens,
+      outputTokens: sm.outputTokens,
+      usageEstimated: sm.usageEstimated,
+      audience: resolveIds(sm.audience),
+      // #231: defaults to false when absent (legacy snapshots).
+      flowDispatched: sm.flowDispatched ?? false,
+    }));
+    if (messagePartials.length > 0) {
+      await repos.messages.bulkAppendMessages(conv.id, messagePartials);
     }
 
     // 5b. Recreate the flow if bundled. Persona names are remapped to
