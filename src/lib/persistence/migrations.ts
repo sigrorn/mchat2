@@ -6,7 +6,7 @@
 // Collaborators: every repository under persistence/, tauri/sql.ts.
 // ------------------------------------------------------------------
 
-import { sql } from "../tauri/sql";
+import { sql, withSerializedSection } from "../tauri/sql";
 import { PRICING } from "../pricing/table";
 
 // #252: Build the migration-29 backfill UPDATE for messages.cost_usd
@@ -562,15 +562,16 @@ export async function runMigrations(upTo?: number): Promise<number> {
   // mode change in the file header so subsequent opens inherit it.
   await sql.execute("PRAGMA journal_mode = WAL");
   await sql.execute("PRAGMA busy_timeout = 5000");
-  // FK checks are OFF during migrations so table rebuilds (e.g. v8's
-  // persona FK removal) can DROP+RENAME without cascading. Turned ON
-  // after all migrations complete for normal app runtime.
-  await sql.execute("PRAGMA foreign_keys = OFF");
+  // #281: PRAGMA foreign_keys was OFF for the WHOLE migration loop —
+  // any concurrent external op landing on the queue mid-loop saw
+  // FK = OFF and could write FK-violating rows. Now we bracket each
+  // step individually inside its own held section so external ops
+  // only ever see FK = ON. The startup PRAGMAs above stay outside —
+  // they're persistent settings, not migration-scoped.
   const rows = await sql.select<{ user_version: number }>("PRAGMA user_version");
   const current = rows[0]?.user_version ?? 0;
   const target = upTo ?? MIGRATIONS.length;
   if (current >= target) {
-    await sql.execute("PRAGMA foreign_keys = ON");
     return 0;
   }
 
@@ -581,30 +582,40 @@ export async function runMigrations(upTo?: number): Promise<number> {
   for (let i = current; i < target; i++) {
     const stmts = MIGRATIONS[i];
     if (!stmts) continue;
+    // #281: per-step held section. PRAGMA OFF, BEGIN, statements,
+    // COMMIT/ROLLBACK, PRAGMA ON all run through the section's raw
+    // impl — no external op can interleave between them.
+    // FK checks are OFF inside the section so table rebuilds (e.g.
+    // v8's persona FK removal) can DROP+RENAME without cascading.
     // #125: wrap each version bump in a transaction so a mid-migration
     // failure rolls back to the prior user_version instead of leaving
     // the DB in a half-altered state. user_version itself is set inside
     // the transaction so it's atomic with the schema change.
-    await sql.execute("BEGIN IMMEDIATE");
-    try {
-      for (const stmt of stmts) {
-        await sql.execute(stmt);
-      }
-      await sql.execute(`PRAGMA user_version = ${i + 1}`);
-      await sql.execute("COMMIT");
-    } catch (err) {
+    await withSerializedSection(async (raw) => {
+      await raw.execute("PRAGMA foreign_keys = OFF");
+      await raw.execute("BEGIN IMMEDIATE");
       try {
-        await sql.execute("ROLLBACK");
-      } catch {
-        // Silent — if ROLLBACK itself fails there's nothing we can
-        // recover; surface the original error below.
+        for (const stmt of stmts) {
+          await raw.execute(stmt);
+        }
+        await raw.execute(`PRAGMA user_version = ${i + 1}`);
+        await raw.execute("COMMIT");
+      } catch (err) {
+        try {
+          await raw.execute("ROLLBACK");
+        } catch {
+          // Silent — if ROLLBACK itself fails there's nothing we can
+          // recover; surface the original error below.
+        }
+        // PRAGMA ON still runs (finally) so the next migration / app
+        // runtime starts from the consistent state.
+        throw err;
+      } finally {
+        await raw.execute("PRAGMA foreign_keys = ON");
       }
-      await sql.execute("PRAGMA foreign_keys = ON");
-      throw err;
-    }
+    });
     applied++;
   }
-  await sql.execute("PRAGMA foreign_keys = ON");
 
   // #98: remove backup after successful migration.
   if (backupPath) await removeBackup(backupPath);
