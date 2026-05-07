@@ -10,8 +10,9 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { createTestDb, type TestDbHandle } from "@/lib/testing/createTestDb";
 import * as messagesRepo from "@/lib/persistence/messages";
 import * as conversationsRepo from "@/lib/persistence/conversations";
+import * as personasRepo from "@/lib/persistence/personas";
 import { commitCompactionWrites } from "@/lib/conversations/runCompactionCommit";
-import type { Conversation } from "@/lib/types";
+import type { Conversation, Persona } from "@/lib/types";
 
 let handle: TestDbHandle | null = null;
 afterEach(() => {
@@ -35,8 +36,31 @@ const baseConv: Conversation = {
   contextWarningsFired: [],
 };
 
+function persona(id: string): Persona {
+  return {
+    id,
+    conversationId: "c1",
+    provider: "mock",
+    name: id,
+    nameSlug: id,
+    systemPromptOverride: null,
+    modelOverride: "mock-1",
+    colorOverride: null,
+    createdAtMessageIndex: 0,
+    sortOrder: 0,
+    deletedAt: null,
+    visibilityDefaults: {},
+    openaiCompatPreset: null,
+    roleLens: {},
+  };
+}
+
 async function seedConv(): Promise<Conversation> {
   await conversationsRepo.createConversation(baseConv);
+  // Personas referenced by inserted summary rows must exist (FK
+  // messages.persona_id → personas.id).
+  await personasRepo.createPersona(persona("p1"));
+  await personasRepo.createPersona(persona("p2"));
   // Three messages to seed: idx 0,1,2.
   for (let i = 0; i < 3; i++) {
     await messagesRepo.appendMessage({
