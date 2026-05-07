@@ -304,22 +304,13 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     await input.traceSink.inbound(buildInboundRows(new Date(), accumulated, finalError));
   }
 
-  await messagesRepo.updateMessageContent(
-    placeholder.id,
-    accumulated,
-    finalError?.message ?? null,
-    finalError?.transient ?? false,
-  );
-  if (inputTokens > 0 || outputTokens > 0) {
-    await messagesRepo.updateMessageUsage(placeholder.id, inputTokens, outputTokens, estimated);
-  }
-  // #252: snapshot the per-message USD cost from the PRICING table at
-  // the time of completion. Honest about unknowns: when the
-  // (provider, model) isn't in PRICING (notably every openai_compat
-  // row today), persist NULL — the spend table renders that as "?".
-  // No fallback to provider median; a guessed snapshot would corrupt
-  // the historical-accuracy contract. Failed / cancelled rows still
-  // get a snapshot since the tokens were billed by the provider.
+  // #282: collapse 4-6 sequential UPDATE statements into one
+  // finalizeAssistantMessage call (one UPDATE messages + one UPDATE
+  // conversations.last_message_at, all behind a held section). Per
+  // multi-persona send (Promise.all over N personas) this drops queue
+  // churn at finalization from ~6N round-trips to ~2N, which matters
+  // for tail-latency on any concurrent UI op (e.g. //pop fired while
+  // five replies are wrapping up).
   const targetModel = modelForTarget(target, personas);
   const providerPricing = PRICING[target.provider] ?? {};
   const entry = providerPricing[targetModel];
@@ -328,11 +319,20 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
       ? (inputTokens / 1_000_000) * entry.inputUsdPerMTok +
         (outputTokens / 1_000_000) * entry.outputUsdPerMTok
       : null;
-  await messagesRepo.updateMessageCost(placeholder.id, costUsd);
-  // #253: spend-rows cache reflects the just-snapshotted cost.
-  // Without this, the persona-panel spend table would keep showing
-  // the placeholder's NULL ("?") until the next message append.
-  invalidateRepoQuery(["spend-rows"]);
+  // Build the optional fields conditionally so the impl's field-skip
+  // contract (#282 test) can keep ttft_ms / stream_ms / usage NULL on
+  // failed-and-silent streams that have no real data to record.
+  const finalState: messagesRepo.FinalizeAssistantMessageState = {
+    content: accumulated,
+    errorMessage: finalError?.message ?? null,
+    errorTransient: finalError?.transient ?? false,
+    costUsd,
+  };
+  if (inputTokens > 0 || outputTokens > 0) {
+    finalState.inputTokens = inputTokens;
+    finalState.outputTokens = outputTokens;
+    finalState.usageEstimated = estimated;
+  }
   // #122 — record timings only on successful completion. Failed /
   // cancelled / silent streams leave ttft_ms + stream_ms NULL so
   // //stats averages exclude them.
@@ -346,9 +346,15 @@ export async function runStream(input: StreamRunInput): Promise<StreamRunOutcome
     const ttftMs = firstTokenAt - streamOpenAt;
     const streamMs = completeAt - firstTokenAt;
     if (ttftMs >= 0 && streamMs >= 0) {
-      await messagesRepo.updateMessageTiming(placeholder.id, ttftMs, streamMs);
+      finalState.ttftMs = ttftMs;
+      finalState.streamMs = streamMs;
     }
   }
+  await messagesRepo.finalizeAssistantMessage(placeholder.id, finalState);
+  // #253: spend-rows cache reflects the just-snapshotted cost.
+  // Without this, the persona-panel spend table would keep showing
+  // the placeholder's NULL ("?") until the next message append.
+  invalidateRepoQuery(["spend-rows"]);
 
   const kind: StreamRunOutcome["kind"] = cancelled
     ? "cancelled"

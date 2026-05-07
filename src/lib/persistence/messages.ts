@@ -281,35 +281,9 @@ async function doUpdateMessageContent(
   }
 }
 
-export async function updateMessageUsage(
-  id: string,
-  inputTokens: number,
-  outputTokens: number,
-  usageEstimated: boolean,
-): Promise<void> {
-  await db
-    .updateTable("messages")
-    .set({
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
-      usage_estimated: usageEstimated ? 1 : 0,
-    })
-    .where("id", "=", id)
-    .execute();
-}
-
-// #252: snapshot the per-message USD cost at stream completion.
-// Caller computes via estimateCost; pass null when the (provider,
-// model) wasn't in PRICING so the spend table can render "?". This
-// is a one-shot write — once a row has a non-null cost_usd, no caller
-// should overwrite it (price drift would corrupt history).
-export async function updateMessageCost(id: string, costUsd: number | null): Promise<void> {
-  await db
-    .updateTable("messages")
-    .set({ cost_usd: costUsd })
-    .where("id", "=", id)
-    .execute();
-}
+// #282: updateMessageUsage and updateMessageCost dropped — they were
+// only called from streamRunner's finalization sequence, now folded
+// into finalizeAssistantMessage.
 
 // #253: minimal projection for the persona-panel spend table. Pulls
 // only the columns the aggregator needs — provider, cost_usd,
@@ -339,20 +313,87 @@ export async function listSpendRows(): Promise<SpendRowProjection[]> {
   }));
 }
 
-// #122 — record streaming timings on successful stream completion.
-// Not called for failed/cancelled streams (their timings stay NULL,
-// which excludes them from //stats averages).
-export async function updateMessageTiming(
+// #282: stream-completion finalization. streamRunner used to issue
+// 4-6 separate queued UPDATEs (content, usage, cost, timing) plus
+// updateMessageContent's internal SELECT + UPDATE conversations
+// pair — six round-trips per stream completion. With multi-persona
+// sends fanning N parallel streams, the queue saturates fast.
+//
+// One UPDATE messages SET ... WHERE id = ? + one UPDATE conversations
+// SET last_message_at = ? WHERE id = ? does the same work in two
+// queued ops. Optional fields are skipped when undefined so a partial
+// finalization (e.g. failed stream — no usage/timing) doesn't write
+// zero-defaults over the placeholder's existing nulls.
+export interface FinalizeAssistantMessageState {
+  content: string;
+  errorMessage: string | null;
+  errorTransient: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  usageEstimated?: boolean;
+  costUsd?: number | null;
+  ttftMs?: number | null;
+  streamMs?: number | null;
+}
+
+export async function finalizeAssistantMessage(
   id: string,
-  ttftMs: number,
-  streamMs: number,
+  state: FinalizeAssistantMessageState,
+  dbi?: Kysely<Database>,
 ): Promise<void> {
-  await db
+  if (dbi !== undefined) return doFinalizeAssistantMessage(id, state, dbi);
+  // Held section so the messages UPDATE + the conversations
+  // last_message_at bump land as one atomic group (matches the same
+  // shape as appendMessage's #276 wrap).
+  return withSerializedSection((raw) =>
+    doFinalizeAssistantMessage(id, state, makeKyselyFor(raw)),
+  );
+}
+
+async function doFinalizeAssistantMessage(
+  id: string,
+  state: FinalizeAssistantMessageState,
+  dbi: Kysely<Database>,
+): Promise<void> {
+  const updates: Partial<MessagesTable> = {
+    content: state.content,
+    error_message: state.errorMessage,
+    error_transient: state.errorTransient ? 1 : 0,
+  };
+  if (state.inputTokens !== undefined) updates.input_tokens = state.inputTokens;
+  if (state.outputTokens !== undefined) updates.output_tokens = state.outputTokens;
+  if (state.usageEstimated !== undefined) {
+    updates.usage_estimated = state.usageEstimated ? 1 : 0;
+  }
+  if (state.costUsd !== undefined) updates.cost_usd = state.costUsd;
+  if (state.ttftMs !== undefined) updates.ttft_ms = state.ttftMs;
+  if (state.streamMs !== undefined) updates.stream_ms = state.streamMs;
+  await dbi
     .updateTable("messages")
-    .set({ ttft_ms: ttftMs, stream_ms: streamMs })
+    .set(updates)
     .where("id", "=", id)
     .execute();
+  // Same #250 unread-dot bump as updateMessageContent — find the row's
+  // conversation_id and stamp last_message_at. We need a SELECT here
+  // because finalize is keyed by message id, not conversation id; the
+  // alternative (caller passes conversation id) leaks knowledge that
+  // doesn't belong in the streamRunner call site.
+  const row = await dbi
+    .selectFrom("messages")
+    .select(["conversation_id"])
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (row) {
+    await dbi
+      .updateTable("conversations")
+      .set({ last_message_at: Date.now() })
+      .where("id", "=", row.conversation_id)
+      .execute();
+  }
 }
+
+// #282: updateMessageTiming dropped — folded into
+// finalizeAssistantMessage along with usage and cost.
 
 // Apply a partial mutation to a message row. Used by the persona-
 // deletion cleanup and the edit/replay flow so callers can issue one

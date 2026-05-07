@@ -63,6 +63,10 @@ export interface MessagesRepoCtx {
     errorMessage: string | null,
     errorTransient: boolean,
   ) => ReturnType<typeof messagesRepo.updateMessageContent>;
+  finalizeAssistantMessage: (
+    id: Parameters<typeof messagesRepo.finalizeAssistantMessage>[0],
+    state: Parameters<typeof messagesRepo.finalizeAssistantMessage>[1],
+  ) => ReturnType<typeof messagesRepo.finalizeAssistantMessage>;
   markMessagesSuperseded: (
     ids: readonly string[],
     at: number,
@@ -147,6 +151,8 @@ export function reposFor(dbi: Kysely<Database>): RepoContext {
         messagesRepo.deleteMessagesAfter(conversationId, index, dbi),
       updateMessageContent: (id, content, errorMessage, errorTransient) =>
         messagesRepo.updateMessageContent(id, content, errorMessage, errorTransient, dbi),
+      finalizeAssistantMessage: (id, state) =>
+        messagesRepo.finalizeAssistantMessage(id, state, dbi),
       markMessagesSuperseded: (ids, at) =>
         messagesRepo.markMessagesSuperseded(ids, at, dbi),
       listMessages: (conversationId) =>
