@@ -89,4 +89,50 @@ describe("deletePersona", () => {
     });
     expect(b.id).not.toBe(a.id);
   });
+
+  // #280: prophylactic — deletePersona / tombstonePersona /
+  // removeSlugFromSiblings used to ignore an optional dbi, so any
+  // future caller that wraps a persona deletion in a transaction()
+  // would deadlock (every internal queued call waits for the section
+  // that holds the queue head). Pin that the function is safe to call
+  // from inside a transaction body. The test will time out (and fail)
+  // pre-fix because the queue waits forever.
+  it("works when called from inside a transaction (no deadlock)", async () => {
+    const { transaction } = await import("@/lib/persistence/transaction");
+
+    const a = await createPersona({
+      conversationId: "c_1",
+      provider: "mock",
+      name: "Alpha",
+      currentMessageIndex: 0,
+    });
+
+    // Race the transaction against a 4s timeout so a deadlock surfaces
+    // as a test failure instead of a 5s vitest hang.
+    await Promise.race([
+      transaction(async (txn) => {
+        await deletePersona(a.id, txn.db);
+      }),
+      new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                "deletePersona inside transaction did not complete within 4s — deadlocked on the global op queue",
+              ),
+            ),
+          4000,
+        ),
+      ),
+    ]);
+
+    // Tombstone landed: the slug is reusable.
+    const b = await createPersona({
+      conversationId: "c_1",
+      provider: "mock",
+      name: "Alpha",
+      currentMessageIndex: 0,
+    });
+    expect(b.id).not.toBe(a.id);
+  });
 });
