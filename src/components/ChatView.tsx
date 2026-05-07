@@ -96,8 +96,11 @@ export function ChatView(): JSX.Element {
           await useMessagesStore.getState().appendNotice(currentId, r.notice);
         }
       }
-      void loadMessages(currentId);
-      void loadPersonas(currentId);
+      // #279: bare-void was silently swallowing failures. listMessages /
+      // listPersonas can fail (DB connection issue at startup, schema
+      // mismatch after a migration); wrap so structured-log surfaces it.
+      backgroundTask("ChatView.loadMessages", () => loadMessages(currentId));
+      backgroundTask("ChatView.loadPersonas", () => loadPersonas(currentId));
     })();
     return () => {
       // #250: re-stamp on departure. Tokens that streamed in while

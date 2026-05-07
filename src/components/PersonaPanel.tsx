@@ -312,15 +312,20 @@ function PersonaPanelExpanded({
           // to tick its checkbox.
           addToSelection(conversation.id, [p.id]);
           // #94 → #202: rebuild persona_visibility from current defaults
-          // and update the store with the resulting matrix so the UI
-          // re-renders. The rebuild helper also dual-writes the legacy
-          // JSON column so rollbacks remain coherent.
-          void rebuildVisibilityFromPersonaDefaults(conversation.id).then(
-            (matrix) =>
-              useConversationsStore
-                .getState()
-                .setVisibilityMatrix(conversation.id, matrix),
-          );
+          // and update the cache so the UI re-renders. The rebuild
+          // helper writes both persona_visibility and the legacy JSON
+          // column inline; we only need an in-memory cache nudge here.
+          // #279: was a fire-and-forget chain whose chained
+          // setVisibilityMatrix re-wrote the conversation row + every
+          // junction table for the same matrix the rebuild had just
+          // written. backgroundTask makes failures observable; the
+          // cache-only update kills the redundant write.
+          backgroundTask("PersonaPanel.rebuildVisibilityAfterCreate", async () => {
+            const matrix = await rebuildVisibilityFromPersonaDefaults(conversation.id);
+            useConversationsStore
+              .getState()
+              .applyVisibilityMatrixCache(conversation.id, matrix);
+          });
         }}
       />
       {flow ? (
@@ -384,24 +389,29 @@ function PersonaPanelExpanded({
                 JSON.stringify(patch.visibilityDefaults) !==
                   JSON.stringify(p.visibilityDefaults);
               if (visibilityDefaultsChanged || sbe) {
+                // #279: rebuild already wrote persona_visibility + the
+                // legacy JSON column. setVisibilityMatrix would re-write
+                // every conversation column + DELETE+INSERT all three
+                // junction tables for the same matrix. Cache-only here.
                 const matrix = await rebuildVisibilityFromPersonaDefaults(
                   conversation.id,
                 );
-                await useConversationsStore
+                useConversationsStore
                   .getState()
-                  .setVisibilityMatrix(conversation.id, matrix);
+                  .applyVisibilityMatrixCache(conversation.id, matrix);
               }
             }}
             onDelete={async () => {
               await deletePersona(p.id);
               remove(p);
               // #94 → #202: rebuild persona_visibility after removal.
+              // #279: cache-only update; rebuild already persisted.
               const matrix = await rebuildVisibilityFromPersonaDefaults(
                 conversation.id,
               );
-              await useConversationsStore
+              useConversationsStore
                 .getState()
-                .setVisibilityMatrix(conversation.id, matrix);
+                .applyVisibilityMatrixCache(conversation.id, matrix);
             }}
             allPersonas={personas}
           />

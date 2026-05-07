@@ -43,6 +43,12 @@ interface State {
   // //limitsize commands.
   setDisplayMode: (id: string, mode: "lines" | "cols") => Promise<void>;
   setVisibilityMatrix: (id: string, matrix: Record<string, string[]>) => Promise<void>;
+  // #279: cache-only update — caller has ALREADY written the matrix
+  // to disk (typically via rebuildVisibilityFromPersonaDefaults). Used
+  // to avoid the redundant updateConversation rewrite that
+  // setVisibilityMatrix would otherwise issue (DELETE+INSERT on three
+  // junction tables to update one column the rebuild already wrote).
+  applyVisibilityMatrixCache: (id: string, matrix: Record<string, string[]>) => void;
   setVisibilityPreset: (
     id: string,
     mode: "separated" | "joined",
@@ -101,6 +107,11 @@ export const useConversationsStore = create<State>((set, get) => ({
     const next: Conversation = { ...current, visibilityMatrix: matrix };
     await repo.updateConversation(next);
     cacheUpdate(replaceById(next));
+  },
+  applyVisibilityMatrixCache(id, matrix) {
+    cacheUpdate((list) =>
+      list.map((c) => (c.id === id ? { ...c, visibilityMatrix: matrix } : c)),
+    );
   },
   async setVisibilityPreset(id, mode, personaIds) {
     const current = cacheGet().find((c) => c.id === id);
