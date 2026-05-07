@@ -315,6 +315,7 @@ export async function getConversation(id: string): Promise<Conversation | null> 
 
 export async function createConversation(
   partial: Omit<Conversation, "id" | "createdAt"> & { id?: string; createdAt?: number },
+  dbi: Kysely<Database> = db,
 ): Promise<Conversation> {
   const conv: Conversation = {
     ...partial,
@@ -324,18 +325,19 @@ export async function createConversation(
     // the returned object don't see undefined for the default.
     flowMode: partial.flowMode ?? false,
   };
-  await db.insertInto("conversations").values(conversationToRow(conv)).execute();
-  await writeSelectedPersonas(conv.id, conv.selectedPersonas);
+  await dbi.insertInto("conversations").values(conversationToRow(conv)).execute();
+  await writeSelectedPersonas(conv.id, conv.selectedPersonas, dbi);
   await writeContextWarnings(
     conv.id,
     conv.contextWarningsFired ?? [],
     conv.createdAt,
+    dbi,
   );
   // #202: dual-write the visibility matrix to persona_visibility.
   // No-op on a fresh conversation (no personas yet → no rows); kept
   // here for symmetry so anyone calling createConversation with a
   // pre-populated matrix gets it relationally too.
-  await writeVisibilityMatrix(conv.id, conv.visibilityMatrix);
+  await writeVisibilityMatrix(conv.id, conv.visibilityMatrix, dbi);
   return conv;
 }
 
