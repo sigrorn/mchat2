@@ -11,7 +11,12 @@ import { create } from "zustand";
 import { DEFAULT_SCALE } from "@/lib/ui/fontScale";
 import { buildSessionTimestamp } from "@/lib/tracing/traceFilename";
 import { getSetting, setSetting } from "@/lib/persistence/settings";
-import { GENERAL_WORKING_DIR_KEY } from "@/lib/settings/keys";
+import {
+  GENERAL_WORKING_DIR_KEY,
+  GLOBAL_SYSTEM_PROMPT_KEY,
+  IDLE_TIMEOUT_MS_KEY,
+  MAX_RETRY_ATTEMPTS_KEY,
+} from "@/lib/settings/keys";
 import { parseBoolSetting } from "@/lib/settings/parseBool";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
 
@@ -40,6 +45,13 @@ interface State {
   workingDir: string | null;
   loadWorkingDir: () => Promise<void>;
   setWorkingDir: (dir: string) => Promise<void>;
+  // #289: setters routed through the store so SettingsGeneralDialog
+  // doesn't import lib/persistence directly (per #287). No cache state
+  // is held — these keys aren't read often enough to warrant it; reads
+  // stay direct via getSetting at the existing call sites.
+  setGlobalSystemPrompt: (value: string) => Promise<void>;
+  setIdleTimeoutMs: (ms: number) => Promise<void>;
+  setMaxRetryAttempts: (attempts: number) => Promise<void>;
   debugSession: DebugSession;
   toggleDebug: () => void;
   // #131: user-facing stream/buffer toggle for response display.
@@ -89,6 +101,15 @@ export const useUiStore = create<State>((set, get) => ({
     const trimmed = dir.trim();
     await setSetting(GENERAL_WORKING_DIR_KEY, trimmed);
     set({ workingDir: trimmed || null });
+  },
+  async setGlobalSystemPrompt(value: string) {
+    await setSetting(GLOBAL_SYSTEM_PROMPT_KEY, value);
+  },
+  async setIdleTimeoutMs(ms: number) {
+    await setSetting(IDLE_TIMEOUT_MS_KEY, String(ms));
+  },
+  async setMaxRetryAttempts(attempts: number) {
+    await setSetting(MAX_RETRY_ATTEMPTS_KEY, String(attempts));
   },
   streamResponses: true,
   async loadStreamResponses() {

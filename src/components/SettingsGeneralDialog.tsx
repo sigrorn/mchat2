@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "./focusTrap";
-import { getSetting, setSetting } from "@/lib/persistence/settings";
+import { getSetting } from "@/lib/persistence/settings";
 import {
   GLOBAL_SYSTEM_PROMPT_KEY,
   GENERAL_WORKING_DIR_KEY,
@@ -65,10 +65,11 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
       if (!Number.isFinite(retries) || retries < 1) {
         throw new Error("Max retries must be an integer ≥ 1.");
       }
-      await setSetting(GLOBAL_SYSTEM_PROMPT_KEY, value);
-      await useUiStore.getState().setWorkingDir(workDir);
-      await setSetting(IDLE_TIMEOUT_MS_KEY, String(secs * 1000));
-      await setSetting(MAX_RETRY_ATTEMPTS_KEY, String(retries));
+      const ui = useUiStore.getState();
+      await ui.setGlobalSystemPrompt(value);
+      await ui.setWorkingDir(workDir);
+      await ui.setIdleTimeoutMs(secs * 1000);
+      await ui.setMaxRetryAttempts(retries);
       setSavedAt(Date.now());
     } catch (e) {
       setError((e as Error).message);
