@@ -45,12 +45,16 @@ interface State {
   workingDir: string | null;
   loadWorkingDir: () => Promise<void>;
   setWorkingDir: (dir: string) => Promise<void>;
-  // #289: setters routed through the store so SettingsGeneralDialog
-  // doesn't import lib/persistence directly (per #287). No cache state
-  // is held — these keys aren't read often enough to warrant it; reads
-  // stay direct via getSetting at the existing call sites.
+  // #289 / #291: getters and setters routed through the store so
+  // SettingsGeneralDialog doesn't import lib/persistence directly
+  // (per #287). No cache state is held — these keys aren't read
+  // often enough to warrant it; the reads are thin pass-throughs.
+  getGlobalSystemPrompt: () => Promise<string | null>;
   setGlobalSystemPrompt: (value: string) => Promise<void>;
+  getWorkingDirSetting: () => Promise<string | null>;
+  getIdleTimeoutMs: () => Promise<string | null>;
   setIdleTimeoutMs: (ms: number) => Promise<void>;
+  getMaxRetryAttempts: () => Promise<string | null>;
   setMaxRetryAttempts: (attempts: number) => Promise<void>;
   debugSession: DebugSession;
   toggleDebug: () => void;
@@ -102,11 +106,23 @@ export const useUiStore = create<State>((set, get) => ({
     await setSetting(GENERAL_WORKING_DIR_KEY, trimmed);
     set({ workingDir: trimmed || null });
   },
+  async getGlobalSystemPrompt() {
+    return getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+  },
   async setGlobalSystemPrompt(value: string) {
     await setSetting(GLOBAL_SYSTEM_PROMPT_KEY, value);
   },
+  async getWorkingDirSetting() {
+    return getSetting(GENERAL_WORKING_DIR_KEY);
+  },
+  async getIdleTimeoutMs() {
+    return getSetting(IDLE_TIMEOUT_MS_KEY);
+  },
   async setIdleTimeoutMs(ms: number) {
     await setSetting(IDLE_TIMEOUT_MS_KEY, String(ms));
+  },
+  async getMaxRetryAttempts() {
+    return getSetting(MAX_RETRY_ATTEMPTS_KEY);
   },
   async setMaxRetryAttempts(attempts: number) {
     await setSetting(MAX_RETRY_ATTEMPTS_KEY, String(attempts));

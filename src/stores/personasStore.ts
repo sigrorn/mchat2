@@ -33,6 +33,9 @@ function cacheSet(conversationId: string, list: Persona[]): void {
 
 interface State {
   selectionByConversation: Record<string, string[]>;
+  // #291: thin pass-through reads so components don't import
+  // lib/persistence/personas. Used as the loader in useRepoQuery.
+  listPersonas: (conversationId: string, includeTombstones?: boolean) => Promise<Persona[]>;
   load: (conversationId: string) => Promise<void>;
   setSelection: (conversationId: string, keys: string[]) => void;
   // Append-and-dedupe variant used by the create / import flows so a
@@ -44,6 +47,8 @@ interface State {
 
 export const usePersonasStore = create<State>((set, get) => ({
   selectionByConversation: {},
+  listPersonas: (conversationId, includeTombstones) =>
+    repo.listPersonas(conversationId, includeTombstones),
   async load(conversationId) {
     const list = await repo.listPersonas(conversationId);
     cacheSet(conversationId, list);

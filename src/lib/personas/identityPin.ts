@@ -12,6 +12,7 @@
 import type { Kysely } from "kysely";
 import type { Database } from "../persistence/schema";
 import type { Message, Persona } from "../types";
+import * as messagesRepo from "../persistence/messages";
 
 export function buildIdentityPinContent(name: string): string {
   return (
@@ -117,6 +118,18 @@ export async function ensureIdentityPin(
       dbi,
     );
   }
+}
+
+// #291: convenience wrapper for top-level callers (PersonaPanel) that
+// don't need transaction support. Uses the global messagesRepo so
+// callers don't need to import it just to pass it in.
+export async function ensureIdentityPinTopLevel(
+  conversationId: string,
+  persona: Persona,
+  messages: readonly Message[],
+  scope: "inherit" | { newAtMsg: number } = "inherit",
+): Promise<void> {
+  return ensureIdentityPin(conversationId, persona, messages, messagesRepo, scope);
 }
 
 async function appendPin(

@@ -17,9 +17,10 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMessagesStore } from "@/stores/messagesStore";
+import { useConversationsStore } from "@/stores/conversationsStore";
+import { usePersonasStore } from "@/stores/personasStore";
 import type { Conversation, Message, Persona } from "@/lib/types";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
-import * as conversationsRepo from "@/lib/persistence/conversations";
 import { groupIntoColumns } from "@/lib/rendering/columnGroups";
 import { formatCopyText } from "@/lib/rendering/copyWithPrefixes";
 import { useSend } from "@/hooks/useSend";
@@ -30,8 +31,6 @@ import {
   userMsgPositionsFromMeasurements,
   type UserMsgPos,
 } from "@/lib/ui/userMessageNav";
-import * as messagesRepo from "@/lib/persistence/messages";
-import * as personasRepo from "@/lib/persistence/personas";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { MessageBubble } from "./MessageBubble";
 import type { FindState } from "./messageBubbleMemo";
@@ -100,7 +99,7 @@ export function MessageList({
   // mutations, so consumers see updates without re-fetching.
   const queryResult = useRepoQuery<Message[]>(
     ["messages", conversationId],
-    () => messagesRepo.listMessages(conversationId),
+    () => useMessagesStore.getState().listMessages(conversationId),
   );
   const rawMessages = queryResult.data ?? EMPTY;
   const supersededIds =
@@ -121,7 +120,7 @@ export function MessageList({
   );
   const personasQuery = useRepoQuery<Persona[]>(
     ["personas", conversationId],
-    () => personasRepo.listPersonas(conversationId),
+    () => usePersonasStore.getState().listPersonas(conversationId),
   );
   const personas = personasQuery.data ?? EMPTY_PERSONAS;
   const internalRef = useRef<HTMLDivElement>(null);
@@ -131,7 +130,7 @@ export function MessageList({
   const userNumbers = userNumberByIndex(messages);
   const conversationsQuery = useRepoQuery<Conversation[]>(
     ["conversations"],
-    () => conversationsRepo.listConversations(),
+    () => useConversationsStore.getState().listConversations(),
   );
   const conversation = (conversationsQuery.data ?? []).find((c) => c.id === conversationId);
 

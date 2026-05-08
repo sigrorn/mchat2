@@ -23,8 +23,7 @@ import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { readCachedPersonas } from "@/hooks/cacheReaders";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
-import * as personasRepo from "@/lib/persistence/personas";
-import * as flowsRepo from "@/lib/persistence/flows";
+import { useFlowsStore } from "@/stores/flowsStore";
 import {
   applyCompletion,
   candidatesFor,
@@ -54,7 +53,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   const busy = submitting || active.length > 0;
   const personasQuery = useRepoQuery<Persona[]>(
     ["personas", conversation.id],
-    () => personasRepo.listPersonas(conversation.id),
+    () => usePersonasStore.getState().listPersonas(conversation.id),
   );
   const cPersonas = personasQuery.data ?? EMPTY_PERSONAS;
   // #238: flow attachment is read for the autocomplete sources object
@@ -63,7 +62,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
   // same key the panel uses.
   const flowQuery = useRepoQuery<Flow | null>(
     ["flow", conversation.id],
-    () => flowsRepo.getFlow(conversation.id),
+    () => useFlowsStore.getState().getFlow(conversation.id),
   );
   const flow = flowQuery.data ?? null;
   const cSelection =

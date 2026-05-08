@@ -32,6 +32,12 @@ function cacheGet(conversationId: string): Message[] {
 }
 
 interface State {
+  // #291: thin pass-through reads so components don't import
+  // lib/persistence/messages. Used as the loader in useRepoQuery
+  // and for direct-call sites (AttemptHistory, ProviderSpendTable).
+  listMessages: typeof repo.listMessages;
+  listMessageHistory: typeof repo.listMessageHistory;
+  listSpendRows: typeof repo.listSpendRows;
   // #180: per-conversation set of message ids whose Attempt has been
   // superseded. Refreshed on every `load`. Today this is empty for
   // every conversation because retry/replay still delete prior rows;
@@ -77,6 +83,9 @@ interface State {
 }
 
 export const useMessagesStore = create<State>((set, get) => ({
+  listMessages: repo.listMessages,
+  listMessageHistory: repo.listMessageHistory,
+  listSpendRows: repo.listSpendRows,
   supersededByConversation: {},
   editingByConversation: {},
   replayQueue: {},

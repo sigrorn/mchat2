@@ -10,8 +10,8 @@
 
 import type { Conversation, Persona } from "@/lib/types";
 import { useConversationsStore } from "@/stores/conversationsStore";
+import { usePersonasStore } from "@/stores/personasStore";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
-import * as personasRepo from "@/lib/persistence/personas";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
 
 const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
@@ -19,7 +19,7 @@ const EMPTY_PERSONAS: readonly Persona[] = Object.freeze([]);
 export function MatrixPanel({ conversation }: { conversation: Conversation }): JSX.Element | null {
   const personasQuery = useRepoQuery<Persona[]>(
     ["personas", conversation.id],
-    () => personasRepo.listPersonas(conversation.id),
+    () => usePersonasStore.getState().listPersonas(conversation.id),
   );
   const personas = personasQuery.data ?? EMPTY_PERSONAS;
   if (personas.length < 2) return null;

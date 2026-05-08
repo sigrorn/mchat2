@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from "react";
 import type { Message } from "@/lib/types";
-import { listMessageHistory } from "@/lib/persistence/messages";
+import { useMessagesStore } from "@/stores/messagesStore";
 
 export function AttemptHistory({
   conversationId,
@@ -36,7 +36,7 @@ export function AttemptHistory({
 
   useEffect(() => {
     let cancelled = false;
-    void listMessageHistory(conversationId, messageId).then((rows) => {
+    void useMessagesStore.getState().listMessageHistory(conversationId, messageId).then((rows) => {
       if (cancelled) return;
       setCount(rows.length);
       // Cache: expand reveals the already-loaded list rather than re-fetching.

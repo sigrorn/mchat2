@@ -8,13 +8,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "./focusTrap";
-import { getSetting } from "@/lib/persistence/settings";
 import {
-  GLOBAL_SYSTEM_PROMPT_KEY,
-  GENERAL_WORKING_DIR_KEY,
-  IDLE_TIMEOUT_MS_KEY,
   DEFAULT_IDLE_TIMEOUT_MS,
-  MAX_RETRY_ATTEMPTS_KEY,
   DEFAULT_MAX_RETRY_ATTEMPTS,
 } from "@/lib/settings/keys";
 import { useUiStore } from "@/stores/uiStore";
@@ -34,15 +29,16 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
 
   useEffect(() => {
     (async () => {
-      const v = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
+      const ui = useUiStore.getState();
+      const v = await ui.getGlobalSystemPrompt();
       setValue(v ?? "");
-      const wd = await getSetting(GENERAL_WORKING_DIR_KEY);
+      const wd = await ui.getWorkingDirSetting();
       setWorkDir(wd ?? "");
-      const t = await getSetting(IDLE_TIMEOUT_MS_KEY);
+      const t = await ui.getIdleTimeoutMs();
       const parsed = t ? Number.parseInt(t, 10) : NaN;
       const ms = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_IDLE_TIMEOUT_MS;
       setIdleTimeoutSec(String(Math.round(ms / 1000)));
-      const r = await getSetting(MAX_RETRY_ATTEMPTS_KEY);
+      const r = await ui.getMaxRetryAttempts();
       const rParsed = r ? Number.parseInt(r, 10) : NaN;
       setMaxRetries(
         Number.isFinite(rParsed) && rParsed >= 1

@@ -12,9 +12,6 @@ import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useRepoQuery, invalidateRepoQuery } from "@/lib/data/useRepoQuery";
-import * as messagesRepo from "@/lib/persistence/messages";
-import * as personasRepo from "@/lib/persistence/personas";
-import * as conversationsRepo from "@/lib/persistence/conversations";
 import { migrateApertusInConversation } from "@/lib/conversations/migrateApertusToOpenaiCompat";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { findMatches } from "@/lib/ui/findMatches";
@@ -64,7 +61,7 @@ export function ChatView(): JSX.Element {
   const currentId = useConversationsStore((s) => s.currentId);
   const conversationsQuery = useRepoQuery<Conversation[]>(
     ["conversations"],
-    () => conversationsRepo.listConversations(),
+    () => useConversationsStore.getState().listConversations(),
   );
   const conversation = (conversationsQuery.data ?? []).find((c) => c.id === currentId);
   const loadMessages = useMessagesStore((s) => s.load);
@@ -119,7 +116,9 @@ export function ChatView(): JSX.Element {
   const messagesQuery = useRepoQuery<Message[]>(
     conversation ? ["messages", conversation.id] : ["messages", "__none__"],
     () =>
-      conversation ? messagesRepo.listMessages(conversation.id) : Promise.resolve([]),
+      conversation
+        ? useMessagesStore.getState().listMessages(conversation.id)
+        : Promise.resolve([]),
   );
   const messages = messagesQuery.data ?? EMPTY;
   const find = useUiStore((s) => s.find);
@@ -160,7 +159,9 @@ export function ChatView(): JSX.Element {
   const personasQuery = useRepoQuery<Persona[]>(
     conversation ? ["personas", conversation.id] : ["personas", "__none__"],
     () =>
-      conversation ? personasRepo.listPersonas(conversation.id) : Promise.resolve([]),
+      conversation
+        ? usePersonasStore.getState().listPersonas(conversation.id)
+        : Promise.resolve([]),
   );
   const personas = personasQuery.data ?? EMPTY_PERSONAS;
   const [navPersonaId, setNavPersonaId] = useState<string | null>(null);

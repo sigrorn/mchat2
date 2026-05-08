@@ -17,7 +17,7 @@ import {
   type SpendRow,
 } from "@/lib/pricing/providerSpend";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
-import * as messagesRepo from "@/lib/persistence/messages";
+import { useMessagesStore } from "@/stores/messagesStore";
 import { keychain } from "@/lib/tauri/keychain";
 import { PROVIDER_REGISTRY, ALL_PROVIDER_IDS } from "@/lib/providers/registry";
 import type { ProviderId } from "@/lib/types";
@@ -63,7 +63,7 @@ export function ProviderSpendTable(): JSX.Element | null {
   const spendQuery = useRepoQuery<readonly SpendRow[]>(
     ["spend-rows"],
     async () => {
-      const rows = await messagesRepo.listSpendRows();
+      const rows = await useMessagesStore.getState().listSpendRows();
       return rows.map((r) => ({
         provider: r.provider,
         costUsd: r.costUsd,

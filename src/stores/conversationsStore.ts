@@ -34,6 +34,10 @@ interface State {
   // cross-store reads in personasStore.load) that need the current
   // conversation list outside React's render path.
   conversationsList: () => Conversation[];
+  // #291: thin pass-through read so components don't import
+  // lib/persistence/conversations. Used as the loader inside
+  // useRepoQuery (which manages the cache).
+  listConversations: () => Promise<Conversation[]>;
   load: () => Promise<void>;
   select: (id: string | null) => void;
   create: (init: Omit<Conversation, "id" | "createdAt">) => Promise<Conversation>;
@@ -76,6 +80,7 @@ export const useConversationsStore = create<State>((set, get) => ({
   currentId: null,
   loaded: false,
   conversationsList: () => cacheGet(),
+  listConversations: () => repo.listConversations(),
   async load() {
     const list = await repo.listConversations();
     cacheSet(list);

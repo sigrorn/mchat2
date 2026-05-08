@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import type { Conversation, Flow, Message, Persona, ProviderId } from "@/lib/types";
-import * as flowsRepo from "@/lib/persistence/flows";
+import { useFlowsStore } from "@/stores/flowsStore";
 import { nextPersonasStepPersonaIds, upcomingStepIndexForPersona } from "@/lib/app/flowSelectionSync";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { formatHostingTag } from "@/lib/providers/derived";
@@ -26,16 +26,14 @@ import {
   PersonaValidationError,
 } from "@/lib/personas/service";
 import { exportPersonasToFile, importPersonasFromFile } from "@/lib/personas/fileOps";
-import { ensureIdentityPin } from "@/lib/personas/identityPin";
+import { ensureIdentityPinTopLevel } from "@/lib/personas/identityPin";
 import { backgroundTask } from "@/lib/observability/backgroundTask";
 import { setSelection as setSelectionUseCase } from "@/lib/app/setSelection";
 import { reorderPersonas } from "@/lib/app/reorderPersonas";
-import * as messagesRepo from "@/lib/persistence/messages";
 import { readCachedMessages } from "@/hooks/cacheReaders";
 import { rebuildVisibilityFromPersonaDefaults } from "@/lib/personas/visibilityRebuild";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useRepoQuery, getRepoQueryCache, invalidateRepoQuery } from "@/lib/data/useRepoQuery";
-import * as personasRepo from "@/lib/persistence/personas";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useSendStore, type StreamStatus } from "@/stores/sendStore";
@@ -145,14 +143,14 @@ function PersonaPanelExpanded({
   // so consumers see updates without re-fetching.
   const personasQuery = useRepoQuery<Persona[]>(
     ["personas", conversation.id],
-    () => personasRepo.listPersonas(conversation.id),
+    () => usePersonasStore.getState().listPersonas(conversation.id),
   );
   const personas = personasQuery.data ?? EMPTY_PERSONAS;
   const selection =
     usePersonasStore((s) => s.selectionByConversation[conversation.id]) ?? EMPTY_SEL;
   const messagesQuery = useRepoQuery<Message[]>(
     ["messages", conversation.id],
-    () => messagesRepo.listMessages(conversation.id),
+    () => useMessagesStore.getState().listMessages(conversation.id),
   );
   const messages = messagesQuery.data ?? EMPTY_MESSAGES;
   const upsert = usePersonasStore((s) => s.upsert);
@@ -197,7 +195,7 @@ function PersonaPanelExpanded({
   // factories invalidate ["flow"] after each write.
   const flowQuery = useRepoQuery<Flow | null>(
     ["flow", conversation.id],
-    () => flowsRepo.getFlow(conversation.id),
+    () => useFlowsStore.getState().getFlow(conversation.id),
   );
   const flow = flowQuery.data ?? null;
 
@@ -371,8 +369,8 @@ function PersonaPanelExpanded({
               // If the rename changed the name, refresh the identity
               // pin in-place so the LLM hears the new name on next send.
               if (patch.name && patch.name !== p.name) {
-                const history = await messagesRepo.listMessages(conversation.id);
-                await ensureIdentityPin(conversation.id, next, history, messagesRepo);
+                const history = await useMessagesStore.getState().listMessages(conversation.id);
+                await ensureIdentityPinTopLevel(conversation.id, next, history);
                 await useMessagesStore.getState().load(conversation.id);
               }
               // #94 → #202: rebuild persona_visibility after defaults change.
@@ -732,7 +730,7 @@ function CreateForm({
         await applySeenByEdits(p.nameSlug, seenByEdits, siblings);
       }
       const scopeInfo = scope === "inherit" ? ("inherit" as const) : { newAtMsg: history.length };
-      await ensureIdentityPin(conversationId, p, history, messagesRepo, scopeInfo);
+      await ensureIdentityPinTopLevel(conversationId, p, history, scopeInfo);
       await useMessagesStore.getState().load(conversationId);
       onCreated(p);
       setName("");

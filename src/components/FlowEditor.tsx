@@ -9,7 +9,6 @@
 
 import { useEffect, useState } from "react";
 import type { Flow, FlowDraft, FlowDraftStep, Persona } from "@/lib/types";
-import { getFlow } from "@/lib/persistence/flows";
 import { updatePersona } from "@/lib/personas/service";
 import { useFlowsStore } from "@/stores/flowsStore";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
@@ -37,7 +36,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const f = await getFlow(conversationId);
+      const f = await useFlowsStore.getState().getFlow(conversationId);
       if (cancelled) return;
       setExistingFlow(f);
       if (f) {

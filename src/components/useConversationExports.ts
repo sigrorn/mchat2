@@ -14,29 +14,26 @@ import {
   exportConversationToHtml,
   exportConversationToMarkdown,
 } from "@/lib/conversations/exportToFile";
-import * as messagesRepo from "@/lib/persistence/messages";
-import * as personasRepo from "@/lib/persistence/personas";
-import * as conversationsRepo from "@/lib/persistence/conversations";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useMessagesStore } from "@/stores/messagesStore";
 import { usePersonasStore } from "@/stores/personasStore";
 import { useUiStore } from "@/stores/uiStore";
-import type { Conversation } from "@/lib/types";
+import type { Conversation, Message, Persona } from "@/lib/types";
 
 interface ExportData {
   conversation: Conversation;
-  messages: Awaited<ReturnType<typeof messagesRepo.listMessages>>;
-  personas: Awaited<ReturnType<typeof personasRepo.listPersonas>>;
+  messages: Message[];
+  personas: Persona[];
   generatedAt: string;
 }
 
 async function getExportData(id: string): Promise<ExportData | null> {
-  const all = await conversationsRepo.listConversations();
+  const all = await useConversationsStore.getState().listConversations();
   const conv = all.find((c) => c.id === id);
   if (!conv) return null;
   const [messages, personas] = await Promise.all([
-    messagesRepo.listMessages(id),
-    personasRepo.listPersonas(id, true),
+    useMessagesStore.getState().listMessages(id),
+    usePersonasStore.getState().listPersonas(id, true),
   ]);
   return { conversation: conv, messages, personas, generatedAt: new Date().toISOString() };
 }

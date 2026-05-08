@@ -14,11 +14,15 @@ import * as repo from "@/lib/persistence/flows";
 import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
 
 interface State {
+  // #291: thin pass-through read so components don't import
+  // lib/persistence/flows. Used as the loader in useRepoQuery.
+  getFlow: typeof repo.getFlow;
   upsertFlow: (conversationId: string, draft: FlowDraft) => Promise<void>;
   deleteFlow: (conversationId: string) => Promise<void>;
 }
 
 export const useFlowsStore = create<State>(() => ({
+  getFlow: repo.getFlow,
   async upsertFlow(conversationId, draft) {
     await repo.upsertFlow(conversationId, draft);
     invalidateRepoQuery(["flow"]);

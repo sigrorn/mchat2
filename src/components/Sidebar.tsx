@@ -13,7 +13,6 @@ import { useEffect, useRef, useState } from "react";
 import { useConversationsStore } from "@/stores/conversationsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useRepoQuery } from "@/lib/data/useRepoQuery";
-import * as conversationsRepo from "@/lib/persistence/conversations";
 import type { Conversation } from "@/lib/types";
 import { keychain } from "@/lib/tauri/keychain";
 import { ContextMenu } from "./ContextMenu";
@@ -60,7 +59,7 @@ function SidebarExpanded({ onCollapse }: { onCollapse: () => void }): JSX.Elemen
   // store mutation, so consumers see updates without re-fetching.
   const conversationsQuery = useRepoQuery<Conversation[]>(
     ["conversations"],
-    () => conversationsRepo.listConversations(),
+    () => useConversationsStore.getState().listConversations(),
   );
   const conversations = conversationsQuery.data ?? EMPTY_CONVERSATIONS;
   const currentId = useConversationsStore((s) => s.currentId);
