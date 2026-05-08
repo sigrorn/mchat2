@@ -1,9 +1,14 @@
 # mchat2 collaboration prompt
 
-*Paste this file's body into the AI collaborator (Codex, Cursor, Aider,
-Claude, etc.) at the start of a session to align on the project's
-working style. Keep the body authoritative and concise — every line is
-paid for in the context window.*
+*This is the cross-tool collaboration prompt for mchat2. Paste it (or
+load it) into any AI coding collaborator — **Claude Code, Codex,
+Cursor, Aider, Cline**, etc. — at the start of a session. Its job is
+to keep change processes consistent regardless of which tool is on
+shift: same workflow rules, same architectural invariants, same
+review and communication style. The body below is what the tool
+sees; everything in italics is for human readers. Keep the body
+authoritative and concise — every line is paid for in the context
+window.*
 
 ---
 
