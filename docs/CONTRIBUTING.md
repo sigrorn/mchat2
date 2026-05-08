@@ -36,10 +36,11 @@ dependencies). Subsequent builds are incremental and fast.
 
 ### Where state lives during development
 
-- **SQLite database** — under the OS app-data directory
-  (`%APPDATA%\com.tauri.dev\` on Windows, `~/Library/Application Support/`
-  on macOS, `~/.local/share/` on Linux). Filename: `mchat2.db`.
-- **API keys** — in the OS keychain under the bundle id `com.tauri.dev`.
+- **SQLite database** — under the OS app-data directory for the bundle
+  id `email.heinen.mchat2` (`%APPDATA%\email.heinen.mchat2\` on Windows,
+  `~/Library/Application Support/email.heinen.mchat2/` on macOS,
+  `~/.local/share/email.heinen.mchat2/` on Linux). Filename: `mchat2.db`.
+- **API keys** — in the OS keychain under service name `mchat2`.
 - **Trace files** — when tracing is enabled, under the working directory
   the user picks via the file dialog.
 

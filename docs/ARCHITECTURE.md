@@ -558,11 +558,16 @@ Each table family has a repo file under
 
 Repo functions are mostly small and direct. Two conventions matter:
 
-1. **Every repo function takes an optional `dbi: Kysely<Database>`** that
-   defaults to the global queued `db`. When called from inside a
-   `transaction()` body, the caller passes `txn.db` (queue-bypassing).
-   Without this, calls inside a transaction body would queue and
-   deadlock waiting for the queue head the section already holds.
+1. **Repo writes that may participate in a `transaction()` take an
+   optional `dbi: Kysely<Database>`** that defaults to the global queued
+   `db`. When called from inside a transaction body, the caller passes
+   `txn.db` (queue-bypassing). Without this, calls inside a transaction
+   body would queue and deadlock waiting for the queue head the section
+   already holds. Setters that are only ever called outside transactions
+   (e.g. simple key/value setters in `settings.ts`, or one-shot writers
+   like `setStepIndex` in `flows.ts`) don't need the parameter — but the
+   moment one is reached from a transaction body, it must grow the
+   parameter or the call site must be restructured.
 2. **Narrow setters preferred over broad rewrites.** A setter that
    touches one column does one UPDATE; a setter that touches a junction
    table does the minimum DELETE+INSERT for that junction. Going through

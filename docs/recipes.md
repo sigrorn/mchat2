@@ -81,14 +81,18 @@ a SQL query via the typed Kysely instance.
 
 ### Convention
 
-Every repo function takes an **optional** `dbi: Kysely<Database>` parameter
-that defaults to the global `db` (the queued one). When called from inside
-a `transaction()` body, the caller passes `txn.db` (or uses
-`reposFor(txn.db).<repo>.<method>(args)` from
+Repo writes that may participate in a `transaction()` take an **optional**
+`dbi: Kysely<Database>` parameter that defaults to the global `db` (the
+queued one). When called from inside a transaction body, the caller passes
+`txn.db` (or uses `reposFor(txn.db).<repo>.<method>(args)` from
 [`src/lib/persistence/repoContext.ts`](../src/lib/persistence/repoContext.ts)).
 
 This is the [optional-dbi pattern](decisions/011-section-token-transactions.md)
-from ADR 011.
+from ADR 011. Setters that are only ever called outside transactions
+(simple key/value setters, one-shot writers) can skip the parameter.
+**If you're unsure whether your new function will end up inside a
+transaction, add the parameter** — it's cheap, and adding it later
+requires changing every call site.
 
 ### Steps
 
@@ -252,11 +256,12 @@ an adapter file under `src/lib/providers/<name>.ts` that implements the
        keychainKey: "my_provider_api_key",
        // …
      },
-   } satisfies Record<ProviderId, ProviderRegistryEntry>;
+   } satisfies Record<ProviderId, ProviderMeta>;
    ```
 
 3. **Add the provider id** to the `ProviderId` type union in
-   [`src/lib/types/index.ts`](../src/lib/types/index.ts).
+   [`src/lib/types/providers.ts`](../src/lib/types/providers.ts)
+   (re-exported from `src/lib/types/index.ts`).
 
 4. **Add a pricing entry** in
    [`src/lib/pricing/table.ts`](../src/lib/pricing/table.ts) if the
@@ -325,9 +330,15 @@ keys are declared in
    `*Deps` shape (see
    [`src/lib/app/deps.ts`](../src/lib/app/deps.ts)).
 
-4. **Add a UI control** in the settings panel
-   ([`src/components/SettingsPanel.tsx`](../src/components/SettingsPanel.tsx)
-   or similar — search for the existing settings UI).
+4. **Add a UI control** in the settings dialog. The settings UI is split
+   across
+   [`src/components/SettingsDialog.tsx`](../src/components/SettingsDialog.tsx)
+   (the shell),
+   [`src/components/SettingsGeneralDialog.tsx`](../src/components/SettingsGeneralDialog.tsx)
+   (general tab), and
+   [`src/components/SettingsOpenaiCompatTab.tsx`](../src/components/SettingsOpenaiCompatTab.tsx)
+   (presets tab). Pick the one whose tab the new control belongs in, or
+   add a new tab via `SettingsDialog.tsx`.
 
 5. **Migration** is only needed if the setting is structurally new
    (the `settings` table itself already exists and accepts arbitrary

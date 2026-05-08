@@ -172,7 +172,7 @@ adapter parsing succeeded but yielded nothing (e.g. an SSE event with no
   fall through to the silent path. The streamRunner's "produced no
   response" branch should rarely fire in production.
 
-### `provider produced no response (no tokens, no usage, no error)`
+### `adapter produced no response (no tokens, no usage, no error)`
 
 **Symptom.** The bubble shows that exact red error.
 
@@ -192,12 +192,15 @@ the bubble.
 
 **Diagnostic steps.**
 
-1. Confirm the key is set in the right keychain slot. Each provider has
-   its own slot:
-   - `anthropic_api_key`
-   - `openai_api_key`
-   - `gemini_api_key`
-   - `openai_compat_<preset>_api_key` (per OpenAI-compatible preset)
+1. Confirm the key is set in the right keychain slot. Each provider's
+   slot name is the `keychainKey` field on its entry in
+   [`src/lib/providers/registry.ts`](../src/lib/providers/registry.ts)
+   (e.g. `openai_api_key`, `anthropic_api_key`, `google_api_key`,
+   `perplexity_api_key`, `mistral_api_key`). For OpenAI-compatible
+   presets the slot is built by `apiKeySlotForPreset` in
+   [`src/lib/providers/openaiCompatStorage.ts`](../src/lib/providers/openaiCompatStorage.ts)
+   (`openai_compat.<preset_id>.apiKey` for built-ins,
+   `openai_compat.custom.<name>.apiKey` for custom presets).
 2. The key is read via the keychain bridge in
    [`src-tauri/src/keychain.rs`](../src-tauri/src/keychain.rs). On
    Linux, the Secret Service daemon must be running (gnome-keyring or
@@ -294,13 +297,15 @@ never finishes startup.
 1. Check `runMigrations` errors in the console / structured log.
 2. The migration that failed is the one whose `user_version` would have
    been set; the prior version stays committed.
-3. The pre-migration backup file (`mchat2.db.backup-<N>`) is preserved
-   on failure for debugging (see #98). Look in the app-data dir.
+3. The pre-migration backup file (`mchat2.<schemaVersion>.db`, where
+   `<schemaVersion>` is the schema version *before* the failed migration)
+   is preserved on failure for debugging (see #98). Look in the app-data
+   dir.
 
 **Fix patterns.**
 
 - Restore from the backup if the migration corrupted data:
-  `cp mchat2.db.backup-<N> mchat2.db`.
+  `cp mchat2.<schemaVersion>.db mchat2.db`.
 - Fix the migration SQL, bump the migration index, and ship a new
   release.
 - Migration tests under `tests/unit/persistence/migrationV*.test.ts`
