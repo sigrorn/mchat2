@@ -12,11 +12,13 @@ import type { Message } from "../types";
 // Map from message.index → user-number (1-based) for every user row.
 // Non-user rows are absent from the returned map so callers can
 // distinguish 'not a user row' (undefined) from 'first user row' (1).
+// #294: rows hidden by //reset are skipped so user numbers reflect the
+// visible conversation.
 export function userNumberByIndex(messages: readonly Message[]): Map<number, number> {
   const m = new Map<number, number>();
   let n = 0;
   for (const msg of messages) {
-    if (msg.role === "user") {
+    if (msg.role === "user" && msg.hiddenByResetId == null) {
       n += 1;
       m.set(msg.index, n);
     }
@@ -26,11 +28,13 @@ export function userNumberByIndex(messages: readonly Message[]): Map<number, num
 
 // Return the internal Message.index of the Nth user row, or null if
 // N is out of range (≤ 0 or greater than the count of user rows).
+// #294: counts only visible (non-hidden) user rows.
 export function indexByUserNumber(messages: readonly Message[], userNumber: number): number | null {
   if (userNumber < 1) return null;
   let n = 0;
   for (const msg of messages) {
     if (msg.role !== "user") continue;
+    if (msg.hiddenByResetId != null) continue;
     n += 1;
     if (n === userNumber) return msg.index;
   }
@@ -39,6 +43,6 @@ export function indexByUserNumber(messages: readonly Message[], userNumber: numb
 
 export function userMessageCount(messages: readonly Message[]): number {
   let n = 0;
-  for (const m of messages) if (m.role === "user") n += 1;
+  for (const m of messages) if (m.role === "user" && m.hiddenByResetId == null) n += 1;
   return n;
 }

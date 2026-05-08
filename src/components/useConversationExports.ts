@@ -31,10 +31,14 @@ async function getExportData(id: string): Promise<ExportData | null> {
   const all = await useConversationsStore.getState().listConversations();
   const conv = all.find((c) => c.id === id);
   if (!conv) return null;
-  const [messages, personas] = await Promise.all([
+  const [rawMessages, personas] = await Promise.all([
     useMessagesStore.getState().listMessages(id),
     usePersonasStore.getState().listPersonas(id, true),
   ]);
+  // #294: //reset-hidden rows are dropped from the standard exports
+  // (HTML, Markdown, snapshot). docs/ideas.md tracks a future "full
+  // export" that would resurface them, color-coded by reset id.
+  const messages = rawMessages.filter((m) => m.hiddenByResetId == null);
   return { conversation: conv, messages, personas, generatedAt: new Date().toISOString() };
 }
 

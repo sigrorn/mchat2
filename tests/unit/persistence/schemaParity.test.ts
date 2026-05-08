@@ -80,6 +80,7 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "confirmed_at",
     "flow_dispatched",
     "cost_usd",
+    "hidden_by_reset_id",
   ],
   settings: ["key", "value"],
   runs: [

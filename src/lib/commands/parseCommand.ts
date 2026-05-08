@@ -40,6 +40,13 @@ export type ParsedCommand =
   | { kind: "version" }
   | { kind: "log"; payload: { limit: number; clear: boolean } }
   | { kind: "fork"; payload: { userNumber: number | null } }
+  | {
+      kind: "reset";
+      payload:
+        | { mode: "noop" }
+        | { mode: "full" }
+        | { mode: "snapshot"; count: number };
+    }
   | { kind: "error"; message: string };
 
 export function parseCommand(raw: string): ParsedCommand {

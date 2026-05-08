@@ -29,6 +29,7 @@ import {
 import { handleAutocompact, handleCompact } from "./handlers/compaction";
 import { handleVacuum } from "./handlers/system";
 import { handleFork } from "./handlers/fork";
+import { handleReset } from "./handlers/reset";
 import type { CommandContext, CommandResult } from "./handlers/types";
 
 export type { CommandContext, CommandResult } from "./handlers/types";
@@ -89,5 +90,7 @@ export async function dispatchCommand(
       return handleCompact(ctx, cmd.payload);
     case "fork":
       return handleFork(ctx, cmd.payload);
+    case "reset":
+      return handleReset(ctx, cmd.payload);
   }
 }

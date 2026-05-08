@@ -66,9 +66,17 @@ export async function forkConversation(
     );
   }
 
-  // Filter live (non-superseded) messages strictly before the cut.
+  // Filter live (non-superseded, non-hidden) messages strictly before
+  // the cut. #294: //reset-hidden rows shouldn't carry into a fork —
+  // forking is for capturing a re-usable starting point, not for
+  // replaying a conversation's hidden history.
   const kept = [...input.sourceMessages]
-    .filter((m) => m.supersededAt === null && m.index < cutAt)
+    .filter(
+      (m) =>
+        m.supersededAt === null &&
+        (m.hiddenByResetId ?? null) === null &&
+        m.index < cutAt,
+    )
     .sort((a, b) => a.index - b.index);
 
   // Build the envelope via the existing serializer — gives us free

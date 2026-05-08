@@ -136,6 +136,9 @@ export function buildContext(input: BuildContextInput): BuildContextResult {
     // #102: hard floor from compaction — nothing below it enters context.
     const floor = conversation.compactionFloorIndex;
     if (floor !== null && m.index < floor) continue;
+    // #294: //reset hid this row from the conversation. The row stays
+    // in the DB (cost rollups still count it); the LLM should not see it.
+    if (m.hiddenByResetId != null) continue;
 
     // #260: inheriting personas relax the cutoff for pre-creation rows
     // — they still see rows older than their createdAtMessageIndex.

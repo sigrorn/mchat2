@@ -124,16 +124,20 @@ async function seedCompactionBlock(
   });
   let lastSummaryIndex = notice.index;
   for (const pid of personaIds) {
+    // Test seeder uses persona_id: null to avoid the messages.persona_id
+    // FK constraint without seeding full persona rows. The handler's
+    // snapshot detection looks at role + pinned + content prefix, not
+    // at persona linkage.
     const r = await messagesRepo.appendMessage({
       conversationId,
       role: "assistant",
       content: `[compacted summary]\n\nsummary for ${pid}`,
       provider: "mock",
       model: "mock",
-      personaId: pid,
+      personaId: null,
       displayMode: "lines",
       pinned: true,
-      pinTarget: pid,
+      pinTarget: null,
       addressedTo: [],
       errorMessage: null,
       errorTransient: false,

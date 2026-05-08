@@ -97,9 +97,15 @@ export async function runCompaction(
     };
   }
 
-  // Messages to be compacted (strictly below cutoff).
-  const preHistory = history.filter((m) => m.index < cutoff);
-  const preservedMessages = history.filter((m) => m.index >= cutoff);
+  // Messages to be compacted (strictly below cutoff). #294: skip rows
+  // already hidden by a prior //reset — they're not part of the live
+  // conversation and shouldn't be re-summarized into a new snapshot.
+  const preHistory = history.filter(
+    (m) => m.index < cutoff && m.hiddenByResetId == null,
+  );
+  const preservedMessages = history.filter(
+    (m) => m.index >= cutoff && m.hiddenByResetId == null,
+  );
 
   const globalPrompt = await getSetting(GLOBAL_SYSTEM_PROMPT_KEY);
   const idleTimeoutMs = await idleTimeoutSetting.get();

@@ -24,6 +24,9 @@ export function isCountableUserMessage(
 ): boolean {
   if (m.role !== "user") return false;
   if (m.pinned) return false;
+  // #294: //reset-hidden rows are not "fresh turns" — a //compact -N
+  // run after a //reset must count only the visible tail.
+  if (m.hiddenByResetId != null) return false;
   if (m.addressedTo.length > 0 && !m.addressedTo.includes(personaKey)) return false;
   return true;
 }

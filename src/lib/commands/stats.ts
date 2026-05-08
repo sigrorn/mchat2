@@ -54,6 +54,9 @@ function sumPersonaTokensSinceCompaction(
   let outTokens = 0;
   for (const m of messages) {
     if (m.index < floor) continue;
+    // #294: hidden rows aren't "current activity"; cost / spend
+    // displays still count them (see ProviderSpendTable + personaCosts).
+    if (m.hiddenByResetId != null) continue;
     if (m.role !== "assistant") continue;
     if (m.personaId !== persona.id) continue;
     inTokens += m.inputTokens;

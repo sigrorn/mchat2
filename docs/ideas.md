@@ -266,3 +266,38 @@ wrap each `recordX` body in a transaction (same shape as
 #268/#269/#164) and thread `txn.db` to its sub-calls.
 
 Cheap fix when prioritised. Single-PR scope. Mechanical.
+
+## Full export including //reset-hidden segments
+
+**Discussed:** 2026-05-08, while specifying `//reset` (#294).
+
+`//reset` hides a tail of messages from display + context but keeps
+them in the messages table, stamping each with `hidden_by_reset_id`
+(an integer that groups all rows hidden by the same reset event).
+The standard exports (HTML, Markdown, snapshot file) drop hidden
+rows in [`useConversationExports.ts`](src/components/useConversationExports.ts):
+the snapshot is a portable starting point, not a forensic record.
+
+A second export variant — `//export full` or a sidebar checkbox —
+would resurface every hidden row, color-coded by
+`hidden_by_reset_id`, with markers indicating where each `//reset`
+was called. Useful when the user wants to reconstruct "what did I
+roll back, and why might that decision have been wrong?" without
+opening SQLite directly. The basic shape:
+
+- One render path per format: HTML/Markdown templates gain a
+  per-row `hidden_by_reset_id` lookup and assign a stable
+  background color (deterministic palette by id) to each group.
+- A divider row between groups labelled "reset N" with the
+  timestamp of the reset event. The reset itself appends a
+  notice to the conversation today (`reset: hid X messages…`),
+  so the timestamp is recoverable from the visible side.
+- Snapshot exports stay as-is (forking from a hidden segment
+  doesn't make sense), but a future "archive snapshot" could
+  include hidden rows for backup purposes.
+
+**Why deferred:** Cost-of-living-with-it is low. The user knows
+which conversations they reset and roughly why; the immediate need
+is "hide this from the LLM and the chat list," which is what
+`//reset` already does. Build the resurfaced view when the question
+"what did I hide three weeks ago?" actually comes up.

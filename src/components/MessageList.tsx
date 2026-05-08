@@ -111,11 +111,14 @@ export function MessageList({
   // #229: confirmed notice rows are hidden from view. They stay in
   // the DB so a future un-hide affordance can restore them; for now
   // the filter is a one-way drop here.
+  // #294: //reset-hidden rows are filtered out alongside the above.
+  // The DB row stays so a future export can resurface them with
+  // their reset-id color group.
   const messages = useMemo(
     () =>
-      filterSupersededMessages(rawMessages, supersededIds).filter(
-        (m) => !(m.role === "notice" && m.confirmedAt != null),
-      ),
+      filterSupersededMessages(rawMessages, supersededIds)
+        .filter((m) => !(m.role === "notice" && m.confirmedAt != null))
+        .filter((m) => m.hiddenByResetId == null),
     [rawMessages, supersededIds],
   );
   const personasQuery = useRepoQuery<Persona[]>(

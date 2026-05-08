@@ -517,6 +517,19 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE conversations DROP COLUMN limit_mark_index`,
     `ALTER TABLE conversations DROP COLUMN limit_size_tokens`,
   ],
+  // 33 — Per-message hidden-by-reset marker (#294). Nullable INTEGER
+  // set by //reset to roll the conversation back to a sync point
+  // without losing data. The integer doubles as the reset-event group
+  // id so a future export (see docs/ideas.md) can color-code rows
+  // hidden by distinct reset boundaries. Mirrors the superseded_at /
+  // confirmed_at pattern: the row stays in the messages table; the
+  // UI filter and context builder skip it; cost / spend rollups
+  // explicitly do NOT skip it (//reset is a display+context op, not
+  // a billing op). No backfill — every existing row is implicitly
+  // visible (NULL).
+  [
+    `ALTER TABLE messages ADD COLUMN hidden_by_reset_id INTEGER`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

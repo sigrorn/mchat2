@@ -265,6 +265,23 @@ function parseAutocompact(arg: string): ParsedCommand {
   };
 }
 
+function parseReset(arg: string): ParsedCommand {
+  // No arg → roll back to the last visible snapshot (count 1). When
+  // there are no snapshots, the handler falls through to full.
+  if (arg === "") return { kind: "reset", payload: { mode: "snapshot", count: 1 } };
+  const lc = arg.toLowerCase();
+  if (lc === "full") return { kind: "reset", payload: { mode: "full" } };
+  if (!/^\d+$/.test(arg)) {
+    return {
+      kind: "error",
+      message: `reset: '${arg}' is not a valid count. Use //reset, //reset full, or //reset N.`,
+    };
+  }
+  const n = Number(arg);
+  if (n === 0) return { kind: "reset", payload: { mode: "noop" } };
+  return { kind: "reset", payload: { mode: "snapshot", count: n } };
+}
+
 function parseFork(arg: string): ParsedCommand {
   if (arg === "") return { kind: "fork", payload: { userNumber: null } };
   if (!/^-?\d+$/.test(arg)) {
@@ -492,6 +509,26 @@ export const COMMAND_SPECS: readonly CommandSpec[] = [
     ],
     parse: parseFork,
     completion: { appendSpaceOnComplete: false },
+  },
+  {
+    verb: "reset",
+    section: "maintenance",
+    usages: [
+      {
+        form: "//reset",
+        description: "Hide everything since the last compaction snapshot (cost preserved)",
+      },
+      {
+        form: "//reset full",
+        description: "Hide every prior message; persona setup stays in place",
+      },
+      {
+        form: "//reset N",
+        description: "Hide everything past the Nth-from-last snapshot (falls through to full if fewer)",
+      },
+    ],
+    parse: parseReset,
+    completion: { appendSpaceOnComplete: true },
   },
 ];
 

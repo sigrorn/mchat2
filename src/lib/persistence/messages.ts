@@ -51,6 +51,7 @@ function rowToMessage(r: MessagesTable): Message {
     confirmedAt: r.confirmed_at,
     flowDispatched: r.flow_dispatched === 1,
     costUsd: r.cost_usd,
+    hiddenByResetId: r.hidden_by_reset_id,
   };
 }
 
@@ -81,6 +82,7 @@ function messageToRow(msg: Message): MessagesTable {
     confirmed_at: msg.confirmedAt ?? null,
     flow_dispatched: msg.flowDispatched ? 1 : 0,
     cost_usd: msg.costUsd ?? null,
+    hidden_by_reset_id: msg.hiddenByResetId ?? null,
   };
 }
 
@@ -525,6 +527,35 @@ export async function markMessagesSuperseded(
     .set({ superseded_at: at })
     .where("id", "in", ids)
     .execute();
+}
+
+// #294: stamp messages with a fresh reset-event id, hiding every row
+// past `boundary` in this conversation that isn't already hidden.
+// Returns the allocated reset id and the count of rows touched. The
+// caller computes `boundary` (the highest idx that should remain
+// visible) — this function is content-blind. -1 means "hide everything
+// in the conversation". Already-hidden rows keep their prior id so a
+// future color-coded export can distinguish reset events.
+export async function applyReset(
+  conversationId: string,
+  boundary: number,
+  dbi: Kysely<Database> = db,
+): Promise<{ resetId: number; hiddenCount: number }> {
+  const maxRow = await dbi
+    .selectFrom("messages")
+    .select((eb) => eb.fn.coalesce(eb.fn.max("hidden_by_reset_id"), eb.lit(0)).as("m"))
+    .where("conversation_id", "=", conversationId)
+    .executeTakeFirst();
+  const resetId = (maxRow?.m ?? 0) + 1;
+  const result = await dbi
+    .updateTable("messages")
+    .set({ hidden_by_reset_id: resetId })
+    .where("conversation_id", "=", conversationId)
+    .where("idx", ">", boundary)
+    .where("hidden_by_reset_id", "is", null)
+    .executeTakeFirst();
+  const hiddenCount = Number(result.numUpdatedRows ?? 0);
+  return { resetId, hiddenCount };
 }
 
 // #181: superseded predecessors of `messageId` in the same

@@ -115,6 +115,11 @@ export interface MessagesTable {
   // so a flow turn is distinguishable from an explicit multi-target
   // @a,@b send. Default 0 preserves today's rendering for every row.
   flow_dispatched: number; // 0/1
+  // #294: when non-null, a //reset operation hid this row from
+  // display + context. The integer is the reset-event id so a future
+  // export can color-code rows hidden by distinct reset boundaries.
+  // Cost / spend rollups intentionally ignore this column.
+  hidden_by_reset_id: number | null;
 }
 
 export interface SettingsTable {

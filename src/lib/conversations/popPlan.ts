@@ -18,7 +18,9 @@ export function planPop(messages: readonly Message[]): PopPlan {
   let lastUser: Message | null = null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m && m.role === "user") {
+    // #294: //reset-hidden rows aren't part of the live tail; //pop
+    // walks the visible conversation only.
+    if (m && m.role === "user" && m.hiddenByResetId == null) {
       lastUser = m;
       break;
     }

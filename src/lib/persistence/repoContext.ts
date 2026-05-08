@@ -71,6 +71,10 @@ export interface MessagesRepoCtx {
     ids: readonly string[],
     at: number,
   ) => ReturnType<typeof messagesRepo.markMessagesSuperseded>;
+  applyReset: (
+    conversationId: string,
+    boundary: number,
+  ) => ReturnType<typeof messagesRepo.applyReset>;
   listMessages: (
     conversationId: string,
   ) => ReturnType<typeof messagesRepo.listMessages>;
@@ -155,6 +159,8 @@ export function reposFor(dbi: Kysely<Database>): RepoContext {
         messagesRepo.finalizeAssistantMessage(id, state, dbi),
       markMessagesSuperseded: (ids, at) =>
         messagesRepo.markMessagesSuperseded(ids, at, dbi),
+      applyReset: (conversationId, boundary) =>
+        messagesRepo.applyReset(conversationId, boundary, dbi),
       listMessages: (conversationId) =>
         messagesRepo.listMessages(conversationId, dbi),
     },
