@@ -80,5 +80,30 @@ export default [
   // handlers/**, and the fileOps trio from no-restricted-imports has
   // been removed — all those files now take store actions via deps
   // (#148, #149, #151–#154) or function parameters (#155).
+  // #287 / #292: lock the components → persistence boundary. After
+  // phases 1+2 of #287 every component reaches stores instead of
+  // repos directly; this rule prevents the regression.
+  {
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@/lib/persistence/*",
+                "*/lib/persistence/*",
+                "../lib/persistence/*",
+                "../../lib/persistence/*",
+              ],
+              message:
+                "src/components/** must not import from @/lib/persistence/* — go through a store (conversationsStore, messagesStore, personasStore, flowsStore, uiStore). See #287.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 ];

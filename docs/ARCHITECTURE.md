@@ -167,18 +167,26 @@ scripts/
   bumpLogic.mjs       Shared logic (also imported by tests)
 ```
 
-The boundary that matters most is `src/lib/`. ESLint enforces three
-rules:
+The boundary is enforced in two places by ESLint
+([eslint.config.js](../eslint.config.js)):
 
-1. `src/lib/**` may not import from `@/stores/*` or `@/hooks/*`.
-2. `src/lib/**` may not import from `@tauri-apps/*` directly — go
-   through `@/lib/tauri/*`.
-3. `src/components/**` may not reach into `src/lib/persistence/*`
-   directly — go through stores or use cases.
+1. **`src/lib/**`** may not import from `@/stores/*`, `@/hooks/*`, or
+   `@tauri-apps/*` directly. Use cases take store actions via `*Deps`
+   parameters (#142, #144, #155); raw Tauri APIs go through the
+   `@/lib/tauri/*` shim.
+2. **`src/components/**`** may not import from `@/lib/persistence/*`.
+   Components reach for stores
+   (`conversationsStore`, `messagesStore`, `personasStore`,
+   `flowsStore`, `uiStore`) instead. The store methods are thin
+   pass-throughs — they don't add caching beyond what `useRepoQuery`
+   already does — but they put the seam where it belongs (see #287
+   for the rationale and the rollout, phases 1–3).
 
-These are why the codebase is testable without React, why the test
-seam in `lib/testing/createTestDb.ts` works, and why the section-token
-locking rules from ADR 011 can be enforced uniformly. See
+These two rules are why the codebase is testable without React, why
+the test seam in `lib/testing/createTestDb.ts` works, why the
+section-token locking discipline from ADR 011 can be enforced
+uniformly, and why component tests only need to fake stores rather
+than the whole persistence layer. See
 [ADR 001](decisions/001-lib-app-boundary.md) for the full rationale.
 
 ---

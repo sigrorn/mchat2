@@ -66,7 +66,7 @@ directory.
 
 ```
 src/
-  components/     React UI (presentation only)
+  components/     React UI; reaches stores, never persistence directly (#287)
   hooks/          React hook layer that wires Zustand stores into use-case deps
   stores/         Zustand — thin reactive caches and UI state
   lib/            Pure logic; no React, no Zustand, no Tauri imports
