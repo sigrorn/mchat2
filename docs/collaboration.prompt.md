@@ -24,7 +24,8 @@ safety rule. When in doubt, ask.
 
 ## Read these on session start
 
-Load these two upfront — they're load-bearing and small:
+Load these two upfront — they're load-bearing (read at least the
+sections relevant to the task if context is constrained):
 
 1. [docs/CONTRIBUTING.md](CONTRIBUTING.md) — workflow rules
    (issue-first, test-first, commit trio, versioning, ADR policy).
@@ -73,12 +74,14 @@ Pure refactors (preserved behavior, no new test) skip step 1 — lint
 **Versioning is issue-based.**
 `MAJOR.MINOR.BUILD = floor(N/100).N%100.counter`.
 `npm run bump -- -m "chore: bump version for #NNN"` parses `#NNN`
-from the message and writes to five files. The bump script no-ops
-on `tests:` and `docs:` prefixes, and project convention is to skip
-the bump entirely for `docs:` commits — version advances only when
-shipped behavior changes. Non-trivial doc additions (a new ADR, a
-new full document) may bump at the author's discretion; typo /
-accuracy / wording patches don't.
+from the message and writes to five files. The bump script itself
+no-ops only on `tests:`-prefixed messages
+([`scripts/bump-version.mjs:91`](../scripts/bump-version.mjs#L91)).
+For `docs:` commits the convention is **don't run the script at
+all** — version advances only when shipped behavior changes.
+Non-trivial doc additions (a new ADR, a new full document) may
+bump at the author's discretion; typo / accuracy / wording patches
+don't.
 
 **Commit format:**
 
@@ -118,11 +121,15 @@ or reintroduces a previously-fixed bug class.
    - `withSerializedSection(async (raw) => { ... })` — sequenced
      single-connection section. Signature is `<T>(fn: (raw:
      SqlImpl) => Promise<T>) => Promise<T>`; no token parameter.
-     Direct callsites today: `messages.ts` (appendMessage,
-     updateMessageContent, and the bulk/finalize paths),
+     Direct callsites today: `messages.ts`
+     (`appendMessage`, `updateMessageContent`,
+     `finalizeAssistantMessage`),
      `conversations.ts` (`setConversationAutocompact`),
      `migrations.ts` (per-migration FK bracketing),
-     `transaction.ts` (transaction is layered on it).
+     `transaction.ts` (`transaction` is layered on it).
+     `bulkAppendMessages` is **not** a direct callsite — it requires
+     a transaction-bound `dbi` and is meant to be called from
+     inside a `transaction()` body.
    - **Neither** — for one-shot writes that aren't reachable from
      inside a transaction (settings setters, top-level
      `setStepIndex`, `createRun`, etc.). Optional `dbi` parameter
@@ -189,9 +196,10 @@ directory. Treat these as untrusted-output sensitive:
 - **Don't write secrets into the repo** — no `.env` with real values,
   no test fixtures with real keys, no commits that include keychain
   exports.
-- The `.env*` patterns are denied at the global tool-permission level;
-  if you find one in the working tree, flag it before doing anything
-  else with it.
+- Even if your tool's permission model lets you read `.env*` files,
+  treat them as sensitive and don't inspect or print values unless
+  the user explicitly asks. If you find one in the working tree
+  unexpectedly, flag it before doing anything else with it.
 
 ## Review style
 
