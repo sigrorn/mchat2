@@ -70,6 +70,40 @@ describe("computePersonaCosts", () => {
     expect(costs["p_alice"]?.usd ?? 0).toBe(0);
   });
 
+  // #294 — hidden-by-reset rows MUST keep contributing to the spend
+  // rollup. The user's USD-paid history is invariant under //reset; the
+  // command only affects display + context, never billing.
+  it("counts assistant rows with non-null hiddenByResetId (cost preservation)", () => {
+    const visible = makeMessage({
+      conversationId: "c_1",
+      role: "assistant",
+      content: "v",
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+      personaId: "p_alice",
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+      usageEstimated: false,
+    });
+    const hidden = {
+      ...makeMessage({
+        conversationId: "c_1",
+        role: "assistant",
+        content: "h",
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        personaId: "p_alice",
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        usageEstimated: false,
+      }),
+      hiddenByResetId: 1,
+    };
+    const costs = computePersonaCosts([visible, hidden], [persona("p_alice")]);
+    // Both rows contribute even though one is hidden.
+    expect(costs["p_alice"]?.usd).toBeCloseTo(6, 5);
+  });
+
   it("marks approximate=true if any contributing row is approximate", () => {
     const messages = [
       makeMessage({

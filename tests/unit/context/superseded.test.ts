@@ -142,4 +142,22 @@ describe("buildContext supersededIds filter (#180)", () => {
     });
     expect(result.messages.map((m) => m.content)).toEqual(["hi", "reply"]);
   });
+
+  // #294 — hiddenByResetId rows must not enter context regardless of role.
+  // Same shape as supersededAt's role in #180: the row stays in the DB so
+  // a future export can resurface it with its color group; meanwhile the
+  // LLM sees a clean rollback.
+  it("excludes rows whose hiddenByResetId is non-null", () => {
+    const u1 = userMsg("u1", 1, "kept-user");
+    const a1 = assistantMsg("a1", 2, "kept-asst");
+    const u2 = { ...userMsg("u2", 3, "hidden-user"), hiddenByResetId: 1 };
+    const a2 = { ...assistantMsg("a2", 4, "hidden-asst"), hiddenByResetId: 1 };
+    const result = buildContext({
+      conversation: conv,
+      target,
+      messages: [u1, a1, u2, a2],
+      personas: [persona],
+    });
+    expect(result.messages.map((m) => m.content)).toEqual(["kept-user", "kept-asst"]);
+  });
 });

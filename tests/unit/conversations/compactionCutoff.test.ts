@@ -155,4 +155,21 @@ describe("computeCompactionCutoff", () => {
   it("empty message list returns 0", () => {
     expect(computeCompactionCutoff(CONV, [], [persona("p1")], 2)).toBe(0);
   });
+
+  // #294 — hidden user messages (post-//reset) should not count as
+  // recent turns for the preserve-N calculation. Otherwise a /compact
+  // immediately after /reset would think it has more recent turns to
+  // preserve than it actually has visible.
+  it("skips rows whose hiddenByResetId is non-null", () => {
+    const messages = [
+      msg(0, "user"),
+      msg(1, "user"),
+      msg(2, "user", { hiddenByResetId: 1 }),
+      msg(3, "user", { hiddenByResetId: 1 }),
+      msg(4, "user"),
+    ];
+    const personas = [persona("p1")];
+    // Visible user messages: 0, 1, 4. Last 2 visible: 1 and 4. Cutoff = 1.
+    expect(computeCompactionCutoff(CONV, messages, personas, 2)).toBe(1);
+  });
 });

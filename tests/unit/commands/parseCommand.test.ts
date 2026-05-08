@@ -247,4 +247,51 @@ describe("parseCommand", () => {
       expect(r.message).toContain("foo");
     }
   });
+
+  // #294 — //reset: roll back hidden tail to last snapshot or full start.
+  it("//reset (no arg) → snapshot mode, count 1", () => {
+    expect(parseCommand("//reset")).toEqual({
+      kind: "reset",
+      payload: { mode: "snapshot", count: 1 },
+    });
+  });
+
+  it("//reset full → full mode", () => {
+    expect(parseCommand("//reset full")).toEqual({
+      kind: "reset",
+      payload: { mode: "full" },
+    });
+    expect(parseCommand("//reset FULL")).toEqual({
+      kind: "reset",
+      payload: { mode: "full" },
+    });
+  });
+
+  it("//reset N → snapshot mode, count N", () => {
+    expect(parseCommand("//reset 1")).toEqual({
+      kind: "reset",
+      payload: { mode: "snapshot", count: 1 },
+    });
+    expect(parseCommand("//reset 3")).toEqual({
+      kind: "reset",
+      payload: { mode: "snapshot", count: 3 },
+    });
+    expect(parseCommand("//reset 99")).toEqual({
+      kind: "reset",
+      payload: { mode: "snapshot", count: 99 },
+    });
+  });
+
+  it("//reset 0 → noop mode (silent / nothing-to-do)", () => {
+    expect(parseCommand("//reset 0")).toEqual({
+      kind: "reset",
+      payload: { mode: "noop" },
+    });
+  });
+
+  it("//reset garbage → error", () => {
+    expect(parseCommand("//reset xyz").kind).toBe("error");
+    expect(parseCommand("//reset -1").kind).toBe("error");
+    expect(parseCommand("//reset 1.5").kind).toBe("error");
+  });
 });

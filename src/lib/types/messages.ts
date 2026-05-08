@@ -83,4 +83,11 @@ export interface Message {
   // Optional with a default of false on read so callers building
   // synthetic Message objects don't have to set it.
   flowDispatched?: boolean;
+  // #294: when non-null, this row was hidden by a //reset operation.
+  // The integer groups all rows hidden by the same reset event so a
+  // future export can color-code distinct reset boundaries. Hidden
+  // rows are skipped by the display filter and the context builder
+  // but DO still contribute to per-persona / per-provider USD spend
+  // — //reset never affects billing history.
+  hiddenByResetId?: number | null;
 }

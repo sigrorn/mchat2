@@ -87,6 +87,9 @@ describe("COMMAND_SPECS consistency (#237)", () => {
       "compact",
       "autocompact",
       "fork",
+      // #294: //reset rolls back the hidden tail to the last snapshot
+      // (or `full`, or N snapshots back). Companion to //compact.
+      "reset",
     ];
     for (const verb of required) {
       expect(findSpec(verb), `missing spec for //${verb}`).toBeDefined();
