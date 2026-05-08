@@ -9,9 +9,9 @@
 
 import { useEffect, useState } from "react";
 import type { Flow, FlowDraft, FlowDraftStep, Persona } from "@/lib/types";
-import * as flowsRepo from "@/lib/persistence/flows";
+import { getFlow } from "@/lib/persistence/flows";
 import { updatePersona } from "@/lib/personas/service";
-import { invalidateRepoQuery } from "@/lib/data/useRepoQuery";
+import { useFlowsStore } from "@/stores/flowsStore";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 
 interface FlowEditorProps {
@@ -37,7 +37,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const f = await flowsRepo.getFlow(conversationId);
+      const f = await getFlow(conversationId);
       if (cancelled) return;
       setExistingFlow(f);
       if (f) {
@@ -143,10 +143,9 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
     try {
       // #218: validation lives in flowsRepo.upsertFlow (rejects empty
       // 'personas' steps and consecutive 'user' steps). Surface the
-      // error rather than swallowing it.
-      await flowsRepo.upsertFlow(conversationId, draft);
-      // #223: refresh subscribers (e.g. PersonaPanel's flow row).
-      invalidateRepoQuery(["flow"]);
+      // error rather than swallowing it. Store action invalidates
+      // the ["flow"] repo query (#223 path) so PersonaPanel re-reads.
+      await useFlowsStore.getState().upsertFlow(conversationId, draft);
       // Per-persona lens updates.
       for (const p of personas) {
         const next = lensDraft[p.id] ?? {};
@@ -271,8 +270,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
                 onClose();
                 return;
               }
-              await flowsRepo.deleteFlow(conversationId);
-              invalidateRepoQuery(["flow"]);
+              await useFlowsStore.getState().deleteFlow(conversationId);
               onClose();
             }}
             disabled={!existingFlow || saving}
