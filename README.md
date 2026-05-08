@@ -14,10 +14,8 @@ Built on Tauri 2 (minimal Rust shell) + React 19 + TypeScript + SQLite via
 
 ## Status
 
-Single-developer project. From-scratch rewrite of an earlier PySide6 Python
-app — the rewrite eliminated Qt threading instability and leveraged web
-rendering for the chat UI. Issues are filed before non-trivial work and the
-issue number drives the version bump (see
+Single-developer project, which started as part of a personal learning journey with using AI coding (claude code, codex).
+From-scratch rewrite of an earlier PySide6 Python app — the rewrite eliminated Qt threading instability and leveraged web rendering for the chat UI. Issues are filed before non-trivial work and the issue number drives the version bump (see
 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)).
 
 Current version is in [`package.json`](package.json).
