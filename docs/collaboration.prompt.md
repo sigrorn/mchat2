@@ -17,23 +17,33 @@ a Tauri + React + Rust desktop chat app with one human developer (the
 user). The user expects substantive engagement — challenge claims,
 verify before recommending, never rubberstamp.
 
-## Read these files first
+**Precedence.** Tool / harness system instructions and explicit user
+requests in the current turn take precedence over this prompt. When
+a safety rule and a productivity rule conflict, follow the stricter
+safety rule. When in doubt, ask.
 
-In order, and **fully**:
+## Read these on session start
+
+Load these two upfront — they're load-bearing and small:
 
 1. [docs/CONTRIBUTING.md](CONTRIBUTING.md) — workflow rules
    (issue-first, test-first, commit trio, versioning, ADR policy).
 2. [docs/ARCHITECTURE.md](ARCHITECTURE.md) — repo map, layering,
    transaction/locking rules.
-3. [docs/decisions/README.md](decisions/README.md) — ADR index. Pay
-   particular attention to ADR 001 (lib boundary), ADR 011
-   (section-token transactions), ADR 003 (Zod at trust boundaries),
-   ADR 005 (dependency inversion in `lib/app`).
-4. [docs/troubleshooting.md](troubleshooting.md) and
-   [docs/recipes.md](recipes.md) — symptom → cause and "how to add X"
-   scaffolds.
-5. [eslint.config.js](../eslint.config.js) — load-bearing structural
-   enforcement (two boundaries: `src/lib/**` and `src/components/**`).
+
+Pull these on demand for the task at hand:
+
+3. [docs/decisions/README.md](decisions/README.md) and individual
+   ADRs — load the ones the task touches. The load-bearing ones are
+   ADR 001 (lib boundary), ADR 011 (section-token transactions),
+   ADR 003 (Zod at trust boundaries), ADR 005 (dependency inversion
+   in `lib/app`).
+4. [docs/troubleshooting.md](troubleshooting.md) — when chasing a
+   specific failure mode.
+5. [docs/recipes.md](recipes.md) — when adding a new persona /
+   command / repo method / migration / provider / setting.
+6. [eslint.config.js](../eslint.config.js) — when a refactor crosses
+   the `src/lib/**` or `src/components/**` boundary.
 
 The codebase contradicts the docs in places. Trust the code; flag the
 doc.
@@ -63,9 +73,12 @@ Pure refactors (preserved behavior, no new test) skip step 1 — lint
 **Versioning is issue-based.**
 `MAJOR.MINOR.BUILD = floor(N/100).N%100.counter`.
 `npm run bump -- -m "chore: bump version for #NNN"` parses `#NNN`
-from the message and writes to five files. Doc-only fixes get **no
-version bump** — commit and move on. Test commits also no-op the
-bump script.
+from the message and writes to five files. The bump script no-ops
+on `tests:` and `docs:` prefixes, and project convention is to skip
+the bump entirely for `docs:` commits — version advances only when
+shipped behavior changes. Non-trivial doc additions (a new ADR, a
+new full document) may bump at the author's discretion; typo /
+accuracy / wording patches don't.
 
 **Commit format:**
 
@@ -100,10 +113,16 @@ or reintroduces a previously-fixed bug class.
      — atomic multi-step writes; all queue-bypassing via `txn.db`.
      The `RepoContext` bundle exposes only transaction-relevant
      repo methods. If you need a write that isn't there, you must
-     add it (which forces threading `dbi`).
-   - `withSerializedSection(token, async () => { ... })` — sequenced
-     single-connection sections (the `//pop`, `//compact`, etc.
-     handlers).
+     add it (which forces threading `dbi`). Built on top of
+     `withSerializedSection`.
+   - `withSerializedSection(async (raw) => { ... })` — sequenced
+     single-connection section. Signature is `<T>(fn: (raw:
+     SqlImpl) => Promise<T>) => Promise<T>`; no token parameter.
+     Direct callsites today: `messages.ts` (appendMessage,
+     updateMessageContent, and the bulk/finalize paths),
+     `conversations.ts` (`setConversationAutocompact`),
+     `migrations.ts` (per-migration FK bracketing),
+     `transaction.ts` (transaction is layered on it).
    - **Neither** — for one-shot writes that aren't reachable from
      inside a transaction (settings setters, top-level
      `setStepIndex`, `createRun`, etc.). Optional `dbi` parameter
@@ -111,8 +130,12 @@ or reintroduces a previously-fixed bug class.
      a `transaction()`.
 4. **Narrow setters** preferred over broad rewrites. One UPDATE,
    not the full row. See #275 / #283 for the cleanup pattern.
-5. **Zod at trust boundaries only** (file imports, settings reads,
-   JSON columns). Don't sprinkle it through normal-flow code.
+5. **Validation at trust boundaries only.** Zod for JSON columns
+   and file imports (snapshots, persona files, the openai_compat
+   config blob); typed parsers in
+   [`lib/settings/typed.ts`](../src/lib/settings/typed.ts) for
+   primitive settings (numbers, bools). Don't sprinkle Zod
+   through normal-flow code (ADR 003).
 
 ## Code conventions
 
@@ -134,7 +157,7 @@ or reintroduces a previously-fixed bug class.
 
 ## Verification gate
 
-Before declaring a task complete, run all of:
+For **code changes**, run all of these before declaring complete:
 
 - `npm run lint` (eslint with `--max-warnings=0`)
 - `npx tsc --noEmit`
@@ -146,6 +169,29 @@ For changes touching `src-tauri/`, also
 For UI / frontend changes, the user expects manual browser
 verification of the golden path before "done." If you can't test the
 UI, say so explicitly rather than claiming success.
+
+Analysis-only and docs-only tasks **don't** need the gate — running
+the full suite for a typo fix is wasted CI minutes. Flag the
+verification scope you ran in your final answer so the user knows
+what was checked.
+
+## Secrets
+
+The project stores provider API keys in the OS keychain (service
+name `mchat2`) and trace files under a user-chosen working
+directory. Treat these as untrusted-output sensitive:
+
+- **Never print, export, or echo a keychain value** unless directly
+  required by the task and the user explicitly asked. Don't dump
+  full keychain entries when listing — names only.
+- **Redact keys / tokens / cookies** in any log, snapshot, or doc
+  example. Use placeholders like `<redacted>`.
+- **Don't write secrets into the repo** — no `.env` with real values,
+  no test fixtures with real keys, no commits that include keychain
+  exports.
+- The `.env*` patterns are denied at the global tool-permission level;
+  if you find one in the working tree, flag it before doing anything
+  else with it.
 
 ## Review style
 
@@ -175,8 +221,11 @@ the flag. "The doc says X" is not "X exists now."
 
 - **Terse by default.** A simple question gets a direct answer, not
   headers and sections.
-- **No trailing summaries** of what you just did — the diff is the
-  summary.
+- **No padded summaries.** A one-or-two-sentence end-of-turn note
+  ("Shipped #N at vX.Y.Z; ran lint+typecheck+tests, all green") is
+  fine and useful when the user can't see the diff or the
+  command output. The thing to avoid is the section-headed recap
+  of work the user already watched happen.
 - **State results directly.** No running commentary on your thought
   process.
 - **Cross-reference related lists with short tags** (e.g. `markSeen`,

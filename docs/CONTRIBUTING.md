@@ -179,13 +179,26 @@ The version bump goes last because the bump script reads the issue number
 from the commit message and writes new versions into 5 files. Doing it
 between (1) and (2) leaves the working tree dirty during implementation.
 
-For trivial work (typo, doc tweak) without a test impact, the trio collapses
-to:
+For trivial code changes (single-line fix, no behavior under test), the trio
+collapses to:
 
 ```
 1. fix: <change> (#NNN)
 2. chore: bump version for #NNN
 ```
+
+For doc-only commits (`docs:` prefix — typo fixes, accuracy patches, ADR
+status notes, comment edits in markdown files) the trio collapses further
+to a **single commit, no version bump**:
+
+```
+1. docs: <change> (#NNN)
+```
+
+The bump script also no-ops on `tests:`-prefixed messages, so a standalone
+test pin commit does not trigger a bump. The version only advances when
+shipped behavior changes — code or non-trivial doc additions; pure doc
+accuracy work doesn't.
 
 ---
 
