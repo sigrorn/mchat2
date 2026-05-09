@@ -307,7 +307,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
           // Any other key resets the cycle (next Tab starts fresh).
           if (cycleRef.current !== null) cycleRef.current = null;
         }}
-        rows={3}
+        rows={5}
         placeholder={placeholder}
         className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
       />
