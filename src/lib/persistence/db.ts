@@ -2,8 +2,8 @@
 // Component: Kysely instance + custom Dialect
 // Responsibility: Bridges Kysely's Driver/Connection abstractions
 //                 onto the existing async SqlImpl in lib/tauri/sql.
-//                 Lets typed queries run against both the Tauri
-//                 plugin-sql bridge (production) and sql.js (tests)
+//                 Lets typed queries run against both the Rust SQL
+//                 bridge (production) and sql.js (tests)
 //                 without forking the test seam.
 //                 #267: factored the dialect to bind to an arbitrary
 //                 SqlImpl. The exported `db` is bound to the public

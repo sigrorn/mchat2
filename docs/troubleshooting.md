@@ -13,29 +13,29 @@ For the mental model behind these failure modes, see
 
 ### `(code: 5) database is locked`
 
-**Symptom.** A `tauri-plugin-sql` call rejects with `code: 5 database is
-locked`. Often surfaces during `//pop`, `//compact`, persona reorder, or
+**Symptom.** A SQL call rejects with `code: 5 database is locked`. Before
+#296 this often surfaced during `//pop`, `//compact`, persona reorder, or
 under heavy multi-persona send load.
 
 **Mental model.** SQLite's WAL mode allows one writer + many readers. The
 writer lock is held by whichever connection currently has `BEGIN
-IMMEDIATE`. `tauri-plugin-sql` is backed by `sqlx::SqlitePool` with
-multiple connections; if two connections each issue a write, they race
-the writer lock.
+IMMEDIATE`. The production SQL bridge now uses a max-1 SQLx pool so one
+webview process cannot hop a transaction across pooled SQLite
+connections.
 
 The project's defenses, layered:
 
 1. The **global JS op queue** in
    [`src/lib/tauri/sql.ts`](../src/lib/tauri/sql.ts) serializes every
-   `sql.execute` / `sql.select`. With one queue, sqlx tends to return the
-   most-recently-released connection, so the JS-side becomes effectively
-   single-connection.
+   `sql.execute` / `sql.select`.
 2. **`withSerializedSection` / `transaction()`** hold the queue across a
    group of statements (see ADR 011).
 3. **Per-section internal chain** (#274) makes the section's raw impl
    serialize statements internally, so `Promise.all` over multiple writes
    inside one section stays single-flight.
-4. **Single-instance plugin** (#284) prevents a second mchat2 process from
+4. **Max-1 Rust SQL pool** (#296) keeps transaction sections on one
+   SQLite handle instead of relying on pooled-connection reuse.
+5. **Single-instance plugin** (#284) prevents a second mchat2 process from
    opening the same DB file.
 
 **Diagnostic steps.**

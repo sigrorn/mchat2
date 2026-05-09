@@ -1,6 +1,6 @@
 {
   "name": "mchat2",
-  "version": "2.95.1",
+  "version": "2.96.1",
   "private": true,
   "type": "module",
   "description": "Multi-provider LLM chat workbench",
@@ -26,7 +26,6 @@
     "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-http": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0",
-    "@tauri-apps/plugin-sql": "^2.0.0",
     "@viz-js/viz": "^3.6.0",
     "isomorphic-dompurify": "^3.10.0",
     "kysely": "^0.28.16",

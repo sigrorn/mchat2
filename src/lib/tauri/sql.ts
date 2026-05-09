@@ -1,11 +1,13 @@
 // ------------------------------------------------------------------
 // Component: SQL
-// Responsibility: Thin wrapper over @tauri-apps/plugin-sql. Exposes
-//                 execute/select and a single open handle. All
-//                 repositories share the same Database instance.
+// Responsibility: Thin wrapper over the app-owned SQLite bridge.
+//                 Exposes execute/select and a single open handle.
+//                 All repositories share the same Database instance.
 // Collaborators: persistence/*, tests inject a sql.js-backed impl via
 //                __setImpl (see lib/testing/sqljsAdapter).
 // ------------------------------------------------------------------
+
+import { invoke } from "@tauri-apps/api/core";
 
 /**
  * Minimal SQLite client surface. Implementations must:
@@ -20,8 +22,8 @@
  *
  * Implementations are raw drivers — they do NOT serialize. The op
  * queue lives one layer up, in the public `sql` export below; the
- * driver is whatever's been installed (production plugin-sql, sql.js
- * test adapter, or a unit-test mock).
+ * driver is whatever's been installed (production Rust bridge,
+ * sql.js test adapter, or a unit-test mock).
  */
 export interface SqlImpl {
   execute(
@@ -32,61 +34,64 @@ export interface SqlImpl {
   close(): Promise<void>;
 }
 
-// Single shared SQLite file. WAL mode and foreign keys are set in the
-// migration runner, not here, because plugin-sql doesn't expose PRAGMA
-// on open.
+// Single shared SQLite file. The Rust bridge opens it through a
+// max-1 SQLx pool; WAL setup still happens in the migration runner.
 const DB_URL = "sqlite:mchat2.db";
 
-let cached: unknown = null;
+let loaded = false;
 
-async function openDb(): Promise<SqliteDatabase> {
-  if (cached) return cached as SqliteDatabase;
-  const Database = (await import("@tauri-apps/plugin-sql")).default;
-  cached = await Database.load(DB_URL);
-  return cached as SqliteDatabase;
+async function openDb(): Promise<void> {
+  if (loaded) return;
+  await invoke("sql_load", { db: DB_URL });
+  loaded = true;
 }
 
-interface SqliteDatabase {
-  execute(
-    sql: string,
-    params?: unknown[],
-  ): Promise<{ rowsAffected: number; lastInsertId?: number }>;
-  select<T>(sql: string, params?: unknown[]): Promise<T[]>;
-  close(): Promise<boolean>;
+interface SqlExecuteResult {
+  rowsAffected: number;
+  lastInsertId: number | null;
 }
 
-// Production raw driver — talks to plugin-sql directly. No queue here;
-// the queue lives in `sql` below. Tests swap this via __setImpl with
-// the sql.js adapter (lib/testing/sqljsAdapter), which is also raw.
+// Production raw driver — talks to the Rust SQL bridge directly. No
+// queue here; the queue lives in `sql` below. Tests swap this via
+// __setImpl with the sql.js adapter (lib/testing/sqljsAdapter), which
+// is also raw.
 const productionRawImpl: SqlImpl = {
-  async execute(sql, params) {
-    const db = await openDb();
-    const r = await db.execute(sql, params);
-    return { rowsAffected: r.rowsAffected, lastInsertId: r.lastInsertId ?? null };
+  async execute(query, params) {
+    await openDb();
+    return invoke<SqlExecuteResult>("sql_execute", {
+      db: DB_URL,
+      query,
+      values: params ?? [],
+    });
   },
-  async select<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
-    const db = await openDb();
-    return db.select<T>(sql, params);
+  async select<T = Record<string, unknown>>(query: string, params?: unknown[]): Promise<T[]> {
+    await openDb();
+    return invoke<T[]>("sql_select", {
+      db: DB_URL,
+      query,
+      values: params ?? [],
+    });
   },
   async close() {
-    if (!cached) return;
-    await (cached as SqliteDatabase).close();
-    cached = null;
+    if (!loaded) return;
+    await invoke("sql_close");
+    loaded = false;
   },
 };
 
 let impl: SqlImpl = productionRawImpl;
 
-// #206 / #267: Tauri's plugin-sql v2 wraps sqlx::SqlitePool with multiple
-// connections (default 10), offers no after_connect hook, no
-// `connect_with(SqliteConnectOptions)`, and rejects busy_timeout /
-// journal_mode as URL params. Two pool connections concurrently
-// running BEGIN IMMEDIATE collide as 'database is locked'.
+// #206 / #267: all DB operations still flow through one async queue so
+// top-level callers cannot interleave individual statements.
 //
-// Workaround: serialize every db operation through one async queue.
-// With no concurrent demand, sqlx's pool keeps returning its idle
-// most-recently-released connection — effectively a single-connection
-// pool from the JS side.
+// #296: production no longer uses @tauri-apps/plugin-sql's default
+// multi-connection pool. A transaction is a sequence of JS invokes
+// (`BEGIN`, body statements, `COMMIT`); a pooled backend can run those
+// invokes on different SQLite connections, where the body statement
+// blocks behind the BEGIN connection's writer lock and eventually
+// surfaces as `database is locked`. The Rust bridge uses
+// max_connections = 1, so the queue and SQLite connection boundary
+// now agree.
 //
 // #267: the queue used to live inside the impl, with a global
 // `inSerializedSection` flag that bypassed the queue while a
@@ -128,12 +133,9 @@ export const sql: SqlImpl = {
  *
  * #274: the raw impl ALSO has its own per-section chain so a body that
  * accidentally fires Promise.all (or push-then-await) over multiple
- * writes serializes them at the impl level. plugin-sql's sqlx pool
- * routes concurrent calls to different connections; with BEGIN
- * IMMEDIATE held on connection A, parallel writes on B and C race the
- * writer lock and surface as SQLITE_BUSY (the v2.73.2 reorderPersonas
- * bug). The chain turns ADR 011's 'one await at a time' rule from a
- * discipline pin into a structural guarantee.
+ * writes serializes them at the impl level. This preserves ADR 011's
+ * "one await at a time" rule as a structural guarantee and keeps tests
+ * honest even though production now also has a max-1 Rust pool.
  */
 export function withSerializedSection<T>(
   fn: (raw: SqlImpl) => Promise<T>,

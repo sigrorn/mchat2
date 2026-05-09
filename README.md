@@ -10,7 +10,7 @@ retry/replay, cost tracking, rich Markdown rendering, and snapshot
 import/export.
 
 Built on Tauri 2 (minimal Rust shell) + React 19 + TypeScript + SQLite via
-`tauri-plugin-sql`. Single-user, local-first, no backend service.
+an app-owned SQLx bridge. Single-user, local-first, no backend service.
 
 ## Status
 
@@ -24,12 +24,12 @@ Current version is in [`package.json`](package.json).
 
 - **TypeScript** (strict mode, `noUncheckedIndexedAccess`,
   `exactOptionalPropertyTypes`)
-- **Tauri 2** — minimal Rust; plugins for SQLite, secure storage, HTTP, FS,
-  single-instance, dialogs, shell, window-state
+- **Tauri 2** — minimal Rust; custom bridges for SQLite and secure storage,
+  plus plugins for HTTP, FS, single-instance, dialogs, shell, window-state
 - **React 19** + TailwindCSS
 - **Zustand** for UI state — orchestration logic lives outside stores in pure
   use cases under `src/lib/app/`
-- **SQLite** via `@tauri-apps/plugin-sql`, queried through a thin Kysely layer
+- **SQLite** via a max-1 SQLx pool, queried through a thin Kysely layer
 - **Vitest** (unit) + **Playwright** (end-to-end through the mock provider)
 
 ## Quick start
@@ -68,7 +68,7 @@ src/
   hooks/          React hook layer that wires Zustand stores into use-case deps
   stores/         Zustand — thin reactive caches and UI state
   lib/            Pure logic; no React, no Zustand, no Tauri imports
-src-tauri/        Rust shell — plugin wiring, single-instance, keychain bridge
+src-tauri/        Rust shell — plugin wiring, single-instance, keychain/SQL bridges
 tests/            Vitest unit suite + Playwright e2e
 docs/             Architecture, contributing, troubleshooting, recipes, ADRs
 ```

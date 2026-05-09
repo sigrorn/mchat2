@@ -566,13 +566,12 @@ async function removeBackup(path: string): Promise<void> {
 export async function runMigrations(upTo?: number): Promise<number> {
   // #206: contention from the dual-write pattern (#193-#196) was
   // surfacing as 'database is locked' errors in production because
-  // Tauri-plugin-sql's sqlx::SqlitePool runs queries against a
-  // multi-connection pool and SQLite's default rollback journal
-  // doesn't allow concurrent writes. WAL lets one writer + many
-  // readers coexist without blocking each other; busy_timeout makes
-  // the second simultaneous writer wait up to 5s instead of failing
-  // immediately. Set once on first open; SQLite persists the WAL
-  // mode change in the file header so subsequent opens inherit it.
+  // SQLite's default rollback journal doesn't allow concurrent writes.
+  // WAL lets one writer + many readers coexist without blocking each
+  // other; busy_timeout makes transient lock contention wait up to 5s
+  // instead of failing immediately. Set once on first open; SQLite
+  // persists the WAL mode change in the file header so subsequent
+  // opens inherit it.
   await sql.execute("PRAGMA journal_mode = WAL");
   await sql.execute("PRAGMA busy_timeout = 5000");
   // #281: PRAGMA foreign_keys was OFF for the WHOLE migration loop —

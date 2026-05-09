@@ -50,7 +50,7 @@ mchat2 has two processes plus a database file:
 │                                    │  IPC    │  (Windows / macOS / │
 │  - main.rs / lib.rs                │ ──────▶ │   Linux secrets)    │
 │  - keychain bridge                 │         └─────────────────────┘
-│  - tauri-plugin-sql (sqlx)         │
+│  - sql_bridge.rs (SQLx, max-1 pool)│
 │  - tauri-plugin-single-instance    │         ┌─────────────────────┐
 │                                    │  file   │  mchat2.db          │
 │                                    │ ──────▶ │  (SQLite, WAL)      │
@@ -69,10 +69,11 @@ mchat2 has two processes plus a database file:
 
 ### Why this split
 
-The Rust shell is intentionally **thin**. It exposes plugins (SQLite,
-secure-storage, HTTP, FS, dialogs, single-instance) and one custom
-keychain bridge. Everything else — orchestration, validation, business
-logic, even most input parsing — lives in TypeScript inside the webview.
+The Rust shell is intentionally **thin**. It exposes plugins (HTTP, FS,
+dialogs, single-instance, shell/window state) plus small custom bridges
+for SQLite and keychain access. Everything else — orchestration,
+validation, business logic, even most input parsing — lives in TypeScript
+inside the webview.
 
 This is a deliberate choice from ADR 008 (lessons from the Python/Qt
 prototype): keeping logic in TypeScript means we can unit-test it
@@ -86,10 +87,14 @@ plumbing that made the Python/Qt version brittle.
   plugin is registered first so a second `mchat2.exe` invocation is
   intercepted before it can open the DB file (#284). Read this file
   to understand how plugins are wired.
-- **`src-tauri/src/keychain.rs`** — the only custom Tauri command. The
+- **`src-tauri/src/keychain.rs`** — custom keychain commands. The
   `keyring` crate doesn't have a published Tauri plugin, so the bridge is
   hand-written: `keychain_get`, `keychain_set`, `keychain_remove`,
   `keychain_list`.
+- **`src-tauri/src/sql_bridge.rs`** — custom SQLite commands backed by
+  SQLx with `max_connections = 1`. This replaces plugin-sql for the
+  production `SqlImpl` so JS transaction sections cannot hop across
+  pooled SQLite connections (#296).
 - **`src/main.tsx`** — webview entry point. Mounts `<App />`.
 - **`src/App.tsx`** — top-level layout: sidebar, chat view, persona
   panel.
@@ -100,15 +105,14 @@ plumbing that made the Python/Qt version brittle.
 
 ### Database file lifecycle
 
-- Created lazily on first launch via the `Database.load("sqlite:mchat2.db")`
-  call inside [`src/lib/tauri/sql.ts`](../src/lib/tauri/sql.ts).
+- Created lazily on first launch via the `sql_load("sqlite:mchat2.db")`
+  command called from [`src/lib/tauri/sql.ts`](../src/lib/tauri/sql.ts).
 - Lives under the OS app-data directory.
 - WAL mode is enabled at startup (in `runMigrations`) for concurrent-
   reader semantics.
-- `busy_timeout = 5000` is set so transient lock contention waits up to
-  5 seconds before failing — important because plugin-sql's sqlx pool
-  has multiple connections and sometimes more than one will try to
-  write at the same time.
+- `busy_timeout = 5000` is set on the SQLx connection. The production
+  pool is intentionally capped at one connection so `BEGIN` / body /
+  `COMMIT` sections stay on the same SQLite handle.
 
 ---
 
@@ -524,19 +528,20 @@ inline; they're treated as part of the conversation history.
 
 ## Persistence model
 
-### SQLite via plugin-sql
+### SQLite via SQL bridge
 
-The DB lives in one file. `tauri-plugin-sql` is built on `sqlx`, which
-keeps a connection pool (default 10 connections). plugin-sql doesn't
-expose an `after_connect` hook or a way to set per-connection PRAGMAs,
-so we set `journal_mode = WAL` and `busy_timeout = 5000` once at
-startup inside `runMigrations` and rely on sqlx's MRU-connection
-heuristic to make the PRAGMA stick across calls.
+The DB lives in one file. Production SQL calls go through
+`src-tauri/src/sql_bridge.rs`, a small Tauri command bridge over SQLx.
+The bridge uses `SqlitePoolOptions::max_connections(1)` on purpose:
+transaction sections are multiple JS invokes (`BEGIN`, statements,
+`COMMIT`), and a multi-connection SQLite pool can otherwise run the
+body on a different connection than the `BEGIN` (#296).
 
 The Rust side is fully async; calls return JS Promises that resolve
 after the SQL completes. This is what makes the global JS-side queue
-necessary — without it, two concurrent JS callers can land their
-queries on different sqlx connections and race the writer lock.
+necessary: it prevents top-level operations from interleaving their
+statement groups, while the max-1 Rust pool keeps those statements on
+one SQLite connection.
 
 ### Kysely as the typed query layer
 
@@ -552,7 +557,7 @@ Adding a column means editing the schema file and the migration; Kysely
 type-checks every query at compile time.
 
 The custom Kysely dialect bridges to whatever `SqlImpl` is currently
-installed — production plugin-sql, sql.js for tests, or a hand-rolled
+installed — production SQL bridge, sql.js for tests, or a hand-rolled
 mock — so test code goes through the same typed query builder as
 production code.
 
@@ -1026,7 +1031,7 @@ handle.restore();  // back to the previous impl
 This means:
 
 - Tests run against the same Kysely typed query layer as production.
-- The `sql.js` adapter is API-compatible with plugin-sql for our
+- The `sql.js` adapter is API-compatible with the production SQL bridge for our
   purposes, so persistence tests are real round-trips, not mocks.
 - Each test gets a fresh schema-up-to-date DB.
 
@@ -1085,7 +1090,7 @@ interfaces are intentionally narrow so test scaffolding stays light.
 
 Run via `npm run test:e2e`. Boots a real Tauri app pointed at the
 mock provider (`src/lib/providers/mock.ts`). Slow, brittle, but it's
-the only way to exercise the full Tauri shell + plugin-sql path.
+the only way to exercise the full Tauri shell + SQL bridge path.
 
 Use sparingly — mostly for smoke tests of the UI (composer, sidebar,
 persona panel) and end-to-end flows where the unit-test scaffolding
@@ -1163,8 +1168,8 @@ Each links to the ADR or issue that anchors it.
 
 - **Single-instance plugin must be registered FIRST in the Tauri
   builder chain.** A second mchat2 invocation hands its args to the
-  running process and exits before `tauri-plugin-sql` opens the DB
-  file. See #284.
+  running process and exits before the SQL bridge opens the DB file.
+  See #284.
 - **Issue numbers drive version bumps.** Don't hand-edit version
   strings. Use `npm run bump -- -m "chore: bump version for #NNN"`.
 

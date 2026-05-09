@@ -24,7 +24,7 @@ issue.
   "browser-on-desktop" stack — switching to Electron just trades
   smaller pain for a fatter binary.
 - **TypeScript.** Non-negotiable for this domain.
-- **SQLite via @tauri-apps/plugin-sql.** Perfect fit for local-first
+- **SQLite via a tiny app-owned SQLx bridge.** Perfect fit for local-first
   single-user. The decision in #157/#159 to back unit tests with
   sql.js running the production migration sequence is one of the
   highest-ROI calls in the project — schema drift between mock and

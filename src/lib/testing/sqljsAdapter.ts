@@ -56,8 +56,8 @@ export async function makeSqljsAdapter(): Promise<SqljsHandle> {
   const impl: SqlImpl = {
     async execute(sql, params = []) {
       // run() executes any non-SELECT (CREATE/ALTER/INSERT/UPDATE/DELETE)
-      // and accepts optional positional/named params. plugin-sql exposes
-      // only positional `?`, but the underlying repos use them, so the
+      // and accepts optional positional/named params. The production SQL
+      // bridge exposes positional `?`, which is what the repos use, so the
       // parameter shape lines up directly.
       db.run(sql, params as SqlValue[]);
       const rowsAffected = db.getRowsModified();

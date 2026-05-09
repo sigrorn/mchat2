@@ -191,8 +191,8 @@ async function doAppend(
 //
 // Chunked because SQLite has a default 999-parameter prepared-statement
 // cap; multiplied by ~25 message columns, that lets ~40 rows fit per
-// statement. We use BULK_BATCH = 100 — Tauri's plugin-sql ships modern
-// SQLite (3.40+, 32k param cap) so the chunk size is set for clarity,
+// statement. We use BULK_BATCH = 100 — the bundled SQLite is modern
+// enough for a higher param cap, so the chunk size is set for clarity,
 // not for the parameter ceiling.
 const BULK_BATCH = 100;
 

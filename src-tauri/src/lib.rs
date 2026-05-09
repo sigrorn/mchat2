@@ -2,12 +2,14 @@
 // wires up plugins so the frontend can call them.
 
 mod keychain;
+mod sql_bridge;
 
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(sql_bridge::SqlBridgeState::default())
         // #284: register single-instance FIRST. The init callback fires
         // on the running process whenever a second mchat2.exe is
         // launched; we focus the existing window and the second process
@@ -25,12 +27,15 @@ pub fn run() {
             keychain::keychain_set,
             keychain::keychain_remove,
             keychain::keychain_list,
+            sql_bridge::sql_load,
+            sql_bridge::sql_execute,
+            sql_bridge::sql_select,
+            sql_bridge::sql_close,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
