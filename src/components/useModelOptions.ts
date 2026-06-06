@@ -10,7 +10,11 @@
 import { useEffect, useState } from "react";
 import type { Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
-import { listModelInfos, type ModelInfo } from "@/lib/providers/models";
+import {
+  listModelInfos,
+  subscribeModelCache,
+  type ModelInfo,
+} from "@/lib/providers/models";
 import { keychain } from "@/lib/tauri/keychain";
 import { PRICING } from "@/lib/pricing/table";
 
@@ -37,7 +41,7 @@ export function useModelOptions(
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    void (async () => {
+    const load = async (): Promise<void> => {
       const key = PROVIDER_REGISTRY[provider].requiresKey
         ? await keychain.get(PROVIDER_REGISTRY[provider].keychainKey)
         : null;
@@ -46,9 +50,16 @@ export function useModelOptions(
         : {};
       const infos = await listModelInfos(provider, key, extra);
       if (!cancelled) setModelOptions(infos);
-    })();
+    };
+    void load();
+    // #297: re-read when a background revalidate updates the cache so an
+    // already-open picker reflects the freshly-discovered list.
+    const unsub = subscribeModelCache(() => {
+      void load();
+    });
     return () => {
       cancelled = true;
+      unsub();
     };
   }, [enabled, provider, presetKey]);
 

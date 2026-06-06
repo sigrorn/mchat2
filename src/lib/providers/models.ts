@@ -11,6 +11,7 @@
 import type { Persona, ProviderId } from "../types";
 import { PRICING } from "../pricing/table";
 import { request, HttpError } from "../tauri/http";
+import { getSetting, setSetting } from "../persistence/settings";
 import { resolveOpenAICompatPreset } from "./openaiCompatResolver";
 
 export interface ModelInfo {
@@ -86,12 +87,57 @@ export interface ListModelInfosExtra {
 
 const infoCache = new Map<string, { at: number; infos: ModelInfo[] }>();
 const TTL_MS = 10 * 60_000;
+// #297: persisted model lists survive restarts. Keyed in the flat
+// settings keyspace by the same cacheKey as the in-memory cache. See
+// ADR 013.
+const PERSIST_PREFIX = "model_cache.";
 
-// Test seam — clear the per-provider model cache between cases so a
-// successful first call doesn't poison a follow-up that simulates a
-// failure on the same cache key.
+// #297: subscribers are notified after a background revalidate replaces
+// a cached list, so an open model picker re-reads instead of showing the
+// stale list until the dialog is reopened.
+type ModelCacheListener = () => void;
+const cacheListeners = new Set<ModelCacheListener>();
+export function subscribeModelCache(fn: ModelCacheListener): () => void {
+  cacheListeners.add(fn);
+  return () => cacheListeners.delete(fn);
+}
+function notifyModelCache(): void {
+  for (const fn of cacheListeners) fn();
+}
+
+// Test seam — clear the IN-MEMORY model cache between cases. The
+// persisted cache lives in the settings table, which tests recreate
+// per-case via createTestDb; clearing memory alone simulates a restart.
 export function __clearModelCache(): void {
   infoCache.clear();
+}
+
+function pricingFallback(provider: ProviderId): ModelInfo[] {
+  // #255: openai_compat's PRICING entries (Apertus ids carried over from
+  // the legacy native adapter) are for cost-snapshot accuracy, NOT a
+  // default model list — so its fallback is intentionally empty.
+  return provider === "openai_compat"
+    ? []
+    : Object.keys(PRICING[provider] ?? {}).map((id) => ({ id }));
+}
+
+async function loadPersistedModels(cacheKey: string): Promise<ModelInfo[] | null> {
+  try {
+    const raw = await getSetting(PERSIST_PREFIX + cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at?: number; infos?: ModelInfo[] };
+    return Array.isArray(parsed.infos) ? parsed.infos : null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistModels(cacheKey: string, infos: ModelInfo[]): Promise<void> {
+  try {
+    await setSetting(PERSIST_PREFIX + cacheKey, JSON.stringify({ at: Date.now(), infos }));
+  } catch {
+    // Best-effort: a persistence write failure must not break listing.
+  }
 }
 
 function cacheKeyFor(provider: ProviderId, extra: ListModelInfosExtra | undefined): string {
@@ -114,6 +160,26 @@ export async function listModels(
   return infos.map((m) => m.id);
 }
 
+// Live fetch + filter + sort. On a non-empty result, updates BOTH the
+// in-memory and persisted caches and notifies subscribers. Returns the
+// pricing fallback (without caching) when the upstream list is empty.
+// Throws on transport/HTTP error so callers can fall back to cache.
+async function refreshModelInfos(
+  provider: ProviderId,
+  apiKey: string | null,
+  extra: ListModelInfosExtra | undefined,
+  cacheKey: string,
+): Promise<ModelInfo[]> {
+  const raw = await fetchProviderModelInfos(provider, apiKey, extra);
+  const filtered = raw.filter((m) => isChatModel(provider, m.id));
+  if (filtered.length === 0) return pricingFallback(provider);
+  const sorted = dedup(filtered).sort((a, b) => a.id.localeCompare(b.id));
+  infoCache.set(cacheKey, { at: Date.now(), infos: sorted });
+  await persistModels(cacheKey, sorted);
+  notifyModelCache();
+  return sorted;
+}
+
 export async function listModelInfos(
   provider: ProviderId,
   apiKey: string | null,
@@ -123,32 +189,29 @@ export async function listModelInfos(
   const cached = infoCache.get(cacheKey);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.infos;
 
-  // #255: openai_compat's PRICING entries (Apertus model ids carried
-  // over from the legacy native adapter) are for cost-snapshot
-  // accuracy after conversion, NOT a "default model list" suggestion.
-  // Without a resolved preset there's no host to dispatch against, so
-  // the fallback for openai_compat is intentionally empty — the user
-  // configures a preset (which has its own /v1/models endpoint) before
-  // a model picker can populate.
-  const fallback: ModelInfo[] =
-    provider === "openai_compat"
-      ? []
-      : Object.keys(PRICING[provider] ?? {}).map((id) => ({ id }));
-  // #203: openai_compat resolves its api key through the preset, not
-  // through the top-level keychain — so a missing top-level apiKey is
-  // fine here. The other providers still need a key to query their
-  // /models endpoints.
-  if (!apiKey && provider !== "openai_compat") return fallback;
+  // #203: openai_compat resolves its api key through the preset, not the
+  // top-level keychain, so a missing top-level apiKey is fine for it.
+  // Other providers need a key to query their /models endpoints.
+  const canFetch = apiKey !== null || provider === "openai_compat";
 
+  // #297: stale-while-revalidate. Serve the last persisted list instantly;
+  // when we can still fetch, kick off a background refresh that updates the
+  // caches and notifies subscribers. See ADR 013.
+  const persisted = await loadPersistedModels(cacheKey);
+  if (persisted) {
+    if (canFetch) {
+      void refreshModelInfos(provider, apiKey, extra, cacheKey).catch(() => {});
+    }
+    return persisted;
+  }
+
+  if (!canFetch) return pricingFallback(provider);
+
+  // Nothing cached anywhere → blocking fetch; fall back on failure.
   try {
-    const raw = await fetchProviderModelInfos(provider, apiKey, extra);
-    const filtered = raw.filter((m) => isChatModel(provider, m.id));
-    if (filtered.length === 0) return fallback;
-    const sorted = dedup(filtered).sort((a, b) => a.id.localeCompare(b.id));
-    infoCache.set(cacheKey, { at: Date.now(), infos: sorted });
-    return sorted;
+    return await refreshModelInfos(provider, apiKey, extra, cacheKey);
   } catch {
-    return fallback;
+    return pricingFallback(provider);
   }
 }
 

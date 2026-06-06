@@ -46,6 +46,12 @@ often in code review and in [ARCHITECTURE.md](../ARCHITECTURE.md):
   Why the per-persona DAG-edge model was replaced by conversation flows.
 - **[010 — apertus native removal](010-apertus-native-removal.md).**
   Why the bespoke Apertus adapter was folded into `openai_compat`.
+- **[012 — HTTP allowlist: static + runtime](012-http-scope-static-plus-runtime.md).**
+  Why known hosts stay in the static capabilities file while custom
+  preset hosts are registered at runtime via `add_capability`.
+- **[013 — persistent model cache (SWR)](013-persistent-model-cache-swr.md).**
+  Why discovered model lists are persisted and served
+  stale-while-revalidate with a background startup warm.
 
 ## Filing a new ADR
 

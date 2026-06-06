@@ -1,6 +1,7 @@
 // Minimal Tauri entrypoint. Heavy lifting is in TypeScript — Rust just
 // wires up plugins so the frontend can call them.
 
+mod http_scope;
 mod keychain;
 mod sql_bridge;
 
@@ -10,6 +11,10 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .manage(sql_bridge::SqlBridgeState::default())
+        // #297: tracks hosts granted to the http scope at runtime so
+        // custom openai_compat presets (arbitrary base URLs) can reach
+        // their /models + chat endpoints. See ADR 012.
+        .manage(http_scope::RegisteredHosts::default())
         // #284: register single-instance FIRST. The init callback fires
         // on the running process whenever a second mchat2.exe is
         // launched; we focus the existing window and the second process
@@ -31,6 +36,7 @@ pub fn run() {
             sql_bridge::sql_execute,
             sql_bridge::sql_select,
             sql_bridge::sql_close,
+            http_scope::register_http_hosts,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

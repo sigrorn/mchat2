@@ -31,6 +31,7 @@ import {
   type PresetRef,
 } from "@/lib/providers/openaiCompatStorage";
 import { formatHostingTag } from "@/lib/providers/derived";
+import { httpScope, originOf } from "@/lib/tauri/httpScope";
 import { shell } from "@/lib/tauri/shell";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 import type {
@@ -195,6 +196,10 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
         } else {
           await removeApiKeyForPreset({ kind: "custom", name: newName });
         }
+        // #297: grant the http scope for this custom host so its
+        // /models + chat calls work immediately, without an app restart.
+        const origin = originOf(draft.baseUrl.trim());
+        if (origin) void httpScope.registerHosts([origin]).catch(() => {});
         // Refresh local state and reselect the (possibly new-named) entry.
         const cfg = await loadOpenAICompatConfig();
         setCustoms(cfg.customs);

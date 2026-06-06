@@ -28,7 +28,13 @@
         { "url": "https://api.apertus.swiss/" },
         { "url": "https://api.apertus.swiss/*" },
         { "url": "https://api.infomaniak.com/" },
-        { "url": "https://api.infomaniak.com/*" }
+        { "url": "https://api.infomaniak.com/*" },
+        { "url": "https://openrouter.ai/" },
+        { "url": "https://openrouter.ai/*" },
+        { "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/" },
+        { "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/*" },
+        { "url": "https://openai.inference.de-txl.ionos.com/" },
+        { "url": "https://openai.inference.de-txl.ionos.com/*" }
       ]
     },
     "shell:default",

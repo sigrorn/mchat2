@@ -40,6 +40,20 @@ function bootOnce(): Promise<void> {
       } catch {
         document.title = `mchat2 v${__BUILD_INFO__.version} (${__BUILD_INFO__.commitDate})`;
       }
+      // #297: grant the http scope for custom openai_compat preset hosts
+      // (built-in hosts are static in capabilities/default.json), then
+      // warm the persisted model cache in the background so the persona
+      // model picker populates instantly on next open. See ADR 012/013.
+      try {
+        const { gatherProviderHosts, httpScope } = await import("@/lib/tauri/httpScope");
+        await httpScope.registerHosts(await gatherProviderHosts());
+      } catch {
+        // Best-effort: built-in presets still reach their endpoints via
+        // the static allowlist even if dynamic registration fails.
+      }
+      void import("@/lib/providers/modelWarm")
+        .then((m) => m.warmModelCaches())
+        .catch(() => {});
     })();
   }
   return bootCache;
