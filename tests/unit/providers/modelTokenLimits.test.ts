@@ -80,4 +80,24 @@ describe("formatModelMeta (#298)", () => {
   it("returns empty string when nothing is known", () => {
     expect(formatModelMeta("openai_compat", { id: "mystery" })).toBe("");
   });
+
+  it("appends the AA intelligence score when supplied (#299)", () => {
+    const m: ModelInfo = {
+      id: "anthropic/claude-x",
+      inputUsdPerMTok: 0.8,
+      outputUsdPerMTok: 4,
+      maxTokens: 200000,
+    };
+    expect(formatModelMeta("openai_compat", m, 64)).toBe("$0.8/$4 per Mtok · 200k ctx · AA 64");
+  });
+
+  it("rounds the AA score and shows it even with no other metadata", () => {
+    expect(formatModelMeta("openai_compat", { id: "x" }, 63.7)).toBe("AA 64");
+  });
+
+  it("omits the AA segment when the score is undefined", () => {
+    expect(formatModelMeta("claude", { id: "claude-sonnet-4-6" }, undefined)).toBe(
+      "$3/$15 per Mtok",
+    );
+  });
 });
