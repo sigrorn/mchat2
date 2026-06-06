@@ -17,6 +17,11 @@ import { resolveOpenAICompatPreset } from "./openaiCompatResolver";
 export interface ModelInfo {
   id: string;
   maxTokens?: number;
+  // #298: USD per million tokens, populated when the provider's /models
+  // endpoint reports per-model pricing (OpenRouter). When absent, the UI
+  // falls back to the static PRICING table.
+  inputUsdPerMTok?: number;
+  outputUsdPerMTok?: number;
 }
 
 export function formatTokenLimit(tokens: number | undefined): string {
@@ -24,9 +29,63 @@ export function formatTokenLimit(tokens: number | undefined): string {
   return `${Math.round(tokens / 1000)}k`;
 }
 
+// #298: compact USD-per-Mtok formatting for the model picker. Sub-dollar
+// rates keep 3 decimals, larger ones 2; trailing zeros are trimmed.
+function formatUsdPerMTok(n: number): string {
+  const decimals = n < 1 ? 3 : 2;
+  return n.toFixed(decimals).replace(/\.?0+$/, "");
+}
+
+// #298: secondary line for the model picker — input/output prices and max
+// context. Prices come from ModelInfo when the live /models call supplied
+// them (OpenRouter), else from the static PRICING table. Returns "" when
+// nothing is known, so the picker shows just the model id.
+export function formatModelMeta(provider: ProviderId, m: ModelInfo): string {
+  const table = PRICING[provider]?.[m.id];
+  const input = m.inputUsdPerMTok ?? table?.inputUsdPerMTok;
+  const output = m.outputUsdPerMTok ?? table?.outputUsdPerMTok;
+  const parts: string[] = [];
+  if (input !== undefined && output !== undefined) {
+    parts.push(
+      input === 0 && output === 0
+        ? "free"
+        : `$${formatUsdPerMTok(input)}/$${formatUsdPerMTok(output)} per Mtok`,
+    );
+  }
+  if (m.maxTokens) parts.push(`${formatTokenLimit(m.maxTokens)} ctx`);
+  return parts.join(" · ");
+}
+
 interface OpenAICompatModel {
   id: string;
   context_window?: number;
+  // OpenRouter reports the context window as `context_length` and the
+  // per-token price (USD, as strings) under `pricing`.
+  context_length?: number;
+  pricing?: { prompt?: string; completion?: string };
+}
+
+// Build a ModelInfo from an OpenAI-compatible /models entry, capturing
+// the context window and (OpenRouter-style) pricing when present.
+function modelInfoFromOpenAICompat(d: OpenAICompatModel): ModelInfo {
+  const maxTokens = d.context_window ?? d.context_length;
+  const input = parseUsdPerToken(d.pricing?.prompt);
+  const output = parseUsdPerToken(d.pricing?.completion);
+  return {
+    id: d.id,
+    ...(maxTokens ? { maxTokens } : {}),
+    ...(input !== undefined ? { inputUsdPerMTok: input } : {}),
+    ...(output !== undefined ? { outputUsdPerMTok: output } : {}),
+  };
+}
+
+// OpenRouter prices are USD per single token as strings ("0.0000008").
+// Convert to USD per million tokens; return undefined for missing/NaN.
+function parseUsdPerToken(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const perToken = Number(raw);
+  if (!Number.isFinite(perToken)) return undefined;
+  return perToken * 1_000_000;
 }
 interface OpenAICompatModelsResponse {
   data?: OpenAICompatModel[];
@@ -255,12 +314,7 @@ async function openAICompatList(url: string, apiKey: string): Promise<ModelInfo[
   });
   if (res.status >= 400) throw new HttpError(res.status, res.body);
   const parsed = JSON.parse(res.body) as OpenAICompatModelsResponse;
-  return (
-    parsed.data?.map((d) => ({
-      id: d.id,
-      ...(d.context_window ? { maxTokens: d.context_window } : {}),
-    })) ?? []
-  );
+  return parsed.data?.map(modelInfoFromOpenAICompat) ?? [];
 }
 
 // #203: derive the /v1/models URL from the resolved chat URL by
@@ -291,12 +345,7 @@ async function openaiCompatPresetList(
   const res = await request({ url, method: "GET", headers });
   if (res.status >= 400) throw new HttpError(res.status, res.body);
   const parsed = JSON.parse(res.body) as OpenAICompatModelsResponse;
-  return (
-    parsed.data?.map((d) => ({
-      id: d.id,
-      ...(d.context_window ? { maxTokens: d.context_window } : {}),
-    })) ?? []
-  );
+  return parsed.data?.map(modelInfoFromOpenAICompat) ?? [];
 }
 
 async function anthropicList(apiKey: string): Promise<ModelInfo[]> {

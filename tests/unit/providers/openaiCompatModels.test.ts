@@ -148,12 +148,11 @@ describe("listModelInfos for openai_compat (#203)", () => {
     const infos = await listModelInfos("openai_compat", null, {
       openaiCompatPreset: { kind: "builtin", id: "openrouter" },
     });
-    expect(infos[0]).toMatchObject({
-      id: "anthropic/claude-haiku",
-      maxTokens: 200000,
-      inputUsdPerMTok: 0.8,
-      outputUsdPerMTok: 4,
-    });
+    expect(infos[0]?.id).toBe("anthropic/claude-haiku");
+    expect(infos[0]?.maxTokens).toBe(200000);
+    // USD per token → per Mtok; tolerate float rounding (0.0000008 * 1e6).
+    expect(infos[0]?.inputUsdPerMTok).toBeCloseTo(0.8, 6);
+    expect(infos[0]?.outputUsdPerMTok).toBeCloseTo(4, 6);
   });
 
   it("works for custom presets", async () => {

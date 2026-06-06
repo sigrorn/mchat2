@@ -15,7 +15,7 @@ import type { Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { PROVIDER_COLORS, formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
-import { formatTokenLimit, type ModelInfo } from "@/lib/providers/models";
+import { formatModelMeta, type ModelInfo } from "@/lib/providers/models";
 import {
   applyVisibilityPreset,
   type VisibilityRole,
@@ -139,20 +139,6 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
     onModelChange("");
   };
 
-  // Hosting tag for the model picker — for openai_compat we look up
-  // the preset's country, not the (placeholder) registry entry.
-  const hostingCountryForTag =
-    provider === "openai_compat" && openaiCompatPreset
-      ? openaiCompatPresets.find(
-          (p) =>
-            p.ref.kind === openaiCompatPreset.kind &&
-            (p.ref.kind === "builtin"
-              ? p.ref.id === (openaiCompatPreset as { kind: "builtin"; id: string }).id
-              : p.ref.name === (openaiCompatPreset as { kind: "custom"; name: string }).name),
-        )?.hostingCountry ?? null
-      : PROVIDER_REGISTRY[provider].hostingCountry;
-  const hostingTag = formatHostingTag(hostingCountryForTag);
-
   return (
     <>
       <Field label="Name">
@@ -216,10 +202,13 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
         />
         <datalist id={modelListId}>
           {modelOptions.map((m) => {
-            const tokens = m.maxTokens ? ` — ${formatTokenLimit(m.maxTokens)}` : "";
+            // #298: secondary line shows price (in/out) + context instead
+            // of repeating the model id. Empty when no metadata is known,
+            // so the picker just shows the id.
+            const meta = formatModelMeta(provider, m);
             return (
               <option key={m.id} value={m.id}>
-                {hostingTag ? `${hostingTag} ${m.id}${tokens}` : `${m.id}${tokens}`}
+                {meta || m.id}
               </option>
             );
           })}
