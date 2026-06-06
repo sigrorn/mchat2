@@ -129,6 +129,33 @@ describe("listModelInfos for openai_compat (#203)", () => {
     expect(httpCalls[0]?.headers?.["X-Title"]).toBe("mchat2");
   });
 
+  it("parses OpenRouter context_length + pricing into ModelInfo (#298)", async () => {
+    await setBuiltinPresetConfig("openrouter", { templateVars: {}, extraHeaders: {} });
+    await setApiKeyForPreset({ kind: "builtin", id: "openrouter" }, "sk-or");
+    httpResponse = {
+      status: 200,
+      body: JSON.stringify({
+        data: [
+          {
+            id: "anthropic/claude-haiku",
+            context_length: 200000,
+            // OpenRouter reports USD per token as strings.
+            pricing: { prompt: "0.0000008", completion: "0.000004" },
+          },
+        ],
+      }),
+    };
+    const infos = await listModelInfos("openai_compat", null, {
+      openaiCompatPreset: { kind: "builtin", id: "openrouter" },
+    });
+    expect(infos[0]).toMatchObject({
+      id: "anthropic/claude-haiku",
+      maxTokens: 200000,
+      inputUsdPerMTok: 0.8,
+      outputUsdPerMTok: 4,
+    });
+  });
+
   it("works for custom presets", async () => {
     await upsertCustomPreset({
       name: "local-vllm",
