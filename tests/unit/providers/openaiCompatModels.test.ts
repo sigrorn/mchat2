@@ -10,7 +10,11 @@ import {
   setApiKeyForPreset,
   upsertCustomPreset,
 } from "@/lib/providers/openaiCompatStorage";
-import { listModelInfos, __clearModelCache } from "@/lib/providers/models";
+import {
+  listModelInfos,
+  __clearModelCache,
+  subscribeModelCache,
+} from "@/lib/providers/models";
 
 interface MockHttpReq {
   url: string;
@@ -139,5 +143,70 @@ describe("listModelInfos for openai_compat (#203)", () => {
     });
     expect(httpCalls[0]?.url).toBe("http://localhost:8000/v1/models");
     expect(infos.map((m) => m.id)).toContain("llama-3.3");
+  });
+});
+
+async function waitFor(pred: () => boolean, ms = 1000): Promise<void> {
+  const start = Date.now();
+  while (!pred()) {
+    if (Date.now() - start > ms) throw new Error("waitFor timed out");
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
+
+describe("listModelInfos persistent cache (#297)", () => {
+  const preset = { kind: "builtin" as const, id: "openrouter" };
+
+  async function configure(): Promise<void> {
+    await setBuiltinPresetConfig("openrouter", { templateVars: {}, extraHeaders: {} });
+    await setApiKeyForPreset(preset, "sk-or");
+  }
+
+  it("serves the persisted list after the in-memory cache is cleared, even when the network then fails", async () => {
+    await configure();
+    httpResponse = {
+      status: 200,
+      body: JSON.stringify({ data: [{ id: "anthropic/claude-3-7" }, { id: "openai/gpt-4o" }] }),
+    };
+    const first = await listModelInfos("openai_compat", null, { openaiCompatPreset: preset });
+    expect(first.map((m) => m.id)).toEqual(["anthropic/claude-3-7", "openai/gpt-4o"]);
+    expect(httpCalls).toHaveLength(1);
+
+    // Simulate a restart: in-memory cache gone, network now down.
+    __clearModelCache();
+    httpResponse = { status: 500, body: "boom" };
+
+    const afterRestart = await listModelInfos("openai_compat", null, {
+      openaiCompatPreset: preset,
+    });
+    // Must come from the persisted disk cache, NOT an empty fallback.
+    expect(afterRestart.map((m) => m.id)).toEqual(["anthropic/claude-3-7", "openai/gpt-4o"]);
+  });
+
+  it("revalidates in the background and notifies subscribers when the list changes", async () => {
+    await configure();
+    httpResponse = { status: 200, body: JSON.stringify({ data: [{ id: "model-a" }] }) };
+    const first = await listModelInfos("openai_compat", null, { openaiCompatPreset: preset });
+    expect(first.map((m) => m.id)).toEqual(["model-a"]);
+
+    // Restart with a richer upstream list.
+    __clearModelCache();
+    httpResponse = { status: 200, body: JSON.stringify({ data: [{ id: "model-a" }, { id: "model-b" }] }) };
+
+    let notified = false;
+    const unsub = subscribeModelCache(() => {
+      notified = true;
+    });
+
+    // Stale-while-revalidate: returns the persisted list instantly.
+    const stale = await listModelInfos("openai_compat", null, { openaiCompatPreset: preset });
+    expect(stale.map((m) => m.id)).toEqual(["model-a"]);
+
+    // Background refresh fires the network call and notifies on change.
+    await waitFor(() => notified);
+    unsub();
+
+    const fresh = await listModelInfos("openai_compat", null, { openaiCompatPreset: preset });
+    expect(fresh.map((m) => m.id)).toEqual(["model-a", "model-b"]);
   });
 });
