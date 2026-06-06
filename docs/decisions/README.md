@@ -52,6 +52,9 @@ often in code review and in [ARCHITECTURE.md](../ARCHITECTURE.md):
 - **[013 — persistent model cache (SWR)](013-persistent-model-cache-swr.md).**
   Why discovered model lists are persisted and served
   stale-while-revalidate with a background startup warm.
+- **[014 — Artificial Analysis model hint](014-artificial-analysis-model-hint.md).**
+  Why the model-quality score is user-keyed, silent without a key,
+  uses the non-reasoning variant, and isn't a registry provider.
 
 ## Filing a new ADR
 

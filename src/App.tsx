@@ -54,6 +54,11 @@ function bootOnce(): Promise<void> {
       void import("@/lib/providers/modelWarm")
         .then((m) => m.warmModelCaches())
         .catch(() => {});
+      // #299: warm the Artificial Analysis benchmark cache (silent + a
+      // no-op when no AA key is configured).
+      void import("@/lib/providers/benchmarks")
+        .then((m) => m.warmBenchmarks())
+        .catch(() => {});
     })();
   }
   return bootCache;

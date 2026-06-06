@@ -34,7 +34,9 @@
         { "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/" },
         { "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/*" },
         { "url": "https://openai.inference.de-txl.ionos.com/" },
-        { "url": "https://openai.inference.de-txl.ionos.com/*" }
+        { "url": "https://openai.inference.de-txl.ionos.com/*" },
+        { "url": "https://artificialanalysis.ai/" },
+        { "url": "https://artificialanalysis.ai/*" }
       ]
     },
     "shell:default",

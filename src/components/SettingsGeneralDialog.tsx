@@ -13,7 +13,14 @@ import {
   DEFAULT_MAX_RETRY_ATTEMPTS,
 } from "@/lib/settings/keys";
 import { useUiStore } from "@/stores/uiStore";
-import { PrimaryButton } from "@/components/ui/Button";
+import { PrimaryButton, OutlineButton } from "@/components/ui/Button";
+import { keychain } from "@/lib/tauri/keychain";
+import { shell } from "@/lib/tauri/shell";
+import {
+  AA_KEYCHAIN_SLOT,
+  AA_SIGNUP_URL,
+  loadBenchmarks,
+} from "@/lib/providers/benchmarks";
 
 export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const [value, setValue] = useState("");
@@ -22,6 +29,8 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
     String(DEFAULT_IDLE_TIMEOUT_MS / 1000),
   );
   const [maxRetries, setMaxRetries] = useState(String(DEFAULT_MAX_RETRY_ATTEMPTS));
+  const [aaKey, setAaKey] = useState("");
+  const [aaReveal, setAaReveal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -45,6 +54,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           ? String(rParsed)
           : String(DEFAULT_MAX_RETRY_ATTEMPTS),
       );
+      setAaKey((await keychain.get(AA_KEYCHAIN_SLOT)) ?? "");
       setLoading(false);
     })().catch((e) => setError((e as Error).message));
   }, []);
@@ -66,6 +76,12 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
       await ui.setWorkingDir(workDir);
       await ui.setIdleTimeoutMs(secs * 1000);
       await ui.setMaxRetryAttempts(retries);
+      // #299: AA benchmark key (secret → keychain). Empty clears it.
+      const aa = aaKey.trim();
+      if (aa) await keychain.set(AA_KEYCHAIN_SLOT, aa);
+      else await keychain.remove(AA_KEYCHAIN_SLOT);
+      // Refresh scores now so the picker populates without a restart.
+      void loadBenchmarks();
       setSavedAt(Date.now());
     } catch (e) {
       setError((e as Error).message);
@@ -160,6 +176,48 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           disabled={loading}
           className="block w-32 rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
+        <div className="mt-4 mb-1 flex items-baseline justify-between">
+          <label className="block text-xs font-medium text-neutral-700">
+            Artificial Analysis API key (model quality scores)
+          </label>
+          {!aaKey ? (
+            <button
+              type="button"
+              onClick={() => void shell.open(AA_SIGNUP_URL)}
+              className="text-[11px] text-blue-700 underline hover:text-blue-900"
+            >
+              Get a free key →
+            </button>
+          ) : null}
+        </div>
+        <p className="mb-2 text-xs text-neutral-500">
+          Optional. When set, the model picker shows each model&apos;s{" "}
+          <span className="font-medium">Intelligence Index</span> (e.g.{" "}
+          <span className="font-mono">AA 64</span>). Leave empty to disable — nothing is fetched
+          and no scores are shown.{" "}
+          <button
+            type="button"
+            onClick={() => void shell.open(AA_SIGNUP_URL)}
+            className="text-blue-700 underline hover:text-blue-900"
+          >
+            Powered by Artificial Analysis ↗
+          </button>
+        </p>
+        <div className="flex gap-2">
+          <input
+            type={aaReveal ? "text" : "password"}
+            value={aaKey}
+            onChange={(e) => setAaKey(e.target.value)}
+            disabled={loading}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="aa-..."
+            className="block flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
+          />
+          <OutlineButton onClick={() => setAaReveal((r) => !r)}>
+            {aaReveal ? "hide" : "show"}
+          </OutlineButton>
+        </div>
         {error ? <div className="mt-2 text-sm text-red-700">{error}</div> : null}
         <div className="mt-3 flex items-center gap-2">
           <PrimaryButton onClick={() => void save()} disabled={saving || loading}>

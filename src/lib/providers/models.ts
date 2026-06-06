@@ -36,11 +36,16 @@ function formatUsdPerMTok(n: number): string {
   return n.toFixed(decimals).replace(/\.?0+$/, "");
 }
 
-// #298: secondary line for the model picker — input/output prices and max
-// context. Prices come from ModelInfo when the live /models call supplied
+// #298/#299: secondary line for the model picker — input/output prices,
+// max context, and (when supplied) the Artificial Analysis intelligence
+// index. Prices come from ModelInfo when the live /models call supplied
 // them (OpenRouter), else from the static PRICING table. Returns "" when
 // nothing is known, so the picker shows just the model id.
-export function formatModelMeta(provider: ProviderId, m: ModelInfo): string {
+export function formatModelMeta(
+  provider: ProviderId,
+  m: ModelInfo,
+  intelligence?: number,
+): string {
   const table = PRICING[provider]?.[m.id];
   const input = m.inputUsdPerMTok ?? table?.inputUsdPerMTok;
   const output = m.outputUsdPerMTok ?? table?.outputUsdPerMTok;
@@ -53,6 +58,7 @@ export function formatModelMeta(provider: ProviderId, m: ModelInfo): string {
     );
   }
   if (m.maxTokens) parts.push(`${formatTokenLimit(m.maxTokens)} ctx`);
+  if (intelligence !== undefined) parts.push(`AA ${Math.round(intelligence)}`);
   return parts.join(" · ");
 }
 

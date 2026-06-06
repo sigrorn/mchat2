@@ -11,11 +11,13 @@
 // Collaborators: PersonaPanel.tsx (sole consumer), useModelOptions.
 // ------------------------------------------------------------------
 
+import { useEffect, useState } from "react";
 import type { Persona, ProviderId } from "@/lib/types";
 import { PROVIDER_REGISTRY } from "@/lib/providers/registry";
 import { PROVIDER_COLORS, formatHostingTag } from "@/lib/providers/derived";
 import { userSelectableProviderIds } from "@/lib/providers/userSelectable";
 import { formatModelMeta, type ModelInfo } from "@/lib/providers/models";
+import { lookupIntelligence, subscribeBenchmarks } from "@/lib/providers/benchmarks";
 import {
   applyVisibilityPreset,
   type VisibilityRole,
@@ -104,6 +106,11 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
   } = props;
 
   const openaiCompatPresets = useOpenAICompatPresets();
+
+  // #299: re-render when AA benchmark scores (re)load so the open picker
+  // picks them up. No-op when no AA key is configured.
+  const [, bumpBenchmarks] = useState(0);
+  useEffect(() => subscribeBenchmarks(() => bumpBenchmarks((n) => n + 1)), []);
 
   // The dropdown's value space is unified: native provider ids plus
   // `openai_compat:builtin:<id>` and `openai_compat:custom:<name>`
@@ -202,10 +209,11 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
         />
         <datalist id={modelListId}>
           {modelOptions.map((m) => {
-            // #298: secondary line shows price (in/out) + context instead
-            // of repeating the model id. Empty when no metadata is known,
-            // so the picker just shows the id.
-            const meta = formatModelMeta(provider, m);
+            // #298/#299: secondary line shows price (in/out), context, and
+            // the AA intelligence score when available — instead of
+            // repeating the model id. Empty when no metadata is known, so
+            // the picker just shows the id.
+            const meta = formatModelMeta(provider, m, lookupIntelligence(provider, m.id));
             return (
               <option key={m.id} value={m.id}>
                 {meta || m.id}
