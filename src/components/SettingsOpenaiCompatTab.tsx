@@ -38,6 +38,7 @@ import type {
   BuiltinPresetConfig,
   CustomPresetConfig,
 } from "@/lib/schemas/openaiCompatConfig";
+import { httpUrlSchema } from "@/lib/schemas/openaiCompatConfig";
 
 interface ComboEntry {
   ref: PresetRef | null; // null = "+ Add custom…"
@@ -156,6 +157,11 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
         // Custom save / add
         if (!draft.name.trim()) throw new Error("Name is required for a custom preset");
         if (!draft.baseUrl.trim()) throw new Error("Base URL is required for a custom preset");
+        // #312: validate the URL shape at the form boundary so an invalid
+        // baseUrl surfaces inline here rather than failing opaquely later.
+        if (!httpUrlSchema.safeParse(draft.baseUrl.trim()).success) {
+          throw new Error("Base URL must be a valid http(s) URL, e.g. https://api.example.com/v1");
+        }
         const headers: Record<string, string> = {};
         for (const row of draft.customHeaderRows) {
           if (row.name.trim() && row.value.trim()) headers[row.name.trim()] = row.value.trim();

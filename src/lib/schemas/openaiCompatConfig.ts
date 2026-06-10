@@ -38,6 +38,26 @@ export const EMPTY_OPENAI_COMPAT_CONFIG: Readonly<OpenAICompatConfig> = Object.f
 
 const stringRecord = z.record(z.string());
 
+// #312: per ADR 003 this schema is the trust boundary for user-entered /
+// imported preset base URLs. Validate the URL shape here (http/https with
+// a host) instead of relying on an incidental new URL() throw much later
+// in originOf(). z.string().url() alone is insufficient — it accepts
+// javascript:/file:/etc. — so refine the protocol + host.
+export const httpUrlSchema = z
+  .string()
+  .url()
+  .refine(
+    (s) => {
+      try {
+        const u = new URL(s);
+        return (u.protocol === "http:" || u.protocol === "https:") && u.host !== "";
+      } catch {
+        return false;
+      }
+    },
+    { message: "must be an http(s) URL with a host" },
+  );
+
 const builtinPresetConfigSchema = z.object({
   templateVars: stringRecord.optional().default({}),
   extraHeaders: stringRecord.optional().default({}),
@@ -46,7 +66,7 @@ const builtinPresetConfigSchema = z.object({
 const customPresetConfigSchema = z
   .object({
     name: z.string().min(1),
-    baseUrl: z.string().min(1),
+    baseUrl: httpUrlSchema,
     extraHeaders: stringRecord.optional().default({}),
     requiresKey: z.boolean().optional().default(true),
     supportsUsageStream: z.boolean().optional().default(true),
