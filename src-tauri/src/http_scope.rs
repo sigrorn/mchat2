@@ -73,3 +73,70 @@ pub fn register_http_hosts(app: AppHandle, hosts: Vec<String>) -> Result<(), Str
     }
     Ok(())
 }
+
+// #308: validate + normalize a submitted host into a canonical origin
+// "scheme://host[:port]". A compromised webview can invoke this command
+// directly, so the Rust side must not trust the frontend's URL parsing:
+// reject anything that is not http/https, has no host, or carries a
+// path/query/fragment beyond "/".
+// TODO(#308): real implementation in the next commit.
+fn normalize_origin(input: &str) -> Result<String, String> {
+    Ok(input.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_https_origin() {
+        assert_eq!(normalize_origin("https://openrouter.ai").unwrap(), "https://openrouter.ai");
+    }
+
+    #[test]
+    fn accepts_http_origin_with_port() {
+        assert_eq!(
+            normalize_origin("http://localhost:11434").unwrap(),
+            "http://localhost:11434"
+        );
+    }
+
+    #[test]
+    fn normalizes_trailing_slash() {
+        assert_eq!(
+            normalize_origin("https://api.example.com/").unwrap(),
+            "https://api.example.com"
+        );
+    }
+
+    #[test]
+    fn rejects_file_scheme() {
+        assert!(normalize_origin("file:///etc/passwd").is_err());
+    }
+
+    #[test]
+    fn rejects_javascript_scheme() {
+        assert!(normalize_origin("javascript:alert(1)").is_err());
+    }
+
+    #[test]
+    fn rejects_empty_string() {
+        assert!(normalize_origin("").is_err());
+    }
+
+    #[test]
+    fn rejects_origin_with_path() {
+        assert!(normalize_origin("https://api.example.com/v1/models").is_err());
+    }
+
+    #[test]
+    fn rejects_query_and_fragment() {
+        assert!(normalize_origin("https://api.example.com/?x=1").is_err());
+        assert!(normalize_origin("https://api.example.com/#f").is_err());
+    }
+
+    #[test]
+    fn capability_id_slugifies_origin() {
+        assert_eq!(capability_id("https://openrouter.ai"), "runtime-http-https---openrouter-ai");
+    }
+}
