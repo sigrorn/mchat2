@@ -76,6 +76,43 @@ export default [
       ],
     },
   },
+  // #142/#301: the @/lib/tauri/* shim is the ONE directory under
+  // src/lib/** that is *supposed* to import @tauri-apps/* — it exists
+  // precisely to centralize raw Tauri access so capabilities/scope are
+  // enforced in one place (ARCHITECTURE.md "What runs where", ADR 001).
+  // The src/lib/** block above forbids @tauri-apps/* for everyone; this
+  // later block re-declares no-restricted-imports for the shim WITHOUT
+  // the @tauri-apps/* group (flat config replaces the rule for matching
+  // files), so the shim may import Tauri while the stores/hooks bans
+  // still apply. Needed because #296 gave sql.ts a static
+  // `import { invoke } from "@tauri-apps/api/core"` for the per-statement
+  // hot path; the other shims use dynamic `await import("@tauri-apps/...")`,
+  // which no-restricted-imports does not inspect. We do NOT try to lint
+  // dynamic imports — the shim convention uses them deliberately, and the
+  // boundary that matters (non-shim src/lib/** must not reach Tauri) is
+  // still enforced statically above.
+  {
+    files: ["src/lib/tauri/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/stores/*", "*/stores/*", "../stores/*", "../../stores/*"],
+              message:
+                "src/lib/tauri/** must not import from @/stores/* — pass store actions in via callbacks. See #142/#144.",
+            },
+            {
+              group: ["@/hooks/*", "*/hooks/*", "../hooks/*", "../../hooks/*"],
+              message:
+                "src/lib/tauri/** must not import from @/hooks/* — hooks are React-only. See #142/#144.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // (#155) The temporary override block that exempted dispatch.ts,
   // handlers/**, and the fileOps trio from no-restricted-imports has
   // been removed — all those files now take store actions via deps
