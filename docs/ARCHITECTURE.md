@@ -109,6 +109,25 @@ a renderer XSS needs to execute attacker-controlled script. A unit guard
 inline styles); `connect-src` stays IPC-only because provider HTTP goes
 through tauri-plugin-http on the Rust side, not browser fetch.
 
+### Filesystem scope (#306, part of #115)
+
+The fs capability (`src-tauri/capabilities/default.json`) does **not**
+grant home-wide recursive read/write. Effective fs access is:
+
+- the **app-data directory** (`$APPDATA/**` static `fs:scope`) — DB +
+  backups, and trace files (which default here, see #305), and
+- **dialog-picked paths** — Tauri grants per-session runtime scope to
+  files chosen via plugin-dialog open/save, which is how all
+  export/import flows (conversation HTML/MD/JSON, persona, snapshot)
+  reach arbitrary locations.
+
+Together with the CSP above, this keeps a hypothetical renderer XSS from
+escalating to a full local-file compromise. Consequence: a trace working
+directory set to an arbitrary path *outside* app-data cannot be written
+(it has no static or dialog scope) — leave it empty to use app-data. A
+unit guard (`tests/unit/security/fsCapability.test.ts`) fails the build
+if the home-wide grant is reintroduced.
+
 ### What runs where
 
 - **`src-tauri/src/lib.rs`** — registers plugins. The single-instance

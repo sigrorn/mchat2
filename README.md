@@ -87,6 +87,13 @@ and received from each provider.
 - **Location:** `debug/` under your configured working directory
   (Settings → General → Working directory). If no working directory is
   set, traces go to `debug/` under the OS app-data directory.
+- **Working directory must be under app-data (#306):** for security the
+  app's filesystem access is scoped to the app-data directory (plus paths
+  you pick in a save/open dialog). A working directory set to an
+  arbitrary location *outside* app-data therefore cannot receive trace
+  writes — leave the setting empty (recommended) to use app-data, or
+  point it inside the app-data directory. Export/import are unaffected
+  because they go through the file dialog.
 - **Contents:** full conversation content — prompts *and* responses — in
   **plaintext**. Treat these files as sensitive.
 - **Disable:** they are written only while Debug is ON; toggle it off (or
