@@ -37,7 +37,12 @@ export async function renderDiagramBlock(kind: BlockKind, source: string): Promi
 
 async function renderMermaid(source: string): Promise<string> {
   const mermaid = await import("mermaid");
-  mermaid.default.initialize({ startOnLoad: false, theme: "neutral" });
+  // #310: securityLevel "strict" HTML-encodes labels at render time.
+  // This is ONE of two intentional layers — the other is the post-render
+  // sanitizeSvg/DOMPurify pass below. Diagram source is LLM-controlled,
+  // so BOTH must stay: do not drop strict because "DOMPurify handles it",
+  // and do not drop the sanitize call because "mermaid handles it".
+  mermaid.default.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "strict" });
   const { svg } = await mermaid.default.render(`mermaid-${Date.now()}`, source);
   return svg;
 }
