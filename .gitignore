@@ -9,16 +9,11 @@ dist-ssr/
 build/
 *.local
 *.tsbuildinfo
-# tsc -b emits .js / .d.ts next to .ts config files under the node
-# project root. Vite/Vitest/Playwright never consume these; they're
-# strictly build-byproducts. Patterns must be one-per-line — git's
-# gitignore does not support shell brace expansion (#208).
-/playwright.config.js
-/playwright.config.d.ts
-/vite.config.js
-/vite.config.d.ts
-/vitest.config.js
-/vitest.config.d.ts
+# #302: tsc -b type-checks the root .ts config files (vite/vitest/
+# playwright) and emits their unused transpiled output into this
+# scratch dir, instead of next to the sources where the stale .js
+# would shadow the .ts. Vite/Vitest/Playwright load .ts natively.
+.tsbuild-node/
 
 # Tauri / Rust
 src-tauri/target/

@@ -1,6 +1,15 @@
 {
   "compilerOptions": {
     "composite": true,
+    // #302: keep type-checking the root config files, but emit the
+    // transpiled output into a gitignored scratch dir instead of next
+    // to the .ts sources. tsc -b used to drop vite.config.js etc. at
+    // the repo root; that stale .js then shadowed the .ts (Vite resolves
+    // .js before .ts), so `npm run dev` could run an out-of-date config.
+    // noEmit is rejected here (TS6310: a referenced composite project
+    // may not disable emit), so we redirect outDir instead. Vite/Vitest/
+    // Playwright all load .ts configs natively; the emitted JS is unused.
+    "outDir": "./.tsbuild-node",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
