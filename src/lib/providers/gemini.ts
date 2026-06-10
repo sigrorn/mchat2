@@ -26,7 +26,10 @@ export const geminiAdapter: ProviderAdapter = {
       };
       return;
     }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(args.apiKey)}`;
+    // #309: the API key goes in the x-goog-api-key header, never the URL
+    // query string — keys in URLs leak into proxy/middlebox/diagnostic
+    // logs that don't redact query params.
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:streamGenerateContent?alt=sse`;
     const contents = args.messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
@@ -41,7 +44,10 @@ export const geminiAdapter: ProviderAdapter = {
       const opts: Parameters<typeof streamSSE>[0] = {
         url,
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": args.apiKey,
+        },
         body: JSON.stringify(body),
       };
       if (args.signal) opts.signal = args.signal;

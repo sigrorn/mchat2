@@ -157,7 +157,7 @@ describe("geminiAdapter", () => {
   });
 
   it("sends the api key via x-goog-api-key header, never in the URL (#309)", async () => {
-    let captured: { url: string; headers?: Record<string, string> } | null = null;
+    let captured: { url: string; headers: Record<string, string> | undefined } | null = null;
     __setImpl({
       async *streamSSE(opts) {
         captured = { url: opts.url, headers: opts.headers };
@@ -177,7 +177,7 @@ describe("geminiAdapter", () => {
       }),
     );
     expect(captured).not.toBeNull();
-    const got = captured as unknown as { url: string; headers?: Record<string, string> };
+    const got = captured as unknown as { url: string; headers: Record<string, string> | undefined };
     expect(got.url).not.toContain("key=");
     expect(got.url).not.toContain("AIzaSECRET123");
     expect(got.url).toContain("alt=sse");

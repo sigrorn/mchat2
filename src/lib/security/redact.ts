@@ -24,6 +24,13 @@ const PATTERNS: RegExp[] = [
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\bpplx-[A-Za-z0-9]{20,}\b/g,
   /\bBearer\s+[A-Za-z0-9_.\-]{20,}\b/g,
+  // #309: a key carried in a URL query param (`?key=` / `&key=`). The
+  // [?&] delimiter avoids matching innocuous "...key=" words like
+  // "monkey=". Defense in depth even though Gemini now sends the key
+  // as a header.
+  /[?&]key=[^&\s#]+/gi,
+  // #309: an x-goog-api-key header line.
+  /x-goog-api-key:\s*\S+/gi,
 ];
 
 export function redact(input: RedactInput): string {
