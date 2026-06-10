@@ -6,6 +6,8 @@
 // Collaborators: providers/*, tests inject a mock via __setImpl.
 // ------------------------------------------------------------------
 
+import { redact } from "../security/redact";
+
 export interface SSEEvent {
   // Parsed SSE "event:" field (default "message").
   event: string;
@@ -112,19 +114,32 @@ export function __resetImpl(): void {
   impl = defaultImpl;
 }
 
+// #311: provider error bodies are attacker-controlled (a misconfigured or
+// hostile endpoint) and flow into notice rows + trace files *before* the
+// export-time redact() pass. Bound and redact them at this boundary so no
+// downstream consumer ever sees an unbounded or secret-bearing body. 1 KB
+// is generous — far above #205's concern that the old 200-char cap dropped
+// the parameter-name/allowed-values detail, while still capping abuse.
+const MAX_ERROR_BODY_CHARS = 1024;
+
+function sanitizeErrorBody(body: string): string {
+  const truncated =
+    body.length > MAX_ERROR_BODY_CHARS
+      ? `${body.slice(0, MAX_ERROR_BODY_CHARS)}… [truncated ${body.length - MAX_ERROR_BODY_CHARS} chars]`
+      : body;
+  return redact({ text: truncated });
+}
+
 export class HttpError extends Error {
+  public body: string;
   constructor(
     public status: number,
-    public body: string,
+    body: string,
   ) {
-    // #205: the 200-char truncation here was making trace files and
-    // the UI error bubble show only the provider error preamble,
-    // dropping the parameter-name + allowed-values detail that's the
-    // whole reason you'd read the body. Provider error bodies are
-    // bounded by what providers actually send (kilobytes at worst);
-    // the bubble is full-width and wraps. Keep the full body.
-    super(`HTTP ${status}: ${body}`);
+    const safe = sanitizeErrorBody(body);
+    super(`HTTP ${status}: ${safe}`);
     this.name = "HttpError";
+    this.body = safe;
   }
 }
 
