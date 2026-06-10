@@ -1,5 +1,7 @@
 // #45 — Wire mermaid + viz fenced-code rendering.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { extractCodeBlocks, classify } from "@/lib/rendering/codeBlocks";
 import { renderDiagramBlock, clearDiagramCache } from "@/lib/rendering/diagramRenderer";
 import { sanitizeSvg } from "@/lib/rendering/sanitizeSvg";
@@ -102,5 +104,34 @@ describe("renderDiagramBlock sanitizes its output (#143)", () => {
     expect(typeof svg).toBe("string");
     expect(svg).not.toMatch(/<script/i);
     expect(svg).not.toMatch(/\son\w+\s*=/i);
+  });
+});
+
+describe("mermaid securityLevel: strict (#310)", () => {
+  // Mermaid is configured with securityLevel "strict" so labels are
+  // HTML-encoded at render time. This is the first of two intentional
+  // layers (the second being the post-render sanitizeSvg/DOMPurify pass);
+  // neither may be removed alone. Mermaid itself can't render under
+  // jsdom, so we pin the config at the source level rather than by
+  // rendering — the runtime behaviour is exercised by E2E.
+  it("initializes mermaid with securityLevel: strict", () => {
+    const src = readFileSync(
+      join(process.cwd(), "src/lib/rendering/diagramRenderer.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/securityLevel:\s*["']strict["']/);
+  });
+
+  it("a script/onclick mermaid payload never yields script/onclick via the renderer", async () => {
+    clearDiagramCache();
+    const payload =
+      'graph TD\n  A["<script>alert(1)</script>"]-->B["<img src=x onerror=alert(2)>"]';
+    const out = await renderDiagramBlock("mermaid", payload);
+    // In Node mermaid no-ops to an error string; in a browser it renders
+    // with strict + sanitizeSvg. Either way the output carries no live
+    // script tag or inline event handler.
+    expect(typeof out).toBe("string");
+    expect(out).not.toMatch(/<script/i);
+    expect(out).not.toMatch(/\son\w+\s*=/i);
   });
 });
