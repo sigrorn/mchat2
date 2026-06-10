@@ -81,6 +81,34 @@ without spinning up the Tauri runtime, swap the SQL impl for an
 in-memory `sql.js` adapter in tests, and avoid the cross-language
 plumbing that made the Python/Qt version brittle.
 
+### Content-Security-Policy (#304, part of #115)
+
+The webview ships a restrictive CSP, set in `tauri.conf.json` under
+`app.security.csp`:
+
+```
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob:; font-src 'self' data:;
+connect-src 'self' ipc: http://ipc.localhost
+```
+
+This is the defense-in-depth layer behind the rendering pipeline. The
+webview renders LLM-controlled content (markdown, mermaid/graphviz SVG),
+and in a Tauri app a renderer XSS reaches **every** registered
+`invoke()` command — keychain, fs, sql, http-scope. The pipeline is
+currently safe (react-markdown without `rehype-raw`; the single
+`dangerouslySetInnerHTML` is DOMPurify-sanitized), but the CSP protects
+against a future rendering change or a DOMPurify bypass.
+
+`script-src` **must stay `'self'`** — never add `'unsafe-inline'` or
+`'unsafe-eval'`. Tauri auto-appends nonces/hashes for its own injected
+scripts, so `'self'` is sufficient, and `unsafe-*` is exactly the escape
+a renderer XSS needs to execute attacker-controlled script. A unit guard
+(`tests/unit/security/csp.test.ts`) fails the build if this regresses.
+`style-src 'unsafe-inline'` is required (mermaid/viz SVGs and React carry
+inline styles); `connect-src` stays IPC-only because provider HTTP goes
+through tauri-plugin-http on the Rust side, not browser fetch.
+
 ### What runs where
 
 - **`src-tauri/src/lib.rs`** — registers plugins. The single-instance
