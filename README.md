@@ -1,5 +1,7 @@
 # mchat2
 
+[![CI](https://github.com/sigrorn/mchat2/actions/workflows/ci.yml/badge.svg)](https://github.com/sigrorn/mchat2/actions/workflows/ci.yml)
+
 Multi-provider LLM chat workbench. A desktop application for users who run
 structured conversations across several providers (Anthropic, OpenAI, Gemini,
 OpenAI-compatible) at once.
