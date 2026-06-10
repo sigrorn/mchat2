@@ -36,7 +36,7 @@ export const EMPTY_OPENAI_COMPAT_CONFIG: Readonly<OpenAICompatConfig> = Object.f
   customs: Object.freeze([]) as readonly CustomPresetConfig[] as CustomPresetConfig[],
 });
 
-const stringRecord = z.record(z.string());
+const stringRecord = z.record(z.string(), z.string());
 
 // #312: per ADR 003 this schema is the trust boundary for user-entered /
 // imported preset base URLs. Validate the URL shape here (http/https with
@@ -82,7 +82,7 @@ const customPresetConfigSchema = z
   );
 
 const envelopeSchema = z.object({
-  builtins: z.record(z.unknown()).optional().default({}),
+  builtins: z.record(z.string(), z.unknown()).optional().default({}),
   customs: z.array(z.unknown()).optional().default([]),
 });
 

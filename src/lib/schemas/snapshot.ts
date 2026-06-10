@@ -26,7 +26,7 @@ const personaSchema = z.object({
   // the openai_compat infomaniak preset's PRODUCT_ID template var
   // during import.
   apertusProductId: z.string().nullable().optional(),
-  visibilityDefaults: z.record(z.union([z.literal("y"), z.literal("n")])),
+  visibilityDefaults: z.record(z.string(), z.union([z.literal("y"), z.literal("n")])),
   // #241 Phase C: optional for legacy snapshots; modern snapshots
   // never emit this field (the conversation flow carries ordering).
   runsAfter: z.array(z.string()).optional(),
@@ -34,7 +34,7 @@ const personaSchema = z.object({
   createdAtMessageIndex: z.number(),
   // #213: optional for back-compat with pre-#213 snapshots.
   roleLens: z
-    .record(z.union([z.literal("user"), z.literal("assistant")]))
+    .record(z.string(), z.union([z.literal("user"), z.literal("assistant")]))
     .optional(),
 });
 
@@ -82,7 +82,7 @@ const envelopeSchema = z.object({
   systemPrompt: z.string().nullable(),
   displayMode: z.string(),
   visibilityMode: z.string(),
-  visibilityMatrix: z.record(z.array(z.string())),
+  visibilityMatrix: z.record(z.string(), z.array(z.string())),
   // #240: pre-#240 exports carry these fields; accept (optional+
   // nullable) and ignore so old snapshots round-trip without rejection.
   limitMarkIndex: z.number().nullable().optional(),
