@@ -47,8 +47,8 @@ describe("selectedPersonas persistence (#65)", () => {
   it("getConversation reads selectedPersonas from the junction", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'T', 10, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 10, 'lines', 'separated', '[]', '[]')`,
     );
     await seedPersonas("c_1", ["p_abc", "p_def"]);
     await sql.execute(
@@ -62,8 +62,8 @@ describe("selectedPersonas persistence (#65)", () => {
   it("getConversation returns [] when no junction rows exist", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'T', 10, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 10, 'lines', 'separated', '[]', '[]')`,
     );
     const c = await convRepo.getConversation("c_1");
     expect(c?.selectedPersonas).toEqual([]);

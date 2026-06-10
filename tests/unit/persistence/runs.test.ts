@@ -31,8 +31,8 @@ afterEach(() => {
 
 async function seedConversation(id = "c_1"): Promise<void> {
   await sql.execute(
-    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-     VALUES (?, 'T', 1000, 'lines', 'separated', '{}', '[]', '[]')`,
+    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+     VALUES (?, 'T', 1000, 'lines', 'separated', '[]', '[]')`,
     [id],
   );
 }
@@ -215,8 +215,8 @@ describe("runs repo — listSupersededMessageIds (#180 → #206)", () => {
     handle = await createTestDb();
     await seedConversation("c_1");
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_2', 'Other', 1000, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_2', 'Other', 1000, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO messages (id, conversation_id, role, content, display_mode, pinned,

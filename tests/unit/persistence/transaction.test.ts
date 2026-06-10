@@ -18,9 +18,8 @@ afterEach(() => {
 async function seedRow(): Promise<void> {
   await sql.execute(
     `INSERT INTO conversations
-       (id, title, created_at, display_mode, visibility_mode,
-        visibility_matrix, selected_personas, context_warnings_fired)
-     VALUES (?, ?, ?, 'lines', 'separated', '{}', '[]', '[]')`,
+       (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+     VALUES (?, ?, ?, 'lines', 'separated', '[]', '[]')`,
     ["c_1", "Original", 1000],
   );
 }

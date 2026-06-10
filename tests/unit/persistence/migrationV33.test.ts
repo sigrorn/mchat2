@@ -40,10 +40,9 @@ describe("migration v33 — messages.hidden_by_reset_id (#294)", () => {
     handle = await createTestDb();
     await sql.execute(
       `INSERT INTO conversations
-        (id, title, created_at, display_mode, visibility_mode,
-         visibility_matrix, selected_personas, context_warnings_fired,
+        (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired,
          flow_mode, last_seen_at, last_message_at)
-        VALUES ('c1', 't', 1, 'lines', 'separated', '{}', '[]', '[]', 0, 0, 0)`,
+        VALUES ('c1', 't', 1, 'lines', 'separated', '[]', '[]', 0, 0, 0)`,
     );
     await sql.execute(
       `INSERT INTO messages

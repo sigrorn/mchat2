@@ -29,7 +29,9 @@ export interface ConversationsTable {
   last_provider: string | null;
   display_mode: string;
   visibility_mode: string;
-  visibility_matrix: string; // JSON-encoded
+  // #315: the legacy visibility_matrix JSON column was dropped (migration
+  // 34). persona_visibility is the sole source; the in-memory
+  // Conversation.visibilityMatrix is loaded from it via loadVisibilityMatrixMap.
   selected_personas: string; // JSON-encoded
   compaction_floor_index: number | null;
   autocompact_threshold: string | null; // JSON-encoded

@@ -18,9 +18,8 @@ afterEach(() => {
 async function seedConversation(): Promise<string> {
   await sql.execute(
     `INSERT INTO conversations
-       (id, title, created_at, display_mode, visibility_mode,
-        visibility_matrix, selected_personas, context_warnings_fired)
-     VALUES (?, ?, ?, 'lines', 'separated', '{}', '[]', '[]')`,
+       (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+     VALUES (?, ?, ?, 'lines', 'separated', '[]', '[]')`,
     ["c_oc", "openai-compat round-trip", 0],
   );
   return "c_oc";

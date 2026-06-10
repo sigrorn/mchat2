@@ -51,8 +51,8 @@ describe("importPersonasFromFile identity pins (#36)", () => {
   it("appends both identity pins per imported persona (#38)", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'T', 0, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 0, 'lines', 'separated', '[]', '[]')`,
     );
     const r = await importPersonasFromFile("c_1", 0, null);
     if (!r.ok) throw new Error("import failed: " + ("message" in r ? r.message : r.reason));

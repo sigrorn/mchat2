@@ -60,7 +60,9 @@ describe("createTestDb runs all migrations", () => {
     expect(names).toContain("system_prompt");
     expect(names).toContain("display_mode");
     expect(names).toContain("visibility_mode");
-    expect(names).toContain("visibility_matrix");
+    // #315: visibility_matrix dropped (migration 34) — persona_visibility
+    // is the sole source.
+    expect(names).not.toContain("visibility_matrix");
     // #240: limit_size_tokens dropped along with //limitsize; replace
     // the assertion with selected_personas (added at v7) so this test
     // still proves migrations past v6 ran.
@@ -73,8 +75,8 @@ describe("createTestDb runs all migrations", () => {
   it("INSERT + SELECT round-trip works after migrations", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES (?, ?, ?, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES (?, ?, ?, 'lines', 'separated', '[]', '[]')`,
       ["c_1", "Hello", 1000],
     );
     const rows = await sql.select<{ id: string; title: string }>(
@@ -86,8 +88,8 @@ describe("createTestDb runs all migrations", () => {
   it("a second createTestDb() yields an empty DB (test isolation)", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES (?, ?, ?, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES (?, ?, ?, 'lines', 'separated', '[]', '[]')`,
       ["c_1", "First", 1000],
     );
     handle.restore();

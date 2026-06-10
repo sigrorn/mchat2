@@ -1,10 +1,12 @@
 // ------------------------------------------------------------------
 // Component: Conversation JSON-column schemas
 // Responsibility: zod-backed parsers for the TEXT columns on the
-//                 conversations table that hold JSON: visibility_matrix,
+//                 conversations table that hold JSON:
 //                 autocompact_threshold, context_warnings_fired,
 //                 selected_personas. Replaces the hand-written parsers
 //                 that lived in persistence/conversations.ts (#165).
+//                 (#315: the visibility_matrix column + its parser were
+//                 dropped — persona_visibility is the sole source.)
 //                 Every parser soft-fails to a sane default so a single
 //                 corrupt row never blocks listConversations().
 // Collaborators: persistence/conversations.ts (consumer).
@@ -12,27 +14,6 @@
 
 import { z } from "zod";
 import type { AutocompactThreshold } from "../types";
-
-const visibilityMatrixSchema = z.record(z.array(z.string()));
-
-export function parseVisibilityMatrix(raw: string): Record<string, string[]> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return {};
-  }
-  // zod's record schema rejects whole-object on first invalid value;
-  // we want to drop only the bad keys and keep the rest, matching the
-  // existing repo behavior — so unwrap manually.
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-  const out: Record<string, string[]> = {};
-  for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-    const valueResult = z.array(z.string()).safeParse(v);
-    if (valueResult.success) out[k] = valueResult.data;
-  }
-  return visibilityMatrixSchema.parse(out);
-}
 
 const autocompactThresholdSchema = z
   .object({

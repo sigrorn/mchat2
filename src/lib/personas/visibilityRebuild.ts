@@ -17,7 +17,6 @@
 
 import * as personasRepo from "../persistence/personas";
 import * as conversationsRepo from "../persistence/conversations";
-import { db } from "../persistence/db";
 import type { Persona } from "../types";
 
 // Sparse-matrix construction from per-persona defaults. An observer
@@ -45,10 +44,10 @@ function computeMatrixFromPersonaDefaults(
 }
 
 // Recomputes the matrix from the conversation's current personas'
-// visibility defaults and writes it to persona_visibility (with the
-// conversation.visibility_matrix JSON column dual-written for
-// rollback safety). Returns the resulting matrix so callers can
-// update their in-memory store snapshot without an extra reload.
+// visibility defaults and writes it to persona_visibility (the sole
+// source since #202; the legacy JSON column was dropped in #315).
+// Returns the resulting matrix so callers can update their in-memory
+// store snapshot without an extra reload.
 export async function rebuildVisibilityFromPersonaDefaults(
   conversationId: string,
 ): Promise<Record<string, string[]>> {
@@ -61,13 +60,5 @@ export async function rebuildVisibilityFromPersonaDefaults(
   // observer with all-stale 'n' defaults has nothing to record once
   // slugs are resolved against actual personas.
   const reloaded = await conversationsRepo.getConversation(conversationId);
-  const matrix = reloaded?.visibilityMatrix ?? {};
-  // Dual-write the legacy JSON column so rollbacks (and any code path
-  // that still inspects it) stay coherent until the cleanup migration.
-  await db
-    .updateTable("conversations")
-    .set({ visibility_matrix: JSON.stringify(matrix) })
-    .where("id", "=", conversationId)
-    .execute();
-  return matrix;
+  return reloaded?.visibilityMatrix ?? {};
 }

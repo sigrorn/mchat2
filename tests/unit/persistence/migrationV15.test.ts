@@ -35,10 +35,10 @@ describe("migration v15 — selected_personas junction", () => {
   it("backfills the junction from existing selected_personas JSON arrays", async () => {
     handle = await createTestDb({ stopAt: 14 });
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'A', 1, 'lines', 'separated', '{}', '["p_a","p_b"]', '[]'),
-              ('c_2', 'B', 2, 'lines', 'separated', '{}', '[]', '[]'),
-              ('c_3', 'C', 3, 'lines', 'separated', '{}', '["p_a"]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'A', 1, 'lines', 'separated', '["p_a","p_b"]', '[]'),
+              ('c_2', 'B', 2, 'lines', 'separated', '[]', '[]'),
+              ('c_3', 'C', 3, 'lines', 'separated', '["p_a"]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, runs_after, visibility_defaults)
@@ -72,8 +72,8 @@ describe("migration v15 — selected_personas junction", () => {
   it("CASCADE: deleting a persona drops its junction rows", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'T', 1, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 1, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)
@@ -92,8 +92,8 @@ describe("migration v15 — selected_personas junction", () => {
   it("CASCADE: deleting a conversation drops its junction rows", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'T', 1, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 1, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO personas (id, conversation_id, provider, name, name_slug, created_at_message_index, sort_order, visibility_defaults)

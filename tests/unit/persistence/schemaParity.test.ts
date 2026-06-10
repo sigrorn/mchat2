@@ -28,7 +28,8 @@ const SCHEMA_COLUMNS: Record<keyof Database, readonly string[]> = {
     "last_provider",
     "display_mode",
     "visibility_mode",
-    "visibility_matrix",
+    // #315: visibility_matrix dropped (migration 34) — persona_visibility
+    // is the sole source.
     "selected_personas",
     "compaction_floor_index",
     "autocompact_threshold",

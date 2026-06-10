@@ -52,9 +52,8 @@ describe("migration v21 — flow tables + runs.flow_step_id", () => {
     // documented kinds.
     await sql.execute(
       `INSERT INTO conversations
-        (id, title, created_at, display_mode, visibility_mode,
-         visibility_matrix, selected_personas, context_warnings_fired)
-        VALUES ('c1', 't', 1, 'lines', 'separated', '{}', '[]', '[]')`,
+        (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+        VALUES ('c1', 't', 1, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO flows (id, conversation_id, current_step_index)
@@ -78,9 +77,8 @@ describe("migration v21 — flow tables + runs.flow_step_id", () => {
     handle = await createTestDb();
     await sql.execute(
       `INSERT INTO conversations
-        (id, title, created_at, display_mode, visibility_mode,
-         visibility_matrix, selected_personas, context_warnings_fired)
-        VALUES ('c1', 't', 1, 'lines', 'separated', '{}', '[]', '[]')`,
+        (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+        VALUES ('c1', 't', 1, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO flows (id, conversation_id, current_step_index)
@@ -111,9 +109,8 @@ describe("migration v21 — flow tables + runs.flow_step_id", () => {
     handle = await createTestDb();
     await sql.execute(
       `INSERT INTO conversations
-        (id, title, created_at, display_mode, visibility_mode,
-         visibility_matrix, selected_personas, context_warnings_fired)
-        VALUES ('c1', 't', 1, 'lines', 'separated', '{}', '[]', '[]')`,
+        (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+        VALUES ('c1', 't', 1, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO flows (id, conversation_id, current_step_index)
@@ -148,9 +145,8 @@ describe("migration v21 — flow tables + runs.flow_step_id", () => {
     handle = await createTestDb();
     await sql.execute(
       `INSERT INTO conversations
-        (id, title, created_at, display_mode, visibility_mode,
-         visibility_matrix, selected_personas, context_warnings_fired)
-        VALUES ('c1', 't', 1, 'lines', 'separated', '{}', '[]', '[]')`,
+        (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+        VALUES ('c1', 't', 1, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO flows (id, conversation_id, current_step_index)

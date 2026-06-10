@@ -530,6 +530,17 @@ export const MIGRATIONS: string[][] = [
   [
     `ALTER TABLE messages ADD COLUMN hidden_by_reset_id INTEGER`,
   ],
+  // 34 — Drop conversations.visibility_matrix (#315). persona_visibility
+  // (relational, slug-keyed) has been the sole READ source for the
+  // visibility matrix since #202; the id-keyed JSON column was only a
+  // dual-write rollback safety net. That window is long closed, and every
+  // matrix writer existed solely to keep the column in sync (#313). No
+  // reader remains (rowToConversation sources the matrix from
+  // loadVisibilityMatrixMap). SQLite ≥ 3.35 DROP COLUMN — same pattern as
+  // migrations 31/32.
+  [
+    `ALTER TABLE conversations DROP COLUMN visibility_matrix`,
+  ],
 ];
 
 // #98: backup the DB file before running migrations.

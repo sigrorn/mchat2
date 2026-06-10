@@ -394,10 +394,10 @@ settings                 Generic (key, value) store for global app
   retry.** `superseded_at` hides them from the UI and from
   `buildContext`, but they stay in the DB so the attempt-history
   affordance can show them.
-- **The `conversations.visibility_matrix` JSON column is dual-written**
-  alongside `persona_visibility` for rollback safety, but reads come
-  from the relational form. This is a transitional state from #202;
-  see ADR 006 for the data-layer rationale.
+- **Visibility lives solely in `persona_visibility`** (slug-keyed,
+  relational). The legacy `conversations.visibility_matrix` JSON column
+  was dropped in #315 (migration 34); the transitional dual-write from
+  #202 is gone. See ADR 006 for the data-layer rationale.
 
 The schema is hand-written in
 [`src/lib/persistence/schema.ts`](../src/lib/persistence/schema.ts) and
@@ -548,9 +548,8 @@ Each handler decides its own write strategy. Examples:
   glues them together and reloads caches afterward.
 - **`//visibility`** (visibility.ts) calls
   `rebuildVisibilityFromPersonaDefaults` (which writes the
-  `persona_visibility` table + the legacy JSON column inline) and then
-  nudges the cache via `applyVisibilityMatrixCache` (#279) — no extra
-  DB rewrite.
+  `persona_visibility` table) and then nudges the cache via
+  `applyVisibilityMatrixCache` (#279/#313) — no extra DB rewrite.
 - **`//fork`** (fork.ts) creates a new conversation row, copies
   personas, copies messages up to the fork point, copies the flow if
   any. Wrapped in a transaction.
@@ -860,19 +859,19 @@ The visibility matrix answers "when persona A talks, who else sees
 their replies?" It's a sparse mapping from observer to a list of
 sources the observer can see.
 
-Storage is split between two places (transitional):
+Storage lives in one place:
 
 - **`persona_visibility` table** — slug-keyed for migration robustness
   (renames don't break the relational form). Sparse: only stores rows
-  where an observer has at least one hidden source.
-- **`conversations.visibility_matrix` JSON column** — id-keyed, dual-
-  written for rollback safety. Reads come from the relational form via
-  `loadVisibilityMatrixMap`.
+  where an observer has at least one hidden source. The in-memory
+  `Conversation.visibilityMatrix` (id-keyed) is loaded from it via
+  `loadVisibilityMatrixMap`. The legacy `conversations.visibility_matrix`
+  JSON column was dropped in #315 (migration 34).
 
 The rebuild path
 ([`src/lib/personas/visibilityRebuild.ts`](../src/lib/personas/visibilityRebuild.ts))
 recomputes the matrix from each persona's `visibilityDefaults` (a
-slug-keyed map of `'y'` / `'n'`) and writes it through both layers.
+slug-keyed map of `'y'` / `'n'`) and writes it to `persona_visibility`.
 
 PersonaPanel's create/edit/delete flows trigger a rebuild + a
 cache-only update (#279) — `applyVisibilityMatrixCache` nudges the
@@ -1174,7 +1173,10 @@ Each links to the ADR or issue that anchors it.
   Narrow setters touch one column; broad rewrites touch every column +
   three junction tables. See #275 / #283.
 - **Dual-write legacy JSON columns** while the relational form is the
-  read path. Drop the dual-write only via an explicit migration.
+  read path, and drop the column only via an explicit migration once no
+  reader remains. The `selected_personas` / `context_warnings_fired`
+  columns still follow this pattern; `visibility_matrix` completed it
+  and was dropped in #315.
 
 ### Use cases and dependencies
 

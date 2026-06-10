@@ -17,8 +17,8 @@ afterEach(() => {
 
 async function seedConversation(): Promise<void> {
   await sql.execute(
-    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-     VALUES ('c_1', 'T', 1000, 'lines', 'separated', '{}', '[]', '[]')`,
+    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+     VALUES ('c_1', 'T', 1000, 'lines', 'separated', '[]', '[]')`,
   );
 }
 async function seedPersona(): Promise<void> {

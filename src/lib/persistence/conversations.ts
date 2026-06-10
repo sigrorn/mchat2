@@ -238,7 +238,6 @@ function conversationToRow(conv: Conversation): ConversationsTable {
     last_provider: conv.lastProvider,
     display_mode: conv.displayMode,
     visibility_mode: conv.visibilityMode,
-    visibility_matrix: JSON.stringify(conv.visibilityMatrix),
     selected_personas: JSON.stringify(conv.selectedPersonas),
     compaction_floor_index: conv.compactionFloorIndex,
     autocompact_threshold: conv.autocompactThreshold
@@ -461,7 +460,6 @@ export async function updateConversation(
       last_provider: row.last_provider,
       display_mode: row.display_mode,
       visibility_mode: row.visibility_mode,
-      visibility_matrix: row.visibility_matrix,
       // #193: selected_personas JSON column stays as a dual-write
       // for rollback safety; reads come from the junction.
       selected_personas: row.selected_personas,

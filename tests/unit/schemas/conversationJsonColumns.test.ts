@@ -5,35 +5,13 @@
 // drift is visible, but never throw.
 import { describe, it, expect } from "vitest";
 import {
-  parseVisibilityMatrix,
   parseAutocompactThreshold,
   parseContextWarningsFired,
   parseSelectedPersonas,
 } from "@/lib/schemas/conversationJsonColumns";
 
-describe("parseVisibilityMatrix", () => {
-  it("returns the parsed matrix on a valid object", () => {
-    const json = JSON.stringify({ a: ["b", "c"], d: [] });
-    expect(parseVisibilityMatrix(json)).toEqual({ a: ["b", "c"], d: [] });
-  });
-
-  it("drops keys whose value is not a string array", () => {
-    const json = JSON.stringify({ ok: ["a"], bad: 5, alsoBad: [1, 2] });
-    expect(parseVisibilityMatrix(json)).toEqual({ ok: ["a"] });
-  });
-
-  it("returns {} on invalid JSON", () => {
-    expect(parseVisibilityMatrix("not json")).toEqual({});
-  });
-
-  it("returns {} on a top-level array", () => {
-    expect(parseVisibilityMatrix(JSON.stringify([1, 2]))).toEqual({});
-  });
-
-  it("returns {} on null", () => {
-    expect(parseVisibilityMatrix(JSON.stringify(null))).toEqual({});
-  });
-});
+// #315: parseVisibilityMatrix + its column were removed — persona_visibility
+// is the sole source for the matrix now.
 
 describe("parseAutocompactThreshold", () => {
   it("accepts kTokens with a positive value", () => {

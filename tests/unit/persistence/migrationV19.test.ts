@@ -35,9 +35,8 @@ describe("migration v19 — messages.superseded_at", () => {
     handle = await createTestDb();
     await sql.execute(
       `INSERT INTO conversations
-         (id, title, created_at, display_mode, visibility_mode,
-          visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES (?, ?, ?, 'lines', 'separated', '{}', '[]', '[]')`,
+         (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES (?, ?, ?, 'lines', 'separated', '[]', '[]')`,
       ["c1", "t", 1000],
     );
     await sql.execute(

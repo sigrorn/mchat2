@@ -18,9 +18,8 @@ afterEach(() => {
 
 async function seedConversationWithFlow(): Promise<{ stepId: string }> {
   await sql.execute(
-    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode,
-        visibility_matrix, selected_personas, context_warnings_fired)
-      VALUES ('c_1', 't', 1000, 'lines', 'separated', '{}', '[]', '[]')`,
+    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+      VALUES ('c_1', 't', 1000, 'lines', 'separated', '[]', '[]')`,
   );
   await sql.execute(
     `INSERT INTO personas (id, conversation_id, provider, name, name_slug,
@@ -72,9 +71,8 @@ describe("recordSend.flowStepId (#214)", () => {
   it("leaves flow_step_id null when flowStepId is omitted (today's behavior)", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode,
-          visibility_matrix, selected_personas, context_warnings_fired)
-        VALUES ('c_2', 't', 1000, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+        VALUES ('c_2', 't', 1000, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO personas (id, conversation_id, provider, name, name_slug,

@@ -30,10 +30,10 @@ describe("migration v18 — conversation_context_warnings", () => {
   it("backfills with fired_at = conversation.created_at", async () => {
     handle = await createTestDb({ stopAt: 17 });
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'A', 1234, 'lines', 'separated', '{}', '[]', '[80, 90]'),
-              ('c_2', 'B', 5678, 'lines', 'separated', '{}', '[]', '[]'),
-              ('c_3', 'C', 9999, 'lines', 'separated', '{}', '[]', '[98]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'A', 1234, 'lines', 'separated', '[]', '[80, 90]'),
+              ('c_2', 'B', 5678, 'lines', 'separated', '[]', '[]'),
+              ('c_3', 'C', 9999, 'lines', 'separated', '[]', '[98]')`,
     );
     await handle.runRemainingMigrations();
 
@@ -54,8 +54,8 @@ describe("migration v18 — conversation_context_warnings", () => {
   it("CASCADE: deleting a conversation drops its warning rows", async () => {
     handle = await createTestDb();
     await sql.execute(
-      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-       VALUES ('c_1', 'T', 1, 'lines', 'separated', '{}', '[]', '[]')`,
+      `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+       VALUES ('c_1', 'T', 1, 'lines', 'separated', '[]', '[]')`,
     );
     await sql.execute(
       `INSERT INTO conversation_context_warnings (conversation_id, threshold, fired_at)

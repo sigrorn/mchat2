@@ -15,8 +15,8 @@ let handle: TestDbHandle | null = null;
 beforeEach(async () => {
   handle = await createTestDb();
   await sql.execute(
-    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, visibility_matrix, selected_personas, context_warnings_fired)
-     VALUES ('c_1', 'T', 0, 'lines', 'separated', '{}', '[]', '[]')`,
+    `INSERT INTO conversations (id, title, created_at, display_mode, visibility_mode, selected_personas, context_warnings_fired)
+     VALUES ('c_1', 'T', 0, 'lines', 'separated', '[]', '[]')`,
   );
 });
 afterEach(() => {
