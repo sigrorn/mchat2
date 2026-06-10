@@ -27,4 +27,26 @@ describe("redact", () => {
     const out = redact({ text: "hi there", knownSecrets: ["hi"] });
     expect(out).toBe("hi there");
   });
+
+  // #309: token in a generic shape so this exercises the new key=/header
+  // patterns specifically, not the existing AIza/sk- key shapes.
+  it("masks key=<token> in query strings (#309)", () => {
+    const out = redact({
+      text: "https://host/v1beta/models/x:streamGenerateContent?alt=sse&key=abcDEF1234567890ghiJKL",
+    });
+    expect(out).not.toContain("abcDEF1234567890ghiJKL");
+    expect(out).toContain("[REDACTED]");
+    expect(out).toContain("alt=sse");
+  });
+
+  it("masks x-goog-api-key header lines (#309)", () => {
+    const out = redact({ text: "x-goog-api-key: abcDEF1234567890ghiJKL" });
+    expect(out).not.toContain("abcDEF1234567890ghiJKL");
+    expect(out).toContain("[REDACTED]");
+  });
+
+  it("does not redact innocuous '...key=' substrings without a query delimiter", () => {
+    const out = redact({ text: "monkey=5 donkey=7" });
+    expect(out).toBe("monkey=5 donkey=7");
+  });
 });

@@ -155,6 +155,34 @@ describe("geminiAdapter", () => {
     expect(usage.input).toBe(5);
     expect(usage.output).toBe(3);
   });
+
+  it("sends the api key via x-goog-api-key header, never in the URL (#309)", async () => {
+    let captured: { url: string; headers?: Record<string, string> } | null = null;
+    __setImpl({
+      async *streamSSE(opts) {
+        captured = { url: opts.url, headers: opts.headers };
+        // no frames
+      },
+      async request() {
+        return { status: 200, headers: {}, body: "" };
+      },
+    });
+    await collect(
+      geminiAdapter.stream({
+        streamId: "s",
+        model: "gemini-1.5-pro",
+        messages: [{ role: "user", content: "hi" }],
+        systemPrompt: null,
+        apiKey: "AIzaSECRET123",
+      }),
+    );
+    expect(captured).not.toBeNull();
+    const got = captured as unknown as { url: string; headers?: Record<string, string> };
+    expect(got.url).not.toContain("key=");
+    expect(got.url).not.toContain("AIzaSECRET123");
+    expect(got.url).toContain("alt=sse");
+    expect(got.headers?.["x-goog-api-key"]).toBe("AIzaSECRET123");
+  });
 });
 
 describe("adapterFor", () => {
