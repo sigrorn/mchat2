@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseOpenAICompatConfig,
   EMPTY_OPENAI_COMPAT_CONFIG,
+  httpUrlSchema,
 } from "@/lib/schemas/openaiCompatConfig";
 
 describe("parseOpenAICompatConfig", () => {
@@ -73,6 +74,21 @@ describe("parseOpenAICompatConfig", () => {
     expect((cfg.builtins as Record<string, unknown>).notarealpreset).toBeUndefined();
   });
 
+  it("drops a custom whose baseUrl is not an http(s) URL (#312)", () => {
+    const json = JSON.stringify({
+      builtins: {},
+      customs: [
+        { name: "ok", baseUrl: "https://api.example.com/v1" },
+        { name: "evil-js", baseUrl: "javascript:alert(1)" },
+        { name: "evil-file", baseUrl: "file:///x" },
+        { name: "garbage", baseUrl: "notaurl" },
+        { name: "empty", baseUrl: "" },
+      ],
+    });
+    const cfg = parseOpenAICompatConfig(json);
+    expect(cfg.customs.map((c) => c.name)).toEqual(["ok"]);
+  });
+
   it("supplies sensible defaults when fields are missing", () => {
     const json = JSON.stringify({
       builtins: {},
@@ -86,5 +102,19 @@ describe("parseOpenAICompatConfig", () => {
       requiresKey: true,
       supportsUsageStream: true,
     });
+  });
+});
+
+describe("httpUrlSchema (#312)", () => {
+  it("accepts http(s) URLs with a host", () => {
+    expect(httpUrlSchema.safeParse("https://api.example.com/v1").success).toBe(true);
+    expect(httpUrlSchema.safeParse("http://localhost:8000/v1").success).toBe(true);
+  });
+
+  it("rejects non-http(s) schemes, non-URLs, and empty strings", () => {
+    expect(httpUrlSchema.safeParse("javascript:alert(1)").success).toBe(false);
+    expect(httpUrlSchema.safeParse("file:///x").success).toBe(false);
+    expect(httpUrlSchema.safeParse("notaurl").success).toBe(false);
+    expect(httpUrlSchema.safeParse("").success).toBe(false);
   });
 });
