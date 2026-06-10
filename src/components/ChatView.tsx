@@ -316,7 +316,7 @@ export function ChatView(): JSX.Element {
               disabled={nav.upDisabled}
               title={navTooltipText("prev", navPersonaName)}
               aria-label={navTooltipText("prev", navPersonaName)}
-              className="rounded border border-current px-1.5 py-0.5 text-xs hover:bg-neutral-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+              className="rounded-sm border border-current px-1.5 py-0.5 text-xs hover:bg-neutral-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
             >
               ▲
             </button>
@@ -326,7 +326,7 @@ export function ChatView(): JSX.Element {
               disabled={nav.downDisabled}
               title={navTooltipText("next", navPersonaName)}
               aria-label={navTooltipText("next", navPersonaName)}
-              className="rounded border border-current px-1.5 py-0.5 text-xs hover:bg-neutral-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+              className="rounded-sm border border-current px-1.5 py-0.5 text-xs hover:bg-neutral-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
             >
               ▼
             </button>

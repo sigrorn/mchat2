@@ -170,7 +170,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="m-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded bg-white shadow-xl">
+      <div className="m-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-900">
@@ -256,7 +256,7 @@ export function FlowEditor({ conversationId, personas, onClose }: FlowEditorProp
           </section>
 
           {error ? (
-            <div className="mt-3 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-900">
+            <div className="mt-3 rounded-sm border border-red-200 bg-red-50 p-2 text-xs text-red-900">
               {error}
             </div>
           ) : null}
@@ -316,13 +316,13 @@ function StepRow(props: StepRowProps): JSX.Element {
       ? "border-blue-300 bg-blue-50"
       : "border-neutral-200 bg-white";
   return (
-    <li className={`rounded border ${borderClass} p-2`}>
+    <li className={`rounded-sm border ${borderClass} p-2`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-neutral-700">#{props.index}</span>
           <button
             onClick={props.onToggleKind}
-            className="rounded border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-900 hover:bg-neutral-200"
+            className="rounded-sm border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-900 hover:bg-neutral-200"
             title="Click to switch between 'user' and 'personas'"
           >
             {step.kind === "user" ? "user" : "personas"}
@@ -415,7 +415,7 @@ function StepRow(props: StepRowProps): JSX.Element {
               onChange={(e) => props.onInstructionChange(e.target.value)}
               rows={4}
               placeholder="(none — leave empty to use only the persona's standard system prompt)"
-              className="mt-1 w-full rounded border border-neutral-300 px-2 py-1 text-xs font-mono"
+              className="mt-1 w-full rounded-sm border border-neutral-300 px-2 py-1 text-xs font-mono"
             />
           </div>
         </>
@@ -438,7 +438,7 @@ interface LensRowProps {
 
 function LensRow({ persona, others, draft, onToggle }: LensRowProps): JSX.Element {
   return (
-    <div className="rounded border border-neutral-200 bg-white p-2">
+    <div className="rounded-sm border border-neutral-200 bg-white p-2">
       <div className="text-xs font-medium text-neutral-900">{persona.name}</div>
       <div className="mt-1 text-[11px] text-neutral-700">
         Treat these speakers as <em>user</em> (instead of the default

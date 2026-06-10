@@ -48,7 +48,7 @@ export function ContextMenu({
       role="menu"
       aria-label={ariaLabel}
       style={{ position: "fixed", top: y, left: x, zIndex: 100 }}
-      className="min-w-40 rounded border border-neutral-200 bg-white py-1 text-sm shadow-lg"
+      className="min-w-40 rounded-sm border border-neutral-200 bg-white py-1 text-sm shadow-lg"
     >
       {items.map((item) => (
         <li key={item.label} role="none">

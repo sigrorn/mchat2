@@ -27,7 +27,7 @@ export function EditReplayEditor({
     ref.current?.select();
   }, []);
   return (
-    <div className="mb-3 rounded border-l-4 border-blue-400 bg-blue-50 px-3 py-2 shadow-sm">
+    <div className="mb-3 rounded-sm border-l-4 border-blue-400 bg-blue-50 px-3 py-2 shadow-xs">
       <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">
         edit &amp; replay
       </div>
@@ -47,7 +47,7 @@ export function EditReplayEditor({
           }
         }}
         rows={Math.max(3, Math.min(12, value.split("\n").length + 1))}
-        className="block w-full resize-y rounded border border-neutral-300 px-2 py-1.5 text-sm"
+        className="block w-full resize-y rounded-sm border border-neutral-300 px-2 py-1.5 text-sm"
       />
       <div className="mt-2 flex items-center gap-2">
         <PrimaryButton onClick={() => void onCommit(value)} size="xs">

@@ -18,7 +18,7 @@ export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 // Size mapping picked to cover the existing inline button styles
 // without visual regressions. `sm` is the persona-form size (px-2 py-1
-// text-xs); SidebarFooter uses `md` with a !text-xs override.
+// text-xs); SidebarFooter uses `md` with a text-xs! override.
 const SIZE_CLASS: Record<ButtonSize, string> = {
   xs: "px-2 py-0.5 text-xs",
   sm: "px-2 py-1 text-xs",
@@ -26,7 +26,7 @@ const SIZE_CLASS: Record<ButtonSize, string> = {
   lg: "px-3 py-2 text-sm",
 };
 
-const ROUNDED = "rounded";
+const ROUNDED = "rounded-sm";
 
 function compose(parts: readonly string[]): string {
   return parts.filter(Boolean).join(" ");

@@ -155,14 +155,14 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
           {...(namePlaceholder ? { placeholder: namePlaceholder } : {})}
-          className="w-full rounded border border-neutral-300 px-2 py-1"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1"
         />
       </Field>
       <Field label="Provider">
         <select
           value={dropdownValue}
           onChange={(e) => onProviderSelect(e.target.value)}
-          className="w-full rounded border border-neutral-300 px-2 py-1"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1"
         >
           {SELECTABLE_PROVIDER_IDS.map((id) => {
             const tag = formatHostingTag(PROVIDER_REGISTRY[id].hostingCountry);
@@ -205,7 +205,7 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
           onChange={(e) => onModelChange(e.target.value)}
           list={modelListId}
           placeholder={PROVIDER_REGISTRY[provider].defaultModel}
-          className="w-full rounded border border-neutral-300 px-2 py-1"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1"
         />
         <datalist id={modelListId}>
           {modelOptions.map((m) => {
@@ -228,7 +228,7 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
             type="color"
             value={colorOverride ?? PROVIDER_COLORS[provider]}
             onChange={(e) => onColorOverrideChange(e.target.value)}
-            className="h-6 w-8 cursor-pointer rounded border border-neutral-300 p-0"
+            className="h-6 w-8 cursor-pointer rounded-sm border border-neutral-300 p-0"
           />
           <span className="text-neutral-500">
             {colorOverride ? "custom" : "provider default"}
@@ -362,7 +362,7 @@ export function PersonaFormFields(props: PersonaFormFieldsProps): JSX.Element {
           onChange={(e) => onPromptChange(e.target.value)}
           rows={promptRows}
           {...(promptPlaceholder ? { placeholder: promptPlaceholder } : {})}
-          className="w-full rounded border border-neutral-300 px-2 py-1 font-mono"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1 font-mono"
         />
       </Field>
     </>

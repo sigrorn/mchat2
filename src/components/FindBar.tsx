@@ -99,12 +99,12 @@ export function FindBar({
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Find in chat"
-        className="flex-1 rounded border border-neutral-300 px-2 py-1 text-xs"
+        className="flex-1 rounded-sm border border-neutral-300 px-2 py-1 text-xs"
       />
       <span className="tabular-nums text-neutral-500">{label}</span>
       <button
         onClick={() => setCase(!find.caseSensitive)}
-        className={`rounded border px-1.5 py-0.5 ${find.caseSensitive ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 text-neutral-500 hover:bg-neutral-100"}`}
+        className={`rounded-sm border px-1.5 py-0.5 ${find.caseSensitive ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 text-neutral-500 hover:bg-neutral-100"}`}
         title="Match case"
       >
         Aa
@@ -114,7 +114,7 @@ export function FindBar({
           matchCount > 0 && setActive((find.activeIndex - 1 + matchCount) % matchCount)
         }
         disabled={matchCount === 0}
-        className="rounded border border-neutral-300 px-1.5 py-0.5 text-neutral-500 hover:bg-neutral-100 disabled:opacity-40"
+        className="rounded-sm border border-neutral-300 px-1.5 py-0.5 text-neutral-500 hover:bg-neutral-100 disabled:opacity-40"
         title="Previous match (Shift+Enter)"
       >
         ↑
@@ -122,14 +122,14 @@ export function FindBar({
       <button
         onClick={() => matchCount > 0 && setActive((find.activeIndex + 1) % matchCount)}
         disabled={matchCount === 0}
-        className="rounded border border-neutral-300 px-1.5 py-0.5 text-neutral-500 hover:bg-neutral-100 disabled:opacity-40"
+        className="rounded-sm border border-neutral-300 px-1.5 py-0.5 text-neutral-500 hover:bg-neutral-100 disabled:opacity-40"
         title="Next match (Enter)"
       >
         ↓
       </button>
       <button
         onClick={close}
-        className="rounded border border-neutral-300 px-1.5 py-0.5 text-neutral-500 hover:bg-neutral-100"
+        className="rounded-sm border border-neutral-300 px-1.5 py-0.5 text-neutral-500 hover:bg-neutral-100"
         title="Close (Escape)"
       >
         ×

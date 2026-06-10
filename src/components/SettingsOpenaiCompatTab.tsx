@@ -308,7 +308,7 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
                   : ""
           }
           onChange={(e) => onComboChange(e.target.value)}
-          className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1.5 text-sm"
         >
           {BUILTIN_OPENAI_COMPAT_PRESETS.map((p) => {
             const tag = formatHostingTag(p.hostingCountry);
@@ -415,7 +415,7 @@ function BuiltinForm({
           placeholder={`openai_compat.${def.id}.apiKey`}
           autoComplete="off"
           spellCheck={false}
-          className="w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1.5 font-mono text-sm"
         />
       </div>
       {def.templateVars.map((name) => (
@@ -431,7 +431,7 @@ function BuiltinForm({
               })
             }
             placeholder={`e.g. abc123`}
-            className="w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
+            className="w-full rounded-sm border border-neutral-300 px-2 py-1.5 font-mono text-sm"
           />
         </div>
       ))}
@@ -455,7 +455,7 @@ function BuiltinForm({
                   ? "Your app's display name"
                   : ""
             }
-            className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
+            className="w-full rounded-sm border border-neutral-300 px-2 py-1.5 text-sm"
           />
         </div>
       ))}
@@ -495,7 +495,7 @@ function CustomForm({
           value={draft.name}
           onChange={(e) => onDraft({ ...draft, name: e.target.value })}
           placeholder="my-vllm-server"
-          className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1.5 text-sm"
         />
       </div>
       <div>
@@ -504,7 +504,7 @@ function CustomForm({
           value={draft.baseUrl}
           onChange={(e) => onDraft({ ...draft, baseUrl: e.target.value })}
           placeholder="http://localhost:8000/v1/chat/completions"
-          className="w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1.5 font-mono text-sm"
         />
       </div>
       <div>
@@ -516,7 +516,7 @@ function CustomForm({
           placeholder="(leave empty if your endpoint requires no auth)"
           autoComplete="off"
           spellCheck={false}
-          className="w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1.5 font-mono text-sm"
         />
       </div>
       <div className="flex items-center gap-4">
@@ -558,13 +558,13 @@ function CustomForm({
                   value={row.name}
                   onChange={(e) => setHeaderRow(idx, { name: e.target.value })}
                   placeholder="Header-Name"
-                  className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm"
+                  className="flex-1 rounded-sm border border-neutral-300 px-2 py-1.5 text-sm"
                 />
                 <input
                   value={row.value}
                   onChange={(e) => setHeaderRow(idx, { value: e.target.value })}
                   placeholder="value"
-                  className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm"
+                  className="flex-1 rounded-sm border border-neutral-300 px-2 py-1.5 text-sm"
                 />
                 <OutlineButton onClick={() => removeHeaderRow(idx)} size="xs">
                   ✕

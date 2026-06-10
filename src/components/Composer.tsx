@@ -309,7 +309,7 @@ export function Composer({ conversation }: { conversation: Conversation }): JSX.
         }}
         rows={5}
         placeholder={placeholder}
-        className="w-full resize-y rounded border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+        className="w-full resize-y rounded-sm border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-hidden"
       />
       {hint ? <div className="mt-2 text-xs text-amber-700">{hint}</div> : null}
       <div className="mt-2 flex gap-2">

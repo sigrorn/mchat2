@@ -190,7 +190,7 @@ function MessageBubbleImpl({
         ref={bubbleRef}
         role="note"
         data-message-id={message.id}
-        className={`mb-3 flex items-start gap-2 rounded border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-sm`}
+        className={`mb-3 flex items-start gap-2 rounded-sm border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-xs`}
       >
         <div
           className={`flex-1 ${hasMarkdownTable ? "" : "whitespace-pre-wrap italic"}`}
@@ -265,7 +265,7 @@ function MessageBubbleImpl({
       data-message-id={message.id}
       data-msg-role={message.role}
       data-persona-id={message.personaId ?? undefined}
-      className={`mb-3 rounded border-l-4 px-3 py-2 shadow-sm ${bubbleBg}`}
+      className={`mb-3 rounded-sm border-l-4 px-3 py-2 shadow-xs ${bubbleBg}`}
       style={{ borderLeftColor: color }}
     >
       {/* #265: items-start (was items-center) so the timestamp anchors to
@@ -305,7 +305,7 @@ function MessageBubbleImpl({
           {onEdit ? (
             <button
               onClick={onEdit}
-              className="rounded border border-neutral-300 px-1.5 py-0 text-[10px] font-normal normal-case text-neutral-500 hover:bg-neutral-100"
+              className="rounded-sm border border-neutral-300 px-1.5 py-0 text-[10px] font-normal normal-case text-neutral-500 hover:bg-neutral-100"
               title="Edit this message and regenerate replies"
             >
               edit

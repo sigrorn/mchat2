@@ -210,7 +210,7 @@ export function CreateForm({
         <select
           value={scope}
           onChange={(e) => setScope(e.target.value as "inherit" | "new")}
-          className="w-full rounded border border-neutral-300 px-2 py-1"
+          className="w-full rounded-sm border border-neutral-300 px-2 py-1"
         >
           <option value="inherit">inherit (sees full history)</option>
           <option value="new">new (sees only future messages)</option>

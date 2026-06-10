@@ -451,7 +451,7 @@ function renderItem(
           return (
             <div
               key={personaKey}
-              className="rounded border border-dashed border-neutral-300 px-3 py-2 text-xs italic text-neutral-500"
+              className="rounded-sm border border-dashed border-neutral-300 px-3 py-2 text-xs italic text-neutral-500"
             >
               no reply
             </div>

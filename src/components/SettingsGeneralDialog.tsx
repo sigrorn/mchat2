@@ -109,7 +109,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           <h2 className="text-base font-semibold text-neutral-900">General settings</h2>
           <button
             onClick={onClose}
-            className="rounded px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-100"
+            className="rounded-sm px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-100"
             aria-label="Close"
           >
             ×
@@ -128,7 +128,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           disabled={loading}
           rows={10}
           placeholder="e.g. Be concise. Push back if my premise looks wrong."
-          className="block w-full resize-y rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
+          className="block w-full resize-y rounded-sm border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
         <label className="mt-4 mb-1 block text-xs font-medium text-neutral-700">
           Working directory
@@ -147,7 +147,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           onChange={(e) => setWorkDir(e.target.value)}
           disabled={loading}
           placeholder="e.g. C:\Users\me\Documents\mchat2"
-          className="block w-full rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
+          className="block w-full rounded-sm border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
         <label className="mt-4 mb-1 block text-xs font-medium text-neutral-700">
           Stream idle timeout (seconds)
@@ -163,7 +163,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           value={idleTimeoutSec}
           onChange={(e) => setIdleTimeoutSec(e.target.value)}
           disabled={loading}
-          className="block w-32 rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
+          className="block w-32 rounded-sm border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
         <label className="mt-4 mb-1 block text-xs font-medium text-neutral-700">
           Max retries for transient errors
@@ -179,7 +179,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           value={maxRetries}
           onChange={(e) => setMaxRetries(e.target.value)}
           disabled={loading}
-          className="block w-32 rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
+          className="block w-32 rounded-sm border border-neutral-300 px-2 py-1.5 text-sm font-mono"
         />
         <div className="mt-4 mb-1 flex items-baseline justify-between">
           <label className="block text-xs font-medium text-neutral-700">
@@ -217,7 +217,7 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
             autoComplete="off"
             spellCheck={false}
             placeholder="aa-..."
-            className="block flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm font-mono"
+            className="block flex-1 rounded-sm border border-neutral-300 px-2 py-1.5 text-sm font-mono"
           />
           <OutlineButton onClick={() => setAaReveal((r) => !r)}>
             {aaReveal ? "hide" : "show"}

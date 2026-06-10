@@ -55,7 +55,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): JSX.Elemen
     >
       <div
         ref={panelRef}
-        className="w-[36rem] max-w-full rounded bg-white p-5 shadow-xl"
+        className="w-xl max-w-full rounded-sm bg-white p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-3 text-lg font-semibold">Providers</h2>
@@ -187,7 +187,7 @@ function StandardProvidersTab({ onClose }: { onClose: () => void }): JSX.Element
                     placeholder={`${meta.keychainKey}`}
                     autoComplete="off"
                     spellCheck={false}
-                    className="flex-1 rounded border border-neutral-300 px-2 py-1.5 font-mono text-sm"
+                    className="flex-1 rounded-sm border border-neutral-300 px-2 py-1.5 font-mono text-sm"
                   />
                   <OutlineButton
                     onClick={() => setReveal((r) => ({ ...r, [id]: !shown }))}

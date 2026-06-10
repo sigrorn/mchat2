@@ -25,14 +25,14 @@ export function SidebarFooter(): JSX.Element {
       <OutlineButton
         onClick={() => setGeneralOpen(true)}
         size="md"
-        className="mx-2 mt-2 !text-xs"
+        className="mx-2 mt-2 text-xs!"
       >
         Settings · General
       </OutlineButton>
       <OutlineButton
         onClick={() => setSettingsOpen(true)}
         size="md"
-        className="mx-2 mt-1 !text-xs"
+        className="mx-2 mt-1 text-xs!"
       >
         Settings · Providers
       </OutlineButton>

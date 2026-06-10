@@ -40,12 +40,12 @@ export function DiagramBlock({ kind, source, language }: Props): JSX.Element {
       {svg && !showSource ? (
         <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: svg }} />
       ) : error ? (
-        <pre className="rounded bg-red-50 p-2 text-xs text-red-700">{error}</pre>
+        <pre className="rounded-sm bg-red-50 p-2 text-xs text-red-700">{error}</pre>
       ) : !svg ? (
         <div className="text-xs text-neutral-400">Rendering {language}...</div>
       ) : null}
       {showSource && (
-        <pre className="mt-1 rounded bg-neutral-100 p-2 text-xs">
+        <pre className="mt-1 rounded-sm bg-neutral-100 p-2 text-xs">
           <code>{source}</code>
         </pre>
       )}
