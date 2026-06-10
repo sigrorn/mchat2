@@ -23,8 +23,31 @@ const defaultImpl: ShellImpl = {
 
 let impl: ShellImpl = defaultImpl;
 
+// #307: belt-and-braces scheme check above the Tauri capability layer.
+// The app only ever opens provider/registration https links, so refuse
+// anything that is not http/https before invoking the plugin — a
+// compromised webview must not be able to open() file:// paths or
+// custom-scheme URLs (protocol-handler attacks). The plugin's own
+// `plugins.shell.scope.open` regex enforces the same at the Rust layer.
+function assertWebUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`shell.open: refusing to open non-URL value`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`shell.open: refusing to open ${parsed.protocol} URL — only http/https allowed`);
+  }
+}
+
 export const shell = {
-  open: (url: string) => impl.open(url),
+  // async so a rejected scheme surfaces as a rejected promise (callers
+  // use `.catch()`), never a synchronous throw.
+  open: async (url: string) => {
+    assertWebUrl(url);
+    await impl.open(url);
+  },
 };
 
 export function __setImpl(mock: ShellImpl): void {

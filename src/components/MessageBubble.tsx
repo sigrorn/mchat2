@@ -20,6 +20,7 @@ import { PROVIDER_COLORS } from "@/lib/providers/derived";
 import { formatProviderTag } from "@/lib/providers/headerTag";
 import { renderMessageBody } from "@/lib/rendering/messageBody";
 import { classify } from "@/lib/rendering/codeBlocks";
+import { shell } from "@/lib/tauri/shell";
 import { userNumberByIndex } from "@/lib/conversations/userMessageNumber";
 import { formatUserHeader } from "@/lib/conversations/userHeader";
 import { clearHighlights, highlightMatches } from "@/lib/ui/findHighlight";
@@ -122,6 +123,24 @@ function renderBubbleBody(message: Message, excluded: boolean): JSX.Element {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
+            // #307: open links in the system browser via the scheme-
+            // validated shell shim instead of letting the click navigate
+            // the Tauri webview away from the app. shell.open rejects any
+            // non-http(s) URL (e.g. file://), so those clicks are no-ops.
+            a({ href, children, ...rest }) {
+              return (
+                <a
+                  href={href}
+                  {...rest}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (href) void shell.open(href).catch(() => {});
+                  }}
+                >
+                  {children}
+                </a>
+              );
+            },
             code({ className, children, ...rest }) {
               const lang = className?.replace("language-", "") ?? "";
               const kind = classify(lang);

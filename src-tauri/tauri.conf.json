@@ -38,5 +38,10 @@
         "template": "installer.nsi"
       }
     }
+  },
+  "plugins": {
+    "shell": {
+      "open": "https?://.+"
+    }
   }
 }
