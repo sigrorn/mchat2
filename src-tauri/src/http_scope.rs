@@ -18,6 +18,7 @@ use std::sync::Mutex;
 use serde::Serialize;
 use tauri::ipc::CapabilityBuilder;
 use tauri::{AppHandle, Manager};
+use url::Url;
 
 // Tracks the hosts already granted this process so we never build two
 // capabilities with the same identifier (Tauri requires unique ids) and
@@ -49,11 +50,18 @@ fn capability_id(host: &str) -> String {
 #[tauri::command]
 pub fn register_http_hosts(app: AppHandle, hosts: Vec<String>) -> Result<(), String> {
     let state = app.state::<RegisteredHosts>();
+    // #308: validate each entry, registering the valid ones and
+    // collecting rejects so one bad entry never blocks the rest. A
+    // descriptive error is returned at the end listing what was refused.
+    let mut rejected: Vec<String> = Vec::new();
     for host in hosts {
-        let origin = host.trim_end_matches('/').to_string();
-        if origin.is_empty() {
-            continue;
-        }
+        let origin = match normalize_origin(&host) {
+            Ok(o) => o,
+            Err(e) => {
+                rejected.push(e);
+                continue;
+            }
+        };
         {
             let mut seen = state.0.lock().map_err(|e| e.to_string())?;
             if !seen.insert(origin.clone()) {
@@ -71,6 +79,13 @@ pub fn register_http_hosts(app: AppHandle, hosts: Vec<String>) -> Result<(), Str
         )
         .map_err(|e| e.to_string())?;
     }
+    if !rejected.is_empty() {
+        return Err(format!(
+            "rejected {} host(s): {}",
+            rejected.len(),
+            rejected.join("; ")
+        ));
+    }
     Ok(())
 }
 
@@ -78,10 +93,27 @@ pub fn register_http_hosts(app: AppHandle, hosts: Vec<String>) -> Result<(), Str
 // "scheme://host[:port]". A compromised webview can invoke this command
 // directly, so the Rust side must not trust the frontend's URL parsing:
 // reject anything that is not http/https, has no host, or carries a
-// path/query/fragment beyond "/".
-// TODO(#308): real implementation in the next commit.
+// path/query/fragment beyond "/". Normalizing here (rather than echoing
+// the input) means the granted capability scope is always a clean origin.
 fn normalize_origin(input: &str) -> Result<String, String> {
-    Ok(input.to_string())
+    let parsed = Url::parse(input.trim()).map_err(|e| format!("{input:?}: {e}"))?;
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!("{input:?}: scheme {scheme:?} not allowed (http/https only)"));
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| format!("{input:?}: missing host"))?;
+    if parsed.path() != "/" && !parsed.path().is_empty() {
+        return Err(format!("{input:?}: path not allowed in an origin"));
+    }
+    if parsed.query().is_some() || parsed.fragment().is_some() {
+        return Err(format!("{input:?}: query/fragment not allowed in an origin"));
+    }
+    Ok(match parsed.port() {
+        Some(port) => format!("{scheme}://{host}:{port}"),
+        None => format!("{scheme}://{host}"),
+    })
 }
 
 #[cfg(test)]

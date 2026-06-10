@@ -81,6 +81,15 @@ pub async fn keychain_remove(key: String) -> Result<(), String> {
     Ok(())
 }
 
+// #308: keychain_list stays (not deleted). It returns only the keys
+// mchat2 itself wrote under the "mchat2" service, tracked in the
+// __index__ entry by set/remove — never the wider OS keychain. It is
+// genuinely needed for *dynamic* enumeration the TS layer cannot derive
+// statically: openai_compat custom presets store keys under arbitrary
+// sub-keys ("<base>.<presetId>"), and ProviderSpendTable / the HTML
+// export redaction path must discover which exist. Since the provider
+// set is otherwise static, the residual XSS amplification is limited to
+// those user-created preset keys, which the index already scopes.
 #[tauri::command]
 pub async fn keychain_list() -> Result<Vec<String>, String> {
     Ok(load_index())
