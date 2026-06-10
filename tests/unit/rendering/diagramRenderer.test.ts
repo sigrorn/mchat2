@@ -1,4 +1,7 @@
 // #45 — Wire mermaid + viz fenced-code rendering.
+// @vitest-environment jsdom
+// #320: sanitizeSvg now uses plain dompurify, which needs a DOM/window;
+// the rest of the suite runs in the node env, so this file opts into jsdom.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

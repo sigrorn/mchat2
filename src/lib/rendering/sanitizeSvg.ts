@@ -9,7 +9,11 @@
 //                components/DiagramBlock.tsx (eventual injection site).
 // ------------------------------------------------------------------
 
-import DOMPurify from "isomorphic-dompurify";
+// #320: plain dompurify (not isomorphic-dompurify) — this code only ever
+// runs in the Tauri webview, where window/DOM exist, so the isomorphic
+// SSR wrapper served no purpose. Unit tests that exercise this set the
+// jsdom environment so DOMPurify has a window to bind to.
+import DOMPurify from "dompurify";
 
 export function sanitizeSvg(svg: string): string {
   return DOMPurify.sanitize(svg, {
