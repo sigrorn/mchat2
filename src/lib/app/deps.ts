@@ -100,6 +100,15 @@ export interface ConversationsWriteDeps {
     conversationId: string,
     matrix: Record<string, string[]>,
   ) => Promise<void>;
+  // #279/#313: cache-only refresh of the in-memory visibilityMatrix —
+  // NO disk write. Use this when the matrix has already been persisted
+  // (e.g. rebuildVisibilityFromPersonaDefaults) and you only need the
+  // store snapshot to re-render, avoiding the dual-write that
+  // setVisibilityMatrix would issue.
+  applyVisibilityMatrixCache: (
+    conversationId: string,
+    matrix: Record<string, string[]>,
+  ) => void;
   setVisibilityPreset: (
     conversationId: string,
     mode: "separated" | "joined",
@@ -279,7 +288,11 @@ export type CommandDeps = MessagesReadDeps &
   // stay until #283 widens the cleanup to other narrow setters.
   Pick<
     ConversationsWriteDeps,
-    "setDisplayMode" | "setVisibilityMatrix" | "setVisibilityPreset" | "setAutocompact"
+    | "setDisplayMode"
+    | "setVisibilityMatrix"
+    | "applyVisibilityMatrixCache"
+    | "setVisibilityPreset"
+    | "setAutocompact"
   > &
   // #264: //activeprompts reads the global system prompt to render the
   // top layer of the per-persona composition stack. Reuses the same

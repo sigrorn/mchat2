@@ -72,6 +72,8 @@ export function makeCommandDeps(): CommandDeps {
       useConversationsStore.getState().setDisplayMode(conversationId, mode),
     setVisibilityMatrix: (conversationId, matrix) =>
       useConversationsStore.getState().setVisibilityMatrix(conversationId, matrix),
+    applyVisibilityMatrixCache: (conversationId, matrix) =>
+      useConversationsStore.getState().applyVisibilityMatrixCache(conversationId, matrix),
     setVisibilityPreset: (conversationId, mode, personaIds) =>
       useConversationsStore.getState().setVisibilityPreset(conversationId, mode, [...personaIds]),
     setAutocompact: (conversationId, threshold) =>

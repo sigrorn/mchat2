@@ -38,13 +38,14 @@ export async function handleVisibilityDefault(
   ctx: CommandContext,
 ): Promise<CommandResult | void> {
   const { conversation } = ctx;
-  // #202: persona_visibility is the source of truth. Rebuild it
-  // from current per-persona defaults and update the in-memory store
-  // snapshot via setVisibilityMatrix so the UI re-renders without an
-  // extra refetch. The store call also dual-writes the legacy JSON
-  // column on the conversation row.
+  // #202/#313: persona_visibility is the source of truth. Rebuild it from
+  // current per-persona defaults — that call already persists the table
+  // AND dual-writes the legacy JSON column. So refresh the in-memory store
+  // snapshot with the cache-only setter; calling setVisibilityMatrix here
+  // would re-run updateConversation and write the matrix a second time
+  // (DELETE+INSERT on three junction tables to flip one field).
   const matrix = await rebuildVisibilityFromPersonaDefaults(conversation.id);
-  await ctx.deps.setVisibilityMatrix(conversation.id, matrix);
+  ctx.deps.applyVisibilityMatrixCache(conversation.id, matrix);
   await ctx.deps.appendNotice(conversation.id, "visibility: reset to persona defaults.");
 }
 
