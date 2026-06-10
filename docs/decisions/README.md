@@ -55,6 +55,11 @@ often in code review and in [ARCHITECTURE.md](../ARCHITECTURE.md):
 - **[014 — Artificial Analysis model hint](014-artificial-analysis-model-hint.md).**
   Why the model-quality score is user-keyed, silent without a key,
   uses the non-reasoning variant, and isn't a registry provider.
+- **[016 — UI state vs persistent state](016-ui-state-vs-persistent-state.md).**
+  Why repo-loaded entities live only in the useRepoQuery cache and
+  Zustand holds UI-only state; the per-store inventory and remaining
+  cleanup phases (#318). (015 reserved for the #296 transaction-model
+  decision.)
 
 ## Filing a new ADR
 
