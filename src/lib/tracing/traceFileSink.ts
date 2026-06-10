@@ -10,9 +10,13 @@
 import { fs } from "../tauri/filesystem";
 import type { TraceSink } from "../orchestration/streamRunner";
 import { buildTraceFilename } from "./traceFilename";
+import { resolveTraceBaseDir } from "./traceBaseDir";
 
 export interface TraceFileSinkOptions {
-  workingDir: string;
+  // null/undefined = no explicit working dir → fall back to app-data
+  // dir (#305). Resolved lazily on first write so the Tauri path call
+  // never happens for sessions that produce no trace rows.
+  workingDir: string | null;
   sessionTimestamp: string;
   conversationId: string;
   slug: string;
@@ -20,23 +24,25 @@ export interface TraceFileSinkOptions {
 
 export function makeTraceFileSink(opts: TraceFileSinkOptions): TraceSink {
   const filename = buildTraceFilename(opts.sessionTimestamp, opts.conversationId, opts.slug);
-  const debugDir = `${opts.workingDir}/debug`;
-  const path = `${debugDir}/${filename}`;
-  let dirEnsured = false;
-  const ensureDir = async (): Promise<void> => {
-    if (dirEnsured) return;
+  let ready: { path: string } | null = null;
+  // Resolve the base dir + mkdir exactly once, on the first row written.
+  const ensureReady = async (): Promise<{ path: string }> => {
+    if (ready) return ready;
+    const base = await resolveTraceBaseDir(opts.workingDir);
+    const debugDir = `${base}/debug`;
     await fs.mkdir(debugDir);
-    dirEnsured = true;
+    ready = { path: `${debugDir}/${filename}` };
+    return ready;
   };
   return {
     async outbound(rows) {
       if (rows.length === 0) return;
-      await ensureDir();
+      const { path } = await ensureReady();
       await fs.appendText(path, rows.join("\n") + "\n");
     },
     async inbound(rows) {
       if (rows.length === 0) return;
-      await ensureDir();
+      const { path } = await ensureReady();
       await fs.appendText(path, rows.join("\n") + "\n");
     },
   };

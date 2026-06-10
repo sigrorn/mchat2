@@ -175,7 +175,9 @@ export interface MessagesRepoWriteDeps {
 
 export interface TracingDeps {
   makeTraceSink: (args: {
-    workingDir: string;
+    // null = no explicit working dir; the sink falls back to the
+    // app-data dir (#305).
+    workingDir: string | null;
     sessionTimestamp: string;
     conversationId: string;
     slug: string;

@@ -68,25 +68,19 @@ function StreamToggle(): JSX.Element {
 }
 
 function DebugToggle(): JSX.Element {
-  const workingDir = useUiStore((s) => s.workingDir);
   const debug = useUiStore((s) => s.debugSession);
   const toggle = useUiStore((s) => s.toggleDebug);
-  const disabled = !workingDir;
-  const label = disabled
-    ? "Debug · (set working directory first)"
-    : debug.enabled
-      ? `Debug · ON (${debug.sessionTimestamp})`
-      : "Debug · OFF";
+  // #305: tracing no longer requires a working dir — traces default to
+  // the app-data dir. The toggle is always available.
+  const label = debug.enabled ? `Debug · ON (${debug.sessionTimestamp})` : "Debug · OFF";
   return (
     <button
       onClick={toggle}
-      disabled={disabled}
+      title="Writes full prompts and responses (plaintext) to debug/ under your working directory, or the app-data directory if none is set."
       className={`mx-2 mb-2 mt-1 rounded border px-3 py-1.5 text-xs ${
         debug.enabled
           ? "border-green-600 text-green-700 hover:bg-green-50"
-          : disabled
-            ? "border-neutral-200 text-neutral-400"
-            : "border-neutral-300 text-neutral-700 hover:bg-neutral-100"
+          : "border-neutral-300 text-neutral-700 hover:bg-neutral-100"
       }`}
     >
       {label}

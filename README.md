@@ -78,6 +78,20 @@ docs/             Architecture, contributing, troubleshooting, recipes, ADRs
 A deeper map of `src/lib/` and the why-it's-shaped-this-way explanation lives
 in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Trace files
+
+The **Debug** toggle (sidebar footer) records the full prompt/response
+stream for each persona to disk, for inspecting exactly what was sent to
+and received from each provider.
+
+- **Location:** `debug/` under your configured working directory
+  (Settings → General → Working directory). If no working directory is
+  set, traces go to `debug/` under the OS app-data directory.
+- **Contents:** full conversation content — prompts *and* responses — in
+  **plaintext**. Treat these files as sensitive.
+- **Disable:** they are written only while Debug is ON; toggle it off (or
+  never on) to stop. Delete the `debug/` folder to remove existing traces.
+
 ## Documentation
 
 Read in this order on first contact:

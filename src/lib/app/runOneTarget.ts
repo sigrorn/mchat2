@@ -104,8 +104,11 @@ export async function runOneTarget(
   const debugSession = deps.getDebugSession();
   const workingDir = deps.getWorkingDir();
   const slug = persona?.nameSlug ?? target.key;
+  // #305: tracing no longer requires an explicit working dir — when
+  // none is set the sink defaults to the app-data dir, so a fresh
+  // profile can trace without home-wide fs access.
   const traceSink =
-    debugSession.enabled && debugSession.sessionTimestamp && workingDir
+    debugSession.enabled && debugSession.sessionTimestamp
       ? deps.makeTraceSink({
           workingDir,
           sessionTimestamp: debugSession.sessionTimestamp,

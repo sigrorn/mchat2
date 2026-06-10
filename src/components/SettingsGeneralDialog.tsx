@@ -134,8 +134,13 @@ export function SettingsGeneralDialog({ onClose }: { onClose: () => void }): JSX
           Working directory
         </label>
         <p className="mb-2 text-xs text-neutral-500">
-          Default location for import/export and debug trace files. Required before the Debug toggle
-          is available.
+          Default location for import/export and debug trace files. Leave empty to use the
+          app-data directory.
+        </p>
+        <p className="mb-2 text-xs text-amber-700">
+          ⚠ When Debug is on, trace files contain full conversation content — prompts and
+          responses — in <span className="font-medium">plaintext</span>, under{" "}
+          <span className="font-mono">debug/</span> in this directory.
         </p>
         <input
           value={workDir}
