@@ -5,6 +5,7 @@ import {
   parseIssueNumber,
   computeNextVersion,
   formatVersion,
+  parseVersion,
   updateCargoLockMchat2Version,
 } from "../../../scripts/bumpLogic.mjs";
 
@@ -98,6 +99,37 @@ describe("formatVersion", () => {
 
   it("handles zero components", () => {
     expect(formatVersion({ major: 0, minor: 0, build: 1 })).toBe("0.0.1");
+  });
+});
+
+describe("parseVersion (#317)", () => {
+  it("parses a semver string into the counter triple", () => {
+    expect(parseVersion("2.99.1")).toEqual({ major: 2, minor: 99, build: 1 });
+  });
+
+  it("round-trips with formatVersion", () => {
+    const v = { major: 3, minor: 7, build: 42 };
+    expect(parseVersion(formatVersion(v))).toEqual(v);
+  });
+
+  it("ignores any pre-release/build suffix beyond the triple", () => {
+    expect(parseVersion("2.99.1-rc.2")).toEqual({ major: 2, minor: 99, build: 1 });
+  });
+
+  it("falls back to 0.0.0 on a malformed string", () => {
+    expect(parseVersion("not-a-version")).toEqual({ major: 0, minor: 0, build: 0 });
+    expect(parseVersion("")).toEqual({ major: 0, minor: 0, build: 0 });
+  });
+
+  it("feeds computeNextVersion: same issue bumps build (the counter source)", () => {
+    // package.json '2.99.1' + a commit for #299 → 2.99.2 (never backwards).
+    const next = computeNextVersion(parseVersion("2.99.1"), 299);
+    expect(formatVersion(next)).toBe("2.99.2");
+  });
+
+  it("feeds computeNextVersion: issue >= 300 advances to 3.x with build=1", () => {
+    const next = computeNextVersion(parseVersion("2.99.1"), 317);
+    expect(formatVersion(next)).toBe("3.17.1");
   });
 });
 
