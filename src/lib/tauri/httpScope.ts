@@ -14,6 +14,7 @@
 
 import { BUILTIN_OPENAI_COMPAT_PRESETS } from "../providers/openaiCompatPresets";
 import { loadOpenAICompatConfig } from "../providers/openaiCompatStorage";
+import { backgroundTask } from "../observability/backgroundTask";
 
 export interface HttpScopeImpl {
   registerHosts(hosts: string[]): Promise<void>;
@@ -32,6 +33,28 @@ let impl: HttpScopeImpl = defaultImpl;
 export const httpScope = {
   registerHosts: (hosts: string[]) => impl.registerHosts(hosts),
 };
+
+// #316: register a single host best-effort. Failures used to be
+// swallowed by a bare `.catch(() => {})` at the call site, so a custom
+// provider would later fail with an opaque scope error far from the
+// cause. Route through backgroundTask (structured log) and, when an
+// onError callback is supplied (the settings dialog), surface an inline
+// warning the user can act on immediately.
+export function registerHostBestEffort(
+  origin: string,
+  onError?: (message: string) => void,
+): void {
+  backgroundTask("httpScope.registerHosts", async () => {
+    try {
+      await impl.registerHosts([origin]);
+    } catch (e) {
+      onError?.(
+        `Could not register host ${origin} — provider calls may be blocked until restart.`,
+      );
+      throw e;
+    }
+  });
+}
 
 export function __setImpl(mock: HttpScopeImpl): void {
   impl = mock;

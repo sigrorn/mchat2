@@ -188,6 +188,9 @@ export async function* readSSEFramesWithIdleTimeout(
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
+        // Best-effort cleanup: cancel() can reject if the reader is
+        // already closed/errored; we're aborting anyway, so a failure to
+        // cancel is irrelevant. Silent by design.
         void reader.cancel().catch(() => {});
         reject(new HttpError(408, `stream idle timeout (${idleTimeoutMs}ms with no bytes)`));
       }, idleTimeoutMs);

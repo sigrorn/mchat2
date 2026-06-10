@@ -31,7 +31,7 @@ import {
   type PresetRef,
 } from "@/lib/providers/openaiCompatStorage";
 import { formatHostingTag } from "@/lib/providers/derived";
-import { httpScope, originOf } from "@/lib/tauri/httpScope";
+import { originOf, registerHostBestEffort } from "@/lib/tauri/httpScope";
 import { shell } from "@/lib/tauri/shell";
 import { OutlineButton, PrimaryButton, DangerButton } from "@/components/ui/Button";
 import type {
@@ -79,6 +79,9 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
   const [selected, setSelected] = useState<ComboEntry | null>(null);
   const [draft, setDraft] = useState<FormDraft>(EMPTY_DRAFT);
   const [error, setError] = useState<string | null>(null);
+  // #316: non-blocking warning when best-effort host registration fails
+  // (save already succeeded; the host scope just didn't take this session).
+  const [registerWarning, setRegisterWarning] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   // The custom entry's name at the time it was last selected — kept
@@ -204,8 +207,11 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
         }
         // #297: grant the http scope for this custom host so its
         // /models + chat calls work immediately, without an app restart.
+        // #316: best-effort — failures log via backgroundTask and surface
+        // an inline warning instead of being swallowed.
+        setRegisterWarning(null);
         const origin = originOf(draft.baseUrl.trim());
-        if (origin) void httpScope.registerHosts([origin]).catch(() => {});
+        if (origin) registerHostBestEffort(origin, setRegisterWarning);
         // Refresh local state and reselect the (possibly new-named) entry.
         const cfg = await loadOpenAICompatConfig();
         setCustoms(cfg.customs);
@@ -357,6 +363,9 @@ export function SettingsOpenaiCompatTab({ onClose }: { onClose: () => void }): J
       ) : null}
 
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
+      {registerWarning ? (
+        <div className="text-xs text-amber-700">{registerWarning}</div>
+      ) : null}
       {savedAt ? (
         <div className="text-xs text-green-700">
           Saved at {new Date(savedAt).toLocaleTimeString()}.

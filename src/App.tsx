@@ -52,6 +52,11 @@ function bootOnce(): Promise<void> {
         // Best-effort: built-in presets still reach their endpoints via
         // the static allowlist even if dynamic registration fails.
       }
+      // Best-effort startup warm of the persisted model caches (#297).
+      // warmModelCaches already swallows per-provider errors and never
+      // throws; this outer catch only guards the dynamic import itself.
+      // Silent by design — a failed warm just means the next picker open
+      // fetches live; nothing is lost.
       void import("@/lib/providers/modelWarm")
         .then((m) => m.warmModelCaches())
         .catch(() => {});

@@ -13,6 +13,7 @@ import { PRICING } from "../pricing/table";
 import { request, HttpError } from "../tauri/http";
 import { getSetting, setSetting } from "../persistence/settings";
 import { resolveOpenAICompatPreset } from "./openaiCompatResolver";
+import { backgroundTask } from "../observability/backgroundTask";
 
 export interface ModelInfo {
   id: string;
@@ -265,7 +266,12 @@ export async function listModelInfos(
   const persisted = await loadPersistedModels(cacheKey);
   if (persisted) {
     if (canFetch) {
-      void refreshModelInfos(provider, apiKey, extra, cacheKey).catch(() => {});
+      // #316: route the background revalidate through backgroundTask so a
+      // refresh failure (the user would otherwise keep seeing a stale list
+      // with no signal) lands in the structured log instead of vanishing.
+      backgroundTask(`models.revalidate:${provider}`, () =>
+        refreshModelInfos(provider, apiKey, extra, cacheKey),
+      );
     }
     return persisted;
   }
