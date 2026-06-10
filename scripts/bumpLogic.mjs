@@ -42,6 +42,19 @@ export function formatVersion(v) {
   return `${v.major}.${v.minor}.${v.build}`;
 }
 
+// Parse a semver string (MAJOR.MINOR.BUILD) back into the counter
+// record. #317: package.json's version is the single source of truth for
+// the build counter -- it already encodes the identical triple -- so the
+// bump script derives state from it instead of a separate, git-tracked
+// .build-counter.json that guaranteed merge conflicts. Any pre-release
+// suffix beyond the triple is ignored; a malformed string falls back to
+// 0.0.0 (the bump then advances normally).
+export function parseVersion(versionString) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(versionString).trim());
+  if (!m) return { major: 0, minor: 0, build: 0 };
+  return { major: Number(m[1]), minor: Number(m[2]), build: Number(m[3]) };
+}
+
 // Cargo rewrites the [[package]] name = "mchat2" / version = "..."
 // pair on every build, so the bump script must pre-update it to keep
 // the working tree clean (#207). This is a pure helper so the test

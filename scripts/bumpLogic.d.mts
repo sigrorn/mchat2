@@ -15,4 +15,5 @@ export function computeNextVersion(
   issueNumber: number,
 ): Version;
 export function formatVersion(v: Version): string;
+export function parseVersion(versionString: string): Version;
 export function updateCargoLockMchat2Version(raw: string, newVersion: string): string;
