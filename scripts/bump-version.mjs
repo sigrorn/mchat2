@@ -7,15 +7,17 @@
 // Behavior:
 //   - If the message is a test commit ("tests:" prefix): no-op.
 //   - Else parses the first #NNN from the message; aborts if missing.
-//   - Loads .build-counter.json (initialises to 0.0.0 if missing).
+//   - Reads the current counter from package.json's `version` field
+//     (#317 — the single source of truth; the formerly git-tracked
+//     .build-counter.json was redundant and caused merge conflicts).
 //   - Computes the next version per the never-go-backwards rule.
 //   - Writes the new version into package.json, tauri.conf.json,
 //     Cargo.toml, and Cargo.lock (the [[package]] mchat2 entry —
 //     #207, otherwise cargo rewrites it on next build and dirties
-//     the working tree), and updates .build-counter.json.
-//   - Stages all five files with `git add`.
+//     the working tree).
+//   - Stages all four files with `git add`.
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execSync } from "node:child_process";
 import {
@@ -23,23 +25,22 @@ import {
   parseIssueNumber,
   computeNextVersion,
   formatVersion,
+  parseVersion,
   updateCargoLockMchat2Version,
 } from "./bumpLogic.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const COUNTER = resolve(ROOT, ".build-counter.json");
 const PKG = resolve(ROOT, "package.json");
 const TAURI_CONF = resolve(ROOT, "src-tauri", "tauri.conf.json");
 const CARGO_TOML = resolve(ROOT, "src-tauri", "Cargo.toml");
 const CARGO_LOCK = resolve(ROOT, "src-tauri", "Cargo.lock");
 
+// #317: the build counter is derived from package.json's version, which
+// the bump script already keeps authoritative. parseVersion tolerates a
+// missing/garbage field by falling back to 0.0.0.
 function readCounter() {
-  if (!existsSync(COUNTER)) return { major: 0, minor: 0, build: 0 };
-  return JSON.parse(readFileSync(COUNTER, "utf8"));
-}
-
-function writeCounter(v) {
-  writeFileSync(COUNTER, JSON.stringify(v, null, 2) + "\n", "utf8");
+  const pkg = JSON.parse(readFileSync(PKG, "utf8"));
+  return parseVersion(pkg.version ?? "");
 }
 
 function setJsonVersion(path, newVersion) {
@@ -103,14 +104,13 @@ function main() {
   const current = readCounter();
   const next = computeNextVersion(current, issue);
   const versionStr = formatVersion(next);
-  writeCounter(next);
   setJsonVersion(PKG, versionStr);
   setJsonVersion(TAURI_CONF, versionStr);
   setTomlVersion(CARGO_TOML, versionStr);
   setCargoLockVersion(CARGO_LOCK, versionStr);
   try {
     execSync(
-      `git add "${COUNTER}" "${PKG}" "${TAURI_CONF}" "${CARGO_TOML}" "${CARGO_LOCK}"`,
+      `git add "${PKG}" "${TAURI_CONF}" "${CARGO_TOML}" "${CARGO_LOCK}"`,
       { stdio: "inherit" },
     );
   } catch {

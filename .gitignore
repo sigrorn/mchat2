@@ -15,6 +15,10 @@ build/
 # would shadow the .ts. Vite/Vitest/Playwright load .ts natively.
 .tsbuild-node/
 
+# #317: the build counter now lives in package.json's version field.
+# Ignored defensively in case an old bump-script version regenerates it.
+/.build-counter.json
+
 # Tauri / Rust
 src-tauri/target/
 src-tauri/Cargo.lock.bak
