@@ -11,6 +11,8 @@ import { useConversationsStore } from "@/stores/conversationsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { nextScale } from "@/lib/ui/fontScale";
 import { lifecycle } from "@/lib/tauri/lifecycle";
+import { gatherProviderHosts, httpScope } from "@/lib/tauri/httpScope";
+import { warmBenchmarks } from "@/lib/providers/benchmarks";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 
@@ -45,7 +47,6 @@ function bootOnce(): Promise<void> {
       // warm the persisted model cache in the background so the persona
       // model picker populates instantly on next open. See ADR 012/013.
       try {
-        const { gatherProviderHosts, httpScope } = await import("@/lib/tauri/httpScope");
         await httpScope.registerHosts(await gatherProviderHosts());
       } catch {
         // Best-effort: built-in presets still reach their endpoints via
@@ -56,9 +57,7 @@ function bootOnce(): Promise<void> {
         .catch(() => {});
       // #299: warm the Artificial Analysis benchmark cache (silent + a
       // no-op when no AA key is configured).
-      void import("@/lib/providers/benchmarks")
-        .then((m) => m.warmBenchmarks())
-        .catch(() => {});
+      void warmBenchmarks().catch(() => {});
     })();
   }
   return bootCache;
