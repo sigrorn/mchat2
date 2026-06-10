@@ -34,6 +34,32 @@ describe("HttpError (#205 follow-up)", () => {
   });
 });
 
+describe("HttpError body sanitization (#311)", () => {
+  it("truncates an oversized provider error body with a marker", () => {
+    const big = "x".repeat(10_000);
+    const err = new HttpError(500, big);
+    // Bounded well below the raw 10 KB, but a generous excerpt is kept
+    // (#205: the param-name/allowed-values detail must survive).
+    expect(err.body.length).toBeLessThan(2_000);
+    expect(err.body).toMatch(/truncated/i);
+    expect(err.body.startsWith("xxxxxxxxxx")).toBe(true);
+    expect(err.message).toMatch(/truncated/i);
+  });
+
+  it("redacts Bearer-token secrets in both .body and .message", () => {
+    const secret = "Bearer abcdefghijklmnopqrstuvwxyz0123";
+    const err = new HttpError(401, `auth rejected: ${secret}`);
+    expect(err.body).not.toContain("abcdefghijklmnopqrstuvwxyz0123");
+    expect(err.body).toContain("[REDACTED]");
+    expect(err.message).not.toContain("abcdefghijklmnopqrstuvwxyz0123");
+  });
+
+  it("leaves a short, secret-free body intact", () => {
+    const err = new HttpError(400, "model not found");
+    expect(err.body).toBe("model not found");
+  });
+});
+
 describe("parseSSEFrame", () => {
   it("parses data-only frame as message event", () => {
     expect(__test.parseSSEFrame("data: hello")).toEqual({ event: "message", data: "hello" });
