@@ -56,7 +56,6 @@
       "Bash(sudo rm:*)",
       "Bash(mkfs:*)",
       "Bash(dd if=*of=/dev/*)",
-      "Bash(:(){ :|:& };:)",
       "Bash(shutdown:*)",
       "Bash(reboot:*)",
       "Bash(halt:*)",
